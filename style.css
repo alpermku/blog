@@ -1,4 +1,4 @@
-/* ... (previous styles remain same) ... */
+/* ... (previous styles) ... */
 :root {
     --bg-color: #f4f1ea;
     --text-color: #2c2c2c;
@@ -6,20 +6,7 @@
     --font-main: 'Courier New', Courier, monospace;
 }
 /* ... header, body etc ... */
-/* Yeni eklenen stiller */
-.lang-divider {
-    border: 0;
-    height: 1px;
-    background-image: linear-gradient(to right, rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0));
-    margin: 1.5rem 0;
-}
-.content-tr {
-    font-size: 0.95em;
-    color: #555;
-    font-style: italic;
-}
-/* ... footer ... */
-/* Full CSS content needs to be written, recreating previous style.css content plus updates */
+
 body {
     background-color: var(--bg-color);
     color: var(--text-color);
@@ -83,6 +70,17 @@ h2 {
     margin-top: 0;
     color: var(--accent-color);
 }
+.lang-divider {
+    border: 0;
+    height: 1px;
+    background-image: linear-gradient(to right, rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0));
+    margin: 1.5rem 0;
+}
+.content-tr {
+    font-size: 0.95em;
+    color: #555;
+    font-style: italic;
+}
 footer {
     text-align: center;
     font-size: 0.8rem;
@@ -90,4 +88,30 @@ footer {
     color: #888;
     border-top: 1px solid #ccc;
     padding-top: 1rem;
+}
+
+/* TTS Button Styles */
+.tts-btn {
+    background: none;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 5px 10px;
+    cursor: pointer;
+    font-family: var(--font-main);
+    font-size: 0.8rem;
+    color: var(--accent-color);
+    margin-bottom: 10px;
+    transition: all 0.3s ease;
+    display: inline-block;
+}
+
+.tts-btn:hover {
+    background-color: var(--bg-color);
+    border-color: var(--accent-color);
+}
+
+.tts-btn.playing {
+    background-color: var(--accent-color);
+    color: #fff;
+    border-color: var(--accent-color);
 }
