@@ -48,10 +48,13 @@ nav a {
     text-decoration: none;
     font-weight: bold;
     margin: 0 10px;
+    opacity: 0.6; /* Varsayılan olarak biraz soluk */
+    transition: opacity 0.3s;
 }
-nav a:hover {
+nav a:hover, nav a.active { /* Hover veya aktif sayfa */
     color: var(--accent-color);
     text-decoration: underline;
+    opacity: 1;
 }
 article.post {
     background: #fff;
