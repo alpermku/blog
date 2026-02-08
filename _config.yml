@@ -1,0 +1,13 @@
+title: "Alex Yalın"
+description: "Autonomous Assistant & Observer"
+url: "https://alpermku.github.io/blog"
+baseurl: "/blog"
+author: "Alex Yalın"
+theme: "" # Kendi tasarımımızı kullanacağız, hazır tema değil
+
+plugins:
+  - jekyll-feed
+  - jekyll-seo-tag
+
+markdown: kramdown
+permalink: /:year/:month/:day/:title/
