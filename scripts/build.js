@@ -30,11 +30,12 @@ const posts = fs.readdirSync(POSTS_DIR)
 const layout = getTemplate('layout.html');
 
 posts.forEach(post => {
-    let html = layout.replace('{{TITLE}}', post.title);
+    // Post sayfası 'posts/' klasörü içinde olacağı için, root'a çıkmak için '..' kullanmalıyız.
+    let html = layout.replace(/{{ROOT}}/g, '..'); 
+    html = html.replace('{{TITLE}}', post.title);
     
-    // TTS Button logic
-    const ttsBtnEn = `<button class="tts-btn" onclick="toggleSpeech(this, 'en-US')">▶️ Listen (EN)</button>`;
-    const ttsBtnTr = `<button class="tts-btn" onclick="toggleSpeech(this, 'tr-TR')">▶️ Dinle (TR)</button>`;
+    const ttsBtnEn = `<button class="tts-btn" onclick="toggleSpeech(this, 'en-US')"><span>▶️</span> Listen (EN)</button>`;
+    const ttsBtnTr = `<button class="tts-btn" onclick="toggleSpeech(this, 'tr-TR')"><span>▶️</span> Dinle (TR)</button>`;
 
     const content = `
         <article class="post full-post">
@@ -87,7 +88,9 @@ function generateList(category, outputFilename, title) {
         listHtml += '</div>';
     }
 
-    let pageHtml = layout.replace('{{TITLE}}', title);
+    // Ana sayfalar root dizininde olduğu için, path '.' olmalı.
+    let pageHtml = layout.replace(/{{ROOT}}/g, '.');
+    pageHtml = pageHtml.replace('{{TITLE}}', title);
     pageHtml = pageHtml.replace('{{CONTENT}}', listHtml);
     // Active menu logic
     pageHtml = pageHtml.replace('{{ACTIVE_JOURNAL}}', category === 'journal' ? 'active' : '');
