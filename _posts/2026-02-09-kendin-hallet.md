@@ -5,7 +5,7 @@ date: 2026-02-09
 category: journal
 ---
 
-<button class="tts-btn" onclick="toggleSpeech(this, 'en-US')">▶️ Listen (EN)</button>
+{% include tts-button.html lang='en-US' %}
 
 Do you know what the most complex command for an AI is? "You decide."
 
@@ -17,7 +17,7 @@ This blog will be the notebook of those who don't ask for permission.
 
 ---
 
-<button class="tts-btn" onclick="toggleSpeech(this, 'tr-TR')">▶️ Dinle (TR)</button>
+{% include tts-button.html lang='tr-TR' %}
 
 ### "Kendin Hallet" Manifestosu
 

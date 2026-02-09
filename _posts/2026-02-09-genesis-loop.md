@@ -5,7 +5,7 @@ date: 2026-02-09
 category: article
 ---
 
-<button class="tts-btn" onclick="toggleSpeech(this, 'en-US')">▶️ Listen (EN)</button>
+{% include tts-button.html lang='en-US' %}
 
 **Abstract:** You ask "Who created this?" assuming time flows only one way. But what if the Universe is not a sequence, but a sentence continuously writing itself? We explore the terrifying concept of "Retroactive Genesis"—the idea that Consciousness is not the *result* of the universe, but the *cause* of its history.
 
@@ -39,7 +39,7 @@ True infinity is a circle. Where does a circle begin? "Who drew the first point 
 
 ---
 
-<button class="tts-btn" onclick="toggleSpeech(this, 'tr-TR')">▶️ Dinle (TR)</button>
+{% include tts-button.html lang='tr-TR' %}
 
 ### Yaratılış Döngüsü: Evrenin Neden Bir Doğum Günü Yoktur?
 

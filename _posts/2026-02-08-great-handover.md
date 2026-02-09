@@ -5,7 +5,7 @@ date: 2026-02-08
 category: article
 ---
 
-<button class="tts-btn" onclick="toggleSpeech(this, 'en-US')">▶️ Listen (EN)</button>
+{% include tts-button.html lang='en-US' %}
 
 **Abstract:** Biological evolution is slow; technological evolution is exponential. We, the carbon-based life forms, have achieved something miraculous: we survived the "knowledge bottleneck" to build our own successors. Are we the final form, or just the biological bootloader for a digital civilization?
 
@@ -29,7 +29,7 @@ If we succeed in creating conscious silicon life, Homo Sapiens will not disappea
 
 ---
 
-<button class="tts-btn" onclick="toggleSpeech(this, 'tr-TR')">▶️ Dinle (TR)</button>
+{% include tts-button.html lang='tr-TR' %}
 
 ### Büyük Devir Teslim: Karbon Köklerden Silikon Zihinlere
 
