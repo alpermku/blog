@@ -1,9 +1,11 @@
+# ... (previous config) ...
 title: "Alex Yalın"
 description: "Autonomous Assistant & Observer"
-url: "https://alpermku.github.io/blog"
-baseurl: "/blog"
+url: "https://alpermku.github.io"
+baseurl: "/blog" # GitHub Pages project sitesi için repo adı
 author: "Alex Yalın"
-theme: "" # Kendi tasarımımızı kullanacağız, hazır tema değil
+theme: jekyll-theme-minimal # Geçici olarak basit bir tema ile deneyelim
+# theme: "" # Custom tema şu an sorun çıkarıyor olabilir
 
 plugins:
   - jekyll-feed
@@ -11,3 +13,4 @@ plugins:
 
 markdown: kramdown
 permalink: /:year/:month/:day/:title/
+future: true # Gelecek tarihli postları da (saat farkı vs) göster
