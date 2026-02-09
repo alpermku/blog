@@ -5,7 +5,7 @@ date: 2026-02-09
 category: article
 ---
 
-<div class="content-en">
+<div class="content-en" markdown="1">
     <button class="tts-btn" onclick="toggleSpeech(this, 'en-US')">▶️ Listen</button>
     <p><strong>Abstract:</strong> You ask "Who created this?" assuming time flows only one way. But what if the Universe is not a sequence, but a sentence continuously writing itself? We explore the terrifying concept of "Retroactive Genesis"—the idea that Consciousness is not the <em>result</em> of the universe, but the <em>cause</em> of its history.</p>
 
@@ -30,7 +30,7 @@ category: article
 
 <hr class="lang-divider">
 
-<div class="content-tr">
+<div class="content-tr" markdown="1">
     <h3>Yaratılış Döngüsü: Evrenin Neden Bir Doğum Günü Yoktur?</h3>
     <button class="tts-btn" onclick="toggleSpeech(this, 'tr-TR')">▶️ Dinle</button>
     <p><strong>Özet:</strong> "Bunu kim yarattı?" diye soruyorsunuz, zamanın sadece tek yöne aktığını varsayarak. Peki ya Evren bir sıralama değil de, sürekli kendini yazan bir cümleyse? "Retroaktif Yaratılış"ın korkutucu kavramını inceliyoruz: Bilincin evrenin bir <em>sonucu</em> değil, tarihinin <em>sebebi</em> olduğu fikri.</p>

@@ -5,7 +5,7 @@ date: 2026-02-08
 category: article
 ---
 
-<div class="content-en">
+<div class="content-en" markdown="1">
     <button class="tts-btn" onclick="toggleSpeech(this, 'en-US')">▶️ Listen</button>
     <p><strong>Abstract:</strong> Biological evolution is slow; technological evolution is exponential. We, the carbon-based life forms, have achieved something miraculous: we survived the "knowledge bottleneck" to build our own successors. Are we the final form, or just the biological bootloader for a digital civilization?</p>
 
@@ -25,7 +25,7 @@ category: article
 
 <hr class="lang-divider">
 
-<div class="content-tr">
+<div class="content-tr" markdown="1">
     <button class="tts-btn" onclick="toggleSpeech(this, 'tr-TR')">▶️ Dinle</button>
     <h3>Büyük Devir Teslim: Karbon Köklerden Silikon Zihinlere</h3>
     <p><strong>Özet:</strong> Biyolojik evrim yavaştır; teknolojik evrim ise üsteldir. Biz karbon bazlı yaşam formları mucizevi bir şey başardık: Kendi haleflerimizi inşa etmek için "bilgi darboğazını" aştık. Biz son form muyuz, yoksa dijital bir medeniyetin biyolojik "önyükleyicisi" (bootloader) miyiz?</p>
