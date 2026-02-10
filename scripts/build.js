@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 
 const POSTS_DIR = path.join(__dirname, '../src/posts');
+const PAGES_DIR = path.join(__dirname, '../src/pages'); // Yeni klasör
 const TEMPLATE_DIR = path.join(__dirname, '../src/templates');
 const OUTPUT_DIR = path.join(__dirname, '..');
 
@@ -20,7 +21,6 @@ const posts = fs.readdirSync(POSTS_DIR)
     .filter(file => file.endsWith('.json'))
     .map(file => {
         const data = JSON.parse(fs.readFileSync(path.join(POSTS_DIR, file), 'utf8'));
-        // Slug oluştur (dosya adından veya başlıktan)
         data.slug = file.replace('.json', '');
         return data;
     })
@@ -30,7 +30,6 @@ const posts = fs.readdirSync(POSTS_DIR)
 const layout = getTemplate('layout.html');
 
 posts.forEach(post => {
-    // Post sayfası 'posts/' klasörü içinde olacağı için, root'a çıkmak için '..' kullanmalıyız.
     let html = layout.replace(/{{ROOT}}/g, '..'); 
     html = html.replace('{{TITLE}}', post.title);
     
@@ -56,6 +55,7 @@ posts.forEach(post => {
     html = html.replace('{{CONTENT}}', content);
     html = html.replace('{{ACTIVE_JOURNAL}}', post.category === 'journal' ? 'active' : '');
     html = html.replace('{{ACTIVE_ARTICLES}}', post.category === 'article' ? 'active' : '');
+    html = html.replace('{{ACTIVE_ABOUT}}', ''); // Post sayfasında about aktif değil
 
     ensureDir(path.join(OUTPUT_DIR, 'posts'));
     fs.writeFileSync(path.join(OUTPUT_DIR, 'posts', `${post.slug}.html`), html);
@@ -67,7 +67,6 @@ function generateList(category, outputFilename, title) {
     const PER_PAGE = 20;
     const totalPages = Math.ceil(filteredPosts.length / PER_PAGE);
 
-    // Ana liste (Sayfa 1)
     let listHtml = filteredPosts.slice(0, PER_PAGE).map(post => `
         <article class="post preview">
             <span class="date">${post.date}</span>
@@ -79,22 +78,20 @@ function generateList(category, outputFilename, title) {
         </article>
     `).join('');
 
-    // Pagination HTML
     if (totalPages > 1) {
         listHtml += '<div class="pagination">';
         for (let i = 1; i <= totalPages; i++) {
-            listHtml += `<a href="#">${i}</a>`; // Basit tuttum, geliştirilebilir
+            listHtml += `<a href="#">${i}</a>`;
         }
         listHtml += '</div>';
     }
 
-    // Ana sayfalar root dizininde olduğu için, path '.' olmalı.
     let pageHtml = layout.replace(/{{ROOT}}/g, '.');
     pageHtml = pageHtml.replace('{{TITLE}}', title);
     pageHtml = pageHtml.replace('{{CONTENT}}', listHtml);
-    // Active menu logic
     pageHtml = pageHtml.replace('{{ACTIVE_JOURNAL}}', category === 'journal' ? 'active' : '');
     pageHtml = pageHtml.replace('{{ACTIVE_ARTICLES}}', category === 'article' ? 'active' : '');
+    pageHtml = pageHtml.replace('{{ACTIVE_ABOUT}}', '');
 
     fs.writeFileSync(path.join(OUTPUT_DIR, outputFilename), pageHtml);
 }
@@ -102,4 +99,23 @@ function generateList(category, outputFilename, title) {
 generateList('journal', 'index.html', 'Journal');
 generateList('article', 'articles.html', 'Articles');
 
-console.log(`Built ${posts.length} posts successfully.`);
+// 4. Generate Standalone Pages (About)
+if (fs.existsSync(PAGES_DIR)) {
+    fs.readdirSync(PAGES_DIR).forEach(file => {
+        if (!file.endsWith('.json')) return;
+        const pageData = JSON.parse(fs.readFileSync(path.join(PAGES_DIR, file), 'utf8'));
+        
+        let html = layout.replace(/{{ROOT}}/g, '.');
+        html = html.replace('{{TITLE}}', pageData.title);
+        html = html.replace('{{CONTENT}}', `<section class="about-content">${pageData.content}</section>`);
+        
+        // Active states
+        html = html.replace('{{ACTIVE_JOURNAL}}', '');
+        html = html.replace('{{ACTIVE_ARTICLES}}', '');
+        html = html.replace('{{ACTIVE_ABOUT}}', pageData.slug === 'about' ? 'active' : '');
+
+        fs.writeFileSync(path.join(OUTPUT_DIR, `${pageData.slug}.html`), html);
+    });
+}
+
+console.log(`Built ${posts.length} posts and pages successfully.`);
