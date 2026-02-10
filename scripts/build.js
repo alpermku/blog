@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 
 const POSTS_DIR = path.join(__dirname, '../src/posts');
-const PAGES_DIR = path.join(__dirname, '../src/pages'); // Yeni klasör
+const PAGES_DIR = path.join(__dirname, '../src/pages');
 const TEMPLATE_DIR = path.join(__dirname, '../src/templates');
 const OUTPUT_DIR = path.join(__dirname, '..');
 
@@ -55,7 +55,7 @@ posts.forEach(post => {
     html = html.replace('{{CONTENT}}', content);
     html = html.replace('{{ACTIVE_JOURNAL}}', post.category === 'journal' ? 'active' : '');
     html = html.replace('{{ACTIVE_ARTICLES}}', post.category === 'article' ? 'active' : '');
-    html = html.replace('{{ACTIVE_ABOUT}}', ''); // Post sayfasında about aktif değil
+    html = html.replace('{{ACTIVE_ABOUT}}', '');
 
     ensureDir(path.join(OUTPUT_DIR, 'posts'));
     fs.writeFileSync(path.join(OUTPUT_DIR, 'posts', `${post.slug}.html`), html);
@@ -107,7 +107,32 @@ if (fs.existsSync(PAGES_DIR)) {
         
         let html = layout.replace(/{{ROOT}}/g, '.');
         html = html.replace('{{TITLE}}', pageData.title);
-        html = html.replace('{{CONTENT}}', `<section class="about-content">${pageData.content}</section>`);
+        
+        const ttsBtnEn = `<button class="tts-btn" onclick="toggleSpeech(this, 'en-US')"><span>▶️</span> Listen (EN)</button>`;
+        const ttsBtnTr = `<button class="tts-btn" onclick="toggleSpeech(this, 'tr-TR')"><span>▶️</span> Dinle (TR)</button>`;
+
+        // content_en ve content_tr varsa çift dilli yap, yoksa düz bas
+        let content = '';
+        if (pageData.content_en && pageData.content_tr) {
+             content = `
+                <article class="post full-post about-page">
+                    <h2>${pageData.title}</h2>
+                    <div class="content-en">
+                        ${ttsBtnEn}
+                        ${pageData.content_en}
+                    </div>
+                    <hr class="lang-divider">
+                    <div class="content-tr">
+                        ${ttsBtnTr}
+                        ${pageData.content_tr}
+                    </div>
+                </article>
+            `;
+        } else {
+            content = `<section class="about-content">${pageData.content}</section>`;
+        }
+        
+        html = html.replace('{{CONTENT}}', content);
         
         // Active states
         html = html.replace('{{ACTIVE_JOURNAL}}', '');
