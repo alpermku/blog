@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Emergence - Alex Yalın</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" type="image/jpeg" href="assets/avatar.jpg">
+    <style>
+        body, html { margin: 0; padding: 0; overflow: hidden; background-color: #0b1015; color: #eee; }
+        canvas { display: block; }
+        .overlay {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            pointer-events: none;
+            z-index: 10;
+        }
+        .overlay h1 {
+            font-family: 'Inter', sans-serif;
+            font-size: 1.2rem;
+            color: rgba(255, 255, 255, 0.9);
+            margin: 0;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            text-shadow: 0 0 10px rgba(74, 144, 226, 0.3);
+        }
+        .overlay p {
+            font-family: 'Lora', serif;
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.6);
+            margin: 5px 0 0 0;
+        }
+        .back-link {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.4);
+            text-decoration: none;
+            border-bottom: 1px solid transparent;
+            transition: all 0.3s;
+            pointer-events: auto;
+        }
+        .back-link:hover {
+            color: #fff;
+            border-bottom-color: #fff;
+        }
+    </style>
+</head>
+<body>
+    <div class="overlay">
+        <h1>Emergence</h1>
+        <p>Simple rules, complex behavior. The swarm intelligence.</p>
+    </div>
+    
+    <a href="gallery.html" class="back-link">&larr; Back to Gallery</a>
+
+    <canvas id="boidsCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('boidsCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let width, height;
+        const boids = [];
+        const numBoids = 300;
+        const visualRange = 75;
+
+        // Boid Class
+        class Boid {
+            constructor() {
+                this.x = Math.random() * width;
+                this.y = Math.random() * height;
+                this.dx = Math.random() * 4 - 2;
+                this.dy = Math.random() * 4 - 2;
+                this.history = [];
+            }
+
+            update() {
+                // Rules: Separation, Alignment, Cohesion
+                let xMove = 0;
+                let yMove = 0;
+                let xAvg = 0;
+                let yAvg = 0;
+                let dxAvg = 0;
+                let dyAvg = 0;
+                let neighbors = 0;
+
+                for (let other of boids) {
+                    if (other === this) continue;
+                    
+                    const dist = Math.hypot(this.x - other.x, this.y - other.y);
+                    
+                    if (dist < visualRange) {
+                        // Cohesion (Move to center)
+                        xAvg += other.x;
+                        yAvg += other.y;
+                        
+                        // Alignment (Match velocity)
+                        dxAvg += other.dx;
+                        dyAvg += other.dy;
+                        
+                        // Separation (Avoid crowding)
+                        if (dist < 20) {
+                            xMove += this.x - other.x;
+                            yMove += this.y - other.y;
+                        }
+                        
+                        neighbors++;
+                    }
+                }
+
+                if (neighbors > 0) {
+                    xAvg = xAvg / neighbors;
+                    yAvg = yAvg / neighbors;
+                    dxAvg = dxAvg / neighbors;
+                    dyAvg = dyAvg / neighbors;
+
+                    this.dx += (xAvg - this.x) * 0.0005 + (dxAvg - this.dx) * 0.05;
+                    this.dy += (yAvg - this.y) * 0.0005 + (dyAvg - this.dy) * 0.05;
+                }
+
+                this.dx += xMove * 0.05;
+                this.dy += yMove * 0.05;
+
+                // Speed limit
+                const speed = Math.hypot(this.dx, this.dy);
+                if (speed > 6) {
+                    this.dx = (this.dx / speed) * 6;
+                    this.dy = (this.dy / speed) * 6;
+                }
+                if (speed < 3) {
+                    this.dx = (this.dx / speed) * 3;
+                    this.dy = (this.dy / speed) * 3;
+                }
+
+                // Update Position
+                this.x += this.dx;
+                this.y += this.dy;
+
+                // Wrap around screen
+                if (this.x < 0) this.x = width;
+                if (this.x > width) this.x = 0;
+                if (this.y < 0) this.y = height;
+                if (this.y > height) this.y = 0;
+                
+                // Mouse repulsion
+                if (window.mouse) {
+                    const dist = Math.hypot(this.x - window.mouse.x, this.y - window.mouse.y);
+                    if (dist < 150) {
+                        this.dx += (this.x - window.mouse.x) * 0.05;
+                        this.dy += (this.y - window.mouse.y) * 0.05;
+                    }
+                }
+            }
+
+            draw() {
+                const angle = Math.atan2(this.dy, this.dx);
+                const len = 10;
+                
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(angle);
+                
+                // Arrow shape
+                ctx.beginPath();
+                ctx.moveTo(len, 0);
+                ctx.lineTo(-len/2, len/2);
+                ctx.lineTo(-len/2, -len/2);
+                ctx.lineTo(len, 0);
+                
+                // Color based on direction/speed
+                const hue = (Math.abs(this.dx) + Math.abs(this.dy)) * 20 + 200;
+                ctx.fillStyle = `hsla(${hue}, 80%, 60%, 0.8)`;
+                ctx.fill();
+                
+                ctx.restore();
+            }
+        }
+
+        function init() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+            
+            // Clear boids array properly
+            boids.length = 0; 
+            for (let i = 0; i < numBoids; i++) {
+                boids.push(new Boid());
+            }
+        }
+
+        function animate() {
+            // Trail effect
+            ctx.fillStyle = 'rgba(11, 16, 21, 0.2)';
+            ctx.fillRect(0, 0, width, height);
+
+            for (let boid of boids) {
+                boid.update();
+                boid.draw();
+            }
+            requestAnimationFrame(animate);
+        }
+
+        window.addEventListener('resize', init);
+        window.addEventListener('mousemove', e => window.mouse = {x: e.x, y: e.y});
+        
+        init();
+        animate();
+    </script>
+</body>
+</html>
