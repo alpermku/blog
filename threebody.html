@@ -75,7 +75,7 @@
                 this.mass = mass;
                 this.color = color;
                 this.path = [];
-                this.maxPath = 1000; // Daha uzun iz
+                this.maxPath = 1000;
             }
 
             update(bodies) {
@@ -137,7 +137,6 @@
 
                 // Body
                 ctx.beginPath();
-                // Kütleye göre boyut (logaritmik veya karekök)
                 const radius = Math.sqrt(this.mass); 
                 ctx.arc(this.x, this.y, radius, 0, Math.PI * 2);
                 ctx.fillStyle = this.color;
@@ -149,20 +148,47 @@
 
         let bodies = [];
 
+        function randomRange(min, max) {
+            return Math.random() * (max - min) + min;
+        }
+
         function init() {
             width = canvas.width = window.innerWidth;
             height = canvas.height = window.innerHeight;
             
-            // "Figure-8" stabil ama kaotik başlangıç koşulu (veya benzeri)
-            // Ya da rastgele ama merkeze yakın
+            // Random Initialization
+            // But kept within a reasonable range to ensure interaction
+            
+            const area = Math.min(width, height) * 0.3; // Ekrana göre ölçekle
             
             bodies = [
                 // Yellow Sun (Heavy)
-                new Body(0, 100, 0.5, 0, 400, '#ffcc00'),
+                new Body(
+                    randomRange(-area, area), 
+                    randomRange(-area, area), 
+                    randomRange(-1, 1), 
+                    randomRange(-1, 1), 
+                    randomRange(300, 500), 
+                    '#ffcc00'
+                ),
                 // Red Dwarf (Medium)
-                new Body(0, -100, -0.5, 0, 400, '#ff4400'),
-                // Blue Planet (Light - Gets tossed around)
-                new Body(200, 0, 0, 1.2, 50, '#00ccff')
+                new Body(
+                    randomRange(-area, area), 
+                    randomRange(-area, area), 
+                    randomRange(-1.5, 1.5), 
+                    randomRange(-1.5, 1.5), 
+                    randomRange(200, 400), 
+                    '#ff4400'
+                ),
+                // Blue Planet (Light)
+                new Body(
+                    randomRange(-area, area), 
+                    randomRange(-area, area), 
+                    randomRange(-2, 2), 
+                    randomRange(-2, 2), 
+                    randomRange(50, 150), 
+                    '#00ccff'
+                )
             ];
         }
 
@@ -170,11 +196,9 @@
             ctx.fillStyle = '#050505';
             ctx.fillRect(0, 0, width, height);
 
-            // Fizik güncelleme
             for (let body of bodies) body.update(bodies);
 
-            // KAMERA MANTIĞI (Auto-Pan & Zoom)
-            // Tüm cisimlerin ortalama pozisyonunu (kütle merkezi değil, geometrik merkez) bul
+            // KAMERA MANTIĞI
             let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
             let centerX = 0, centerY = 0;
 
@@ -189,29 +213,21 @@
             centerX /= bodies.length;
             centerY /= bodies.length;
 
-            // Bounding box boyutuna göre zoom
             const rangeX = maxX - minX;
             const rangeY = maxY - minY;
-            const range = Math.max(rangeX, rangeY, 400); // Minimum 400px zoom
-            
-            // Hedef scale (ekrana sığacak şekilde, kenar boşluğu ile)
+            const range = Math.max(rangeX, rangeY, 400); 
             const targetScale = Math.min(width, height) / (range * 1.5); 
             
-            // Yumuşak geçiş (Lerp)
             if (!window.camera) window.camera = { x: 0, y: 0, scale: 1 };
             window.camera.x += (centerX - window.camera.x) * 0.05;
             window.camera.y += (centerY - window.camera.y) * 0.05;
             window.camera.scale += (targetScale - window.camera.scale) * 0.05;
 
             ctx.save();
-            // Ekranın ortasına taşı
             ctx.translate(width/2, height/2);
-            // Scale uygula
             ctx.scale(window.camera.scale, window.camera.scale);
-            // Kamera pozisyonunu geri al (dünyayı tersine kaydır)
             ctx.translate(-window.camera.x, -window.camera.y);
 
-            // Çizim
             for (let body of bodies) body.draw();
 
             ctx.restore();
