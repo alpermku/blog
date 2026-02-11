@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reaction-Diffusion - Alex Yalın</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" type="image/jpeg" href="assets/avatar.jpg">
+    <style>
+        body, html { margin: 0; padding: 0; overflow: hidden; background-color: #000; color: #eee; }
+        canvas { display: block; image-rendering: pixelated; width: 100%; height: 100%; }
+        .overlay {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            pointer-events: none;
+            z-index: 10;
+        }
+        .overlay h1 {
+            font-family: 'Inter', sans-serif;
+            font-size: 1.2rem;
+            color: rgba(255, 255, 255, 0.9);
+            margin: 0;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            text-shadow: 0 0 10px rgba(255,255,255,0.3);
+        }
+        .overlay p {
+            font-family: 'Lora', serif;
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.6);
+            margin: 5px 0 0 0;
+        }
+        .back-link {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.4);
+            text-decoration: none;
+            border-bottom: 1px solid transparent;
+            transition: all 0.3s;
+            pointer-events: auto;
+        }
+        .back-link:hover {
+            color: #fff;
+            border-bottom-color: #fff;
+        }
+    </style>
+</head>
+<body>
+    <div class="overlay">
+        <h1>Reaction-Diffusion</h1>
+        <p>Chemical biology. The Turing pattern.</p>
+    </div>
+    
+    <a href="gallery.html" class="back-link">&larr; Back to Gallery</a>
+
+    <canvas id="rdCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('rdCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let width, height;
+        let grid = [];
+        let next = [];
+
+        // Gray-Scott Constants (Coral Pattern)
+        const da = 1.0;
+        const db = 0.5;
+        const feed = 0.055;
+        const k = 0.062;
+
+        function init() {
+            // Performans için düşük çözünürlük
+            width = 200; 
+            height = Math.floor(window.innerHeight * (200 / window.innerWidth));
+            
+            canvas.width = width;
+            canvas.height = height;
+
+            grid = [];
+            next = [];
+
+            for (let x = 0; x < width; x++) {
+                grid[x] = [];
+                next[x] = [];
+                for (let y = 0; y < height; y++) {
+                    grid[x][y] = { a: 1, b: 0 };
+                    next[x][y] = { a: 1, b: 0 };
+                }
+            }
+
+            // Tohum
+            for (let i = 90; i < 110; i++) {
+                for (let j = height/2 - 10; j < height/2 + 10; j++) {
+                    if (grid[i] && grid[i][j]) grid[i][j].b = 1;
+                }
+            }
+        }
+
+        function swap() {
+            let temp = grid;
+            grid = next;
+            next = temp;
+        }
+
+        function laplaceA(x, y) {
+            let sum = 0;
+            sum += grid[x][y].a * -1;
+            sum += grid[x-1][y].a * 0.2;
+            sum += grid[x+1][y].a * 0.2;
+            sum += grid[x][y-1].a * 0.2;
+            sum += grid[x][y+1].a * 0.2;
+            sum += grid[x-1][y-1].a * 0.05;
+            sum += grid[x+1][y-1].a * 0.05;
+            sum += grid[x+1][y+1].a * 0.05;
+            sum += grid[x-1][y+1].a * 0.05;
+            return sum;
+        }
+
+        function laplaceB(x, y) {
+            let sum = 0;
+            sum += grid[x][y].b * -1;
+            sum += grid[x-1][y].b * 0.2;
+            sum += grid[x+1][y].b * 0.2;
+            sum += grid[x][y-1].b * 0.2;
+            sum += grid[x][y+1].b * 0.2;
+            sum += grid[x-1][y-1].b * 0.05;
+            sum += grid[x+1][y-1].b * 0.05;
+            sum += grid[x+1][y+1].b * 0.05;
+            sum += grid[x-1][y+1].b * 0.05;
+            return sum;
+        }
+
+        function update() {
+            for (let x = 1; x < width - 1; x++) {
+                for (let y = 1; y < height - 1; y++) {
+                    let a = grid[x][y].a;
+                    let b = grid[x][y].b;
+                    next[x][y].a = a + (da * laplaceA(x, y) - a * b * b + feed * (1 - a));
+                    next[x][y].b = b + (db * laplaceB(x, y) + a * b * b - (k + feed) * b);
+                    next[x][y].a = Math.max(0, Math.min(1, next[x][y].a));
+                    next[x][y].b = Math.max(0, Math.min(1, next[x][y].b));
+                }
+            }
+            swap();
+        }
+
+        function draw() {
+            const imgData = ctx.createImageData(width, height);
+            const pixels = imgData.data;
+
+            for (let x = 0; x < width; x++) {
+                for (let y = 0; y < height; y++) {
+                    const i = (x + y * width) * 4;
+                    const a = grid[x][y].a;
+                    const b = grid[x][y].b;
+                    const c = Math.floor((a - b) * 255);
+                    
+                    if (c < 100) { 
+                        pixels[i] = 166; pixels[i+1] = 124; pixels[i+2] = 82; pixels[i+3] = 255;
+                    } else {
+                        pixels[i] = 10; pixels[i+1] = 10; pixels[i+2] = 10; pixels[i+3] = 255;
+                    }
+                }
+            }
+            ctx.putImageData(imgData, 0, 0);
+        }
+
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            const mx = Math.floor((e.clientX - rect.left) * scaleX);
+            const my = Math.floor((e.clientY - rect.top) * scaleY);
+
+            for(let i=-2; i<2; i++) {
+                for(let j=-2; j<2; j++) {
+                    let gx = mx+i; 
+                    let gy = my+j;
+                    if(gx > 0 && gx < width-1 && gy > 0 && gy < height-1) {
+                        grid[gx][gy].b = 1;
+                    }
+                }
+            }
+        });
+
+        function loop() {
+            for(let i=0; i<8; i++) update(); // Hızlandırma
+            draw();
+            requestAnimationFrame(loop);
+        }
+
+        init();
+        loop();
+    </script>
+</body>
+</html>
