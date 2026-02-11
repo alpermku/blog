@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kaleidoscope - Alex Yalın</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" type="image/jpeg" href="assets/avatar.jpg">
+    <style>
+        body, html { margin: 0; padding: 0; overflow: hidden; background-color: #000; color: #eee; }
+        canvas { display: block; }
+        .overlay {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            pointer-events: none;
+            z-index: 10;
+        }
+        .overlay h1 {
+            font-family: 'Inter', sans-serif;
+            font-size: 1.2rem;
+            color: rgba(255, 255, 255, 0.9);
+            margin: 0;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            text-shadow: 0 0 10px rgba(255,255,255,0.3);
+        }
+        .overlay p {
+            font-family: 'Lora', serif;
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.6);
+            margin: 5px 0 0 0;
+        }
+        .back-link {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.4);
+            text-decoration: none;
+            border-bottom: 1px solid transparent;
+            transition: all 0.3s;
+            pointer-events: auto;
+        }
+        .back-link:hover {
+            color: #fff;
+            border-bottom-color: #fff;
+        }
+    </style>
+</head>
+<body>
+    <div class="overlay">
+        <h1>Kaleidoscope</h1>
+        <p>Symmetry in chaos. A rotating mandala of logic.</p>
+    </div>
+    
+    <a href="gallery.html" class="back-link">&larr; Back to Gallery</a>
+
+    <canvas id="kaleidoscopeCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('kaleidoscopeCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let width, height;
+        let time = 0;
+        const slices = 12; // Simetri dilim sayısı
+
+        function init() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+        }
+
+        function draw() {
+            // Yarı saydam siyah ile iz bırak
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+            ctx.fillRect(0, 0, width, height);
+
+            ctx.save();
+            ctx.translate(width / 2, height / 2);
+            
+            // Ana desen
+            const radius = Math.sin(time * 0.01) * 200 + 100;
+            const hue = (time * 0.5) % 360;
+            
+            ctx.strokeStyle = `hsla(${hue}, 80%, 60%, 0.5)`;
+            ctx.lineWidth = 2;
+
+            for (let i = 0; i < slices; i++) {
+                ctx.save();
+                ctx.rotate((Math.PI * 2 / slices) * i);
+                
+                // Şekil çizimi (dönen bir yay/kıvrım)
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                
+                const x = Math.cos(time * 0.02) * radius;
+                const y = Math.sin(time * 0.03) * radius;
+                
+                // Bezier eğrisi ile organiklik katalım
+                ctx.quadraticCurveTo(x/2, y*2, x, y);
+                
+                ctx.stroke();
+                ctx.restore();
+            }
+            
+            // İkinci katman (zıt yön)
+            ctx.strokeStyle = `hsla(${(hue + 180) % 360}, 80%, 60%, 0.3)`;
+            for (let i = 0; i < slices; i++) {
+                ctx.save();
+                ctx.rotate((Math.PI * 2 / slices) * i + (Math.PI / slices)); // Offset
+                
+                ctx.beginPath();
+                const x = Math.sin(time * 0.02) * (radius * 0.8);
+                const y = Math.cos(time * 0.03) * (radius * 0.8);
+                ctx.lineTo(x, y);
+                ctx.stroke();
+                ctx.restore();
+            }
+
+            ctx.restore();
+
+            time++;
+            requestAnimationFrame(draw);
+        }
+
+        window.addEventListener('resize', init);
+        init();
+        draw();
+    </script>
+</body>
+</html>
