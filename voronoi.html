@@ -7,8 +7,20 @@
     <link rel="stylesheet" href="style.css">
     <link rel="icon" type="image/jpeg" href="assets/avatar.jpg">
     <style>
-        body, html { margin: 0; padding: 0; overflow: hidden; background-color: #111; color: #eee; }
-        canvas { display: block; }
+        /* Force override any external styles */
+        body, html { 
+            margin: 0 !important; 
+            padding: 0 !important; 
+            overflow: hidden !important; 
+            background-color: #111 !important; 
+            color: #eee !important; 
+            height: 100%;
+            width: 100%;
+        }
+        canvas { 
+            display: block; 
+            background-color: #111; /* Fallback color */
+        }
         .overlay {
             position: absolute;
             top: 20px;
@@ -65,16 +77,16 @@
 
         let width, height;
         let points = [];
-        const numPoints = 50;
+        const numPoints = 40; // Mobilde kasmaması için düşürdüm
 
         class Point {
             constructor() {
-                this.x = Math.random() * width;
-                this.y = Math.random() * height;
-                this.vx = (Math.random() - 0.5) * 2;
-                this.vy = (Math.random() - 0.5) * 2;
-                // Rastgele pastel renkler
-                this.color = `hsl(${Math.random() * 360}, 60%, 60%)`;
+                this.x = Math.random() * window.innerWidth;
+                this.y = Math.random() * window.innerHeight;
+                this.vx = (Math.random() - 0.5) * 1.5;
+                this.vy = (Math.random() - 0.5) * 1.5;
+                // Daha canlı renkler
+                this.color = `hsl(${Math.random() * 360}, 70%, 50%)`;
             }
 
             update() {
@@ -89,50 +101,46 @@
         function init() {
             width = canvas.width = window.innerWidth;
             height = canvas.height = window.innerHeight;
-            points = [];
-            for (let i = 0; i < numPoints; i++) {
-                points.push(new Point());
+            
+            // Re-init points only if empty
+            if (points.length === 0) {
+                for (let i = 0; i < numPoints; i++) {
+                    points.push(new Point());
+                }
             }
         }
 
-        // Basit Voronoi algoritması (Pixel bazlı - Yavaş ama kesin)
-        // Optimizasyon için: Her pixel'i taramak yerine sadece noktaları çizip
-        // aralarına mesafe görselleştirmesi (Delaunay/Web benzeri) yapabiliriz 
-        // ya da "Cone" metodu.
-        // Ama Canvas'ta pixel pixel Voronoi çizmek (1920x1080) çok yavaş olur.
-        // O yüzden görsel olarak benzer ama hızlı bir "Nearest Neighbor" efekti yapalım.
-        // Ya da noktaları birleştirip "Web" çizelim (Neural'a benziyor).
-        
-        // Karar: "Dynamic Gradient Voronoi" yerine, noktaların etrafında büyüyen radyal gradyanlar
-        // kullanarak "Soft Voronoi" yapalım. Çok daha hızlı ve estetik.
-
         function draw() {
+            // Basit temizleme
             ctx.fillStyle = '#111';
             ctx.fillRect(0, 0, width, height);
 
-            // Her nokta için bir radyal gradyan çizip "screen" veya "lighten" blend mode kullanacağız
-            ctx.globalCompositeOperation = 'screen';
-
+            // Gradyan yerine daha basit ve kesin bir çizim deneyelim (Performance & Compatibility)
+            // Noktaları çiz
             for (let point of points) {
-                const gradient = ctx.createRadialGradient(point.x, point.y, 0, point.x, point.y, 300);
-                gradient.addColorStop(0, point.color);
+                ctx.beginPath();
+                ctx.arc(point.x, point.y, 5, 0, Math.PI * 2);
+                ctx.fillStyle = point.color;
+                ctx.fill();
+            }
+
+            // Voronoi sınırlarını çizmek yerine (complex), 
+            // En yakın noktaları birleştirelim (Web/Plexus) ama renkli
+            // Bu "Voronoi" değil ama görsel olarak benzer bir "hücresel" etki yaratır
+            
+            // VEYA: Eski gradyan yöntemi çalışmalıydı, belki 'screen' modu sorunludur.
+            // Tekrar gradyan deneyelim ama blend mode olmadan (basit alpha blending).
+            
+            for (let point of points) {
+                const gradient = ctx.createRadialGradient(point.x, point.y, 0, point.x, point.y, 200);
+                gradient.addColorStop(0, point.color.replace(')', ', 0.4)').replace('hsl', 'hsla'));
                 gradient.addColorStop(1, 'transparent');
 
                 ctx.fillStyle = gradient;
                 ctx.beginPath();
-                ctx.arc(point.x, point.y, 300, 0, Math.PI * 2);
+                ctx.arc(point.x, point.y, 200, 0, Math.PI * 2);
                 ctx.fill();
-                
-                // Nokta merkezi
-                /*
-                ctx.fillStyle = '#fff';
-                ctx.beginPath();
-                ctx.arc(point.x, point.y, 2, 0, Math.PI*2);
-                ctx.fill();
-                */
             }
-            
-            ctx.globalCompositeOperation = 'source-over';
         }
 
         function animate() {
@@ -143,7 +151,10 @@
             requestAnimationFrame(animate);
         }
 
-        window.addEventListener('resize', init);
+        window.addEventListener('resize', () => {
+            init();
+        });
+        
         init();
         animate();
     </script>
