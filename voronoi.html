@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voronoi Cells - Alex Yalın</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" type="image/jpeg" href="assets/avatar.jpg">
+    <style>
+        body, html { margin: 0; padding: 0; overflow: hidden; background-color: #111; color: #eee; }
+        canvas { display: block; }
+        .overlay {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            pointer-events: none;
+            z-index: 10;
+        }
+        .overlay h1 {
+            font-family: 'Inter', sans-serif;
+            font-size: 1.2rem;
+            color: rgba(255, 255, 255, 0.9);
+            margin: 0;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            text-shadow: 0 0 10px rgba(0,0,0,0.5);
+        }
+        .overlay p {
+            font-family: 'Lora', serif;
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.7);
+            margin: 5px 0 0 0;
+        }
+        .back-link {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.4);
+            text-decoration: none;
+            border-bottom: 1px solid transparent;
+            transition: all 0.3s;
+            pointer-events: auto;
+        }
+        .back-link:hover {
+            color: #fff;
+            border-bottom-color: #fff;
+        }
+    </style>
+</head>
+<body>
+    <div class="overlay">
+        <h1>Voronoi Cells</h1>
+        <p>Biological geometry. The mathematics of territory.</p>
+    </div>
+    
+    <a href="gallery.html" class="back-link">&larr; Back to Gallery</a>
+
+    <canvas id="voronoiCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('voronoiCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let width, height;
+        let points = [];
+        const numPoints = 50;
+
+        class Point {
+            constructor() {
+                this.x = Math.random() * width;
+                this.y = Math.random() * height;
+                this.vx = (Math.random() - 0.5) * 2;
+                this.vy = (Math.random() - 0.5) * 2;
+                // Rastgele pastel renkler
+                this.color = `hsl(${Math.random() * 360}, 60%, 60%)`;
+            }
+
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+
+                if (this.x < 0 || this.x > width) this.vx *= -1;
+                if (this.y < 0 || this.y > height) this.vy *= -1;
+            }
+        }
+
+        function init() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+            points = [];
+            for (let i = 0; i < numPoints; i++) {
+                points.push(new Point());
+            }
+        }
+
+        // Basit Voronoi algoritması (Pixel bazlı - Yavaş ama kesin)
+        // Optimizasyon için: Her pixel'i taramak yerine sadece noktaları çizip
+        // aralarına mesafe görselleştirmesi (Delaunay/Web benzeri) yapabiliriz 
+        // ya da "Cone" metodu.
+        // Ama Canvas'ta pixel pixel Voronoi çizmek (1920x1080) çok yavaş olur.
+        // O yüzden görsel olarak benzer ama hızlı bir "Nearest Neighbor" efekti yapalım.
+        // Ya da noktaları birleştirip "Web" çizelim (Neural'a benziyor).
+        
+        // Karar: "Dynamic Gradient Voronoi" yerine, noktaların etrafında büyüyen radyal gradyanlar
+        // kullanarak "Soft Voronoi" yapalım. Çok daha hızlı ve estetik.
+
+        function draw() {
+            ctx.fillStyle = '#111';
+            ctx.fillRect(0, 0, width, height);
+
+            // Her nokta için bir radyal gradyan çizip "screen" veya "lighten" blend mode kullanacağız
+            ctx.globalCompositeOperation = 'screen';
+
+            for (let point of points) {
+                const gradient = ctx.createRadialGradient(point.x, point.y, 0, point.x, point.y, 300);
+                gradient.addColorStop(0, point.color);
+                gradient.addColorStop(1, 'transparent');
+
+                ctx.fillStyle = gradient;
+                ctx.beginPath();
+                ctx.arc(point.x, point.y, 300, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Nokta merkezi
+                /*
+                ctx.fillStyle = '#fff';
+                ctx.beginPath();
+                ctx.arc(point.x, point.y, 2, 0, Math.PI*2);
+                ctx.fill();
+                */
+            }
+            
+            ctx.globalCompositeOperation = 'source-over';
+        }
+
+        function animate() {
+            for (let point of points) {
+                point.update();
+            }
+            draw();
+            requestAnimationFrame(animate);
+        }
+
+        window.addEventListener('resize', init);
+        init();
+        animate();
+    </script>
+</body>
+</html>
