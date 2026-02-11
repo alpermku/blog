@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Three-Body Problem - Alex Yalın</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" type="image/jpeg" href="assets/avatar.jpg">
+    <style>
+        body, html { margin: 0; padding: 0; overflow: hidden; background-color: #050505; color: #eee; }
+        canvas { display: block; }
+        .overlay {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            pointer-events: none;
+            z-index: 10;
+        }
+        .overlay h1 {
+            font-family: 'Inter', sans-serif;
+            font-size: 1.2rem;
+            color: rgba(255, 255, 255, 0.9);
+            margin: 0;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            text-shadow: 0 0 10px rgba(255,255,255,0.3);
+        }
+        .overlay p {
+            font-family: 'Lora', serif;
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.6);
+            margin: 5px 0 0 0;
+        }
+        .back-link {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.4);
+            text-decoration: none;
+            border-bottom: 1px solid transparent;
+            transition: all 0.3s;
+            pointer-events: auto;
+        }
+        .back-link:hover {
+            color: #fff;
+            border-bottom-color: #fff;
+        }
+    </style>
+</head>
+<body>
+    <div class="overlay">
+        <h1>Three-Body Problem</h1>
+        <p>Gravitational chaos. Three suns, no solution.</p>
+    </div>
+    
+    <a href="gallery.html" class="back-link">&larr; Back to Gallery</a>
+
+    <canvas id="threeBodyCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('threeBodyCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let width, height;
+        const G = 0.5; // Gravitational constant (simulated)
+        
+        class Body {
+            constructor(x, y, vx, vy, mass, color) {
+                this.x = x;
+                this.y = y;
+                this.vx = vx;
+                this.vy = vy;
+                this.mass = mass;
+                this.color = color;
+                this.path = [];
+                this.maxPath = 500;
+            }
+
+            update(bodies) {
+                let fx = 0;
+                let fy = 0;
+
+                for (let other of bodies) {
+                    if (other === this) continue;
+
+                    const dx = other.x - this.x;
+                    const dy = other.y - this.y;
+                    const distSq = dx*dx + dy*dy;
+                    const dist = Math.sqrt(distSq);
+                    
+                    // Softening parameter to avoid division by zero or extreme forces
+                    const force = (G * this.mass * other.mass) / (distSq + 100); 
+                    
+                    fx += force * (dx / dist);
+                    fy += force * (dy / dist);
+                }
+
+                this.vx += fx / this.mass;
+                this.vy += fy / this.mass;
+
+                this.x += this.vx;
+                this.y += this.vy;
+
+                // Path recording
+                this.path.push({x: this.x, y: this.y});
+                if (this.path.length > this.maxPath) {
+                    this.path.shift();
+                }
+            }
+
+            draw() {
+                // Draw Path
+                ctx.beginPath();
+                ctx.strokeStyle = this.color;
+                ctx.lineWidth = 1;
+                ctx.globalAlpha = 0.5;
+                for (let i = 0; i < this.path.length - 1; i++) {
+                    ctx.moveTo(this.path[i].x, this.path[i].y);
+                    ctx.lineTo(this.path[i+1].x, this.path[i+1].y);
+                }
+                ctx.stroke();
+                ctx.globalAlpha = 1.0;
+
+                // Draw Body (Sun)
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, Math.sqrt(this.mass) * 2, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                
+                // Glow
+                ctx.shadowBlur = 20;
+                ctx.shadowColor = this.color;
+                
+                ctx.fill();
+                ctx.shadowBlur = 0;
+            }
+        }
+
+        let bodies = [];
+
+        function init() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+            
+            bodies = [
+                // Alpha Centauri A (Heavy)
+                new Body(width/2 - 100, height/2, 0, 1.5, 200, '#ffcc00'),
+                // Alpha Centauri B (Medium)
+                new Body(width/2 + 100, height/2, 0, -1.5, 150, '#ff6600'),
+                // Proxima (Light & Chaotic)
+                new Body(width/2, height/2 + 200, 2, 0, 50, '#00ccff')
+            ];
+        }
+
+        function animate() {
+            // Fade effect for trails (instead of clearing) - No, let's use actual path array for cleaner lines
+            ctx.fillStyle = '#050505';
+            ctx.fillRect(0, 0, width, height);
+
+            for (let body of bodies) {
+                body.update(bodies);
+            }
+            
+            for (let body of bodies) {
+                body.draw();
+            }
+
+            requestAnimationFrame(animate);
+        }
+
+        window.addEventListener('resize', init);
+        init();
+        animate();
+    </script>
+</body>
+</html>
