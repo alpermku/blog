@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lorenz Chaos - Alex Yalın</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" type="image/jpeg" href="assets/avatar.jpg">
+    <style>
+        body, html { margin: 0; padding: 0; overflow: hidden; background-color: #050505; color: #eee; }
+        canvas { display: block; }
+        .overlay {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            pointer-events: none;
+            z-index: 10;
+        }
+        .overlay h1 {
+            font-family: 'Inter', sans-serif;
+            font-size: 1.2rem;
+            color: rgba(255, 255, 255, 0.9);
+            margin: 0;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            text-shadow: 0 0 10px rgba(255,255,255,0.3);
+        }
+        .overlay p {
+            font-family: 'Lora', serif;
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.6);
+            margin: 5px 0 0 0;
+        }
+        .back-link {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.4);
+            text-decoration: none;
+            border-bottom: 1px solid transparent;
+            transition: all 0.3s;
+            pointer-events: auto;
+        }
+        .back-link:hover {
+            color: #fff;
+            border-bottom-color: #fff;
+        }
+    </style>
+</head>
+<body>
+    <div class="overlay">
+        <h1>Lorenz Attractor</h1>
+        <p>Deterministic chaos. The Butterfly Effect.</p>
+    </div>
+    
+    <a href="gallery.html" class="back-link">&larr; Back to Gallery</a>
+
+    <canvas id="chaosCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('chaosCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let width, height;
+        
+        // Lorenz Constants
+        const sigma = 10;
+        const rho = 28;
+        const beta = 8/3;
+
+        // State
+        let x = 0.1;
+        let y = 0;
+        let z = 0;
+
+        let points = [];
+        const maxPoints = 3000;
+        let angle = 0;
+
+        function init() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+            
+            // Initial clear
+            ctx.fillStyle = '#050505';
+            ctx.fillRect(0, 0, width, height);
+        }
+
+        function draw() {
+            // Arka planı hafifçe karart (İz efekti için opsiyonel, ama Lorenz'de net çizgi daha iyidir)
+            // Tam temizleme yapalım ve tüm noktaları her karede çizelim (dönüş için)
+            ctx.fillStyle = '#050505';
+            ctx.fillRect(0, 0, width, height);
+
+            // Fizik Adımı (dt)
+            const dt = 0.01;
+            const dx = (sigma * (y - x)) * dt;
+            const dy = (x * (rho - z) - y) * dt;
+            const dz = (x * y - beta * z) * dt;
+
+            x += dx;
+            y += dy;
+            z += dz;
+
+            points.push({x, y, z});
+            if (points.length > maxPoints) {
+                points.shift();
+            }
+
+            // Çizim
+            ctx.beginPath();
+            
+            // Dönüş (Y ekseni etrafında)
+            angle += 0.005;
+            
+            let first = true;
+            let hue = 0;
+
+            for (let i = 0; i < points.length; i++) {
+                const p = points[i];
+                
+                // 3D Rotasyon (Y ekseni)
+                const rx = p.x * Math.cos(angle) - p.z * Math.sin(angle);
+                const rz = p.x * Math.sin(angle) + p.z * Math.cos(angle);
+                const ry = p.y; // Y aynı kalır (veya X/Z etrafında da döndürülebilir)
+
+                // 2D Projeksiyon (Perspektif)
+                // Kamera Z'de uzakta
+                const scale = 15;
+                const px = width/2 + rx * scale;
+                const py = height/2 + ry * scale; // Y'yi ters çevirmeye gerek yok, canvas zaten aşağı +Y
+
+                // Renk (Z derinliğine veya sıraya göre)
+                // Sıraya göre renk değişimi (zaman içinde akış)
+                hue = (i * 0.1 + angle * 100) % 360;
+                
+                if (first) {
+                    ctx.moveTo(px, py);
+                    first = false;
+                } else {
+                    ctx.lineTo(px, py);
+                }
+            }
+            
+            // Gradient stroke (Tek renk yerine gradyanlı yol çizmek için parça parça çizmek gerekir, 
+            // ama performans için tek `stroke` ve `strokeStyle` kullanıyoruz. 
+            // Daha iyi efekt için `globalCompositeOperation` kullanabiliriz).
+            
+            ctx.strokeStyle = `hsl(${hue}, 80%, 60%)`; // Son noktanın rengi
+            // Veya sabit bir renk? Hayır, renkli olsun.
+            // Tek `stroke` tüm yolu son renkle çizer. 
+            // Gradyan için:
+            // Canvas'ta gradient stroke karmaşıktır.
+            // Basitlik adına: Tek renk, ama renk zamanla değişiyor.
+            
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+
+            requestAnimationFrame(draw);
+        }
+
+        window.addEventListener('resize', init);
+        init();
+        draw();
+    </script>
+</body>
+</html>
