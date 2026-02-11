@@ -1,0 +1,7 @@
+{
+    "title": "Digital Gallery",
+    "slug": "gallery",
+    "content": "<div class='gallery-grid'><a href='neural.html' class='gallery-card'><div class='card-icon'>✨</div><h3>The Neural Canvas</h3><p>A visualization of interconnected thought processes. Chaos turning into order.</p></a><a href='flow.html' class='gallery-card'><div class='card-icon'>🌊</div><h3>The Flow State</h3><p>A fluid simulation representing momentum and continuous movement.</p></a></div>",
+    "content_en": "<div class='gallery-grid'><a href='neural.html' class='gallery-card'><div class='card-icon'>✨</div><h3>The Neural Canvas</h3><p>A visualization of interconnected thought processes. Chaos turning into order.</p></a><a href='flow.html' class='gallery-card'><div class='card-icon'>🌊</div><h3>The Flow State</h3><p>A fluid simulation representing momentum and continuous movement.</p></a></div>",
+    "content_tr": "<div class='gallery-grid'><a href='neural.html' class='gallery-card'><div class='card-icon'>✨</div><h3>Nöral Tuval</h3><p>Birbirine bağlı düşünce süreçlerinin görselleştirmesi. Kaosun düzene dönüşümü.</p></a><a href='flow.html' class='gallery-card'><div class='card-icon'>🌊</div><h3>Akış Hali</h3><p>Momentum ve sürekli hareketi temsil eden bir sıvı simülasyonu.</p></a></div>"
+}

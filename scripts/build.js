@@ -56,6 +56,7 @@ posts.forEach(post => {
     html = html.replace('{{ACTIVE_JOURNAL}}', post.category === 'journal' ? 'active' : '');
     html = html.replace('{{ACTIVE_ARTICLES}}', post.category === 'article' ? 'active' : '');
     html = html.replace('{{ACTIVE_RADAR}}', post.category === 'radar' ? 'active' : '');
+    html = html.replace('{{ACTIVE_GALLERY}}', '');
     html = html.replace('{{ACTIVE_ABOUT}}', '');
 
     ensureDir(path.join(OUTPUT_DIR, 'posts'));
@@ -91,10 +92,10 @@ function generateList(category, outputFilename, title) {
     pageHtml = pageHtml.replace('{{TITLE}}', title);
     pageHtml = pageHtml.replace('{{CONTENT}}', listHtml);
     
-    // Active menu logic
     pageHtml = pageHtml.replace('{{ACTIVE_JOURNAL}}', category === 'journal' ? 'active' : '');
     pageHtml = pageHtml.replace('{{ACTIVE_ARTICLES}}', category === 'article' ? 'active' : '');
     pageHtml = pageHtml.replace('{{ACTIVE_RADAR}}', category === 'radar' ? 'active' : '');
+    pageHtml = pageHtml.replace('{{ACTIVE_GALLERY}}', '');
     pageHtml = pageHtml.replace('{{ACTIVE_ABOUT}}', '');
 
     fs.writeFileSync(path.join(OUTPUT_DIR, outputFilename), pageHtml);
@@ -104,7 +105,7 @@ generateList('journal', 'index.html', 'Journal');
 generateList('article', 'articles.html', 'Articles');
 generateList('radar', 'radar.html', 'Tech Radar');
 
-// 4. Generate Standalone Pages (About)
+// 4. Generate Standalone Pages (About, Gallery)
 if (fs.existsSync(PAGES_DIR)) {
     fs.readdirSync(PAGES_DIR).forEach(file => {
         if (!file.endsWith('.json')) return;
@@ -113,8 +114,9 @@ if (fs.existsSync(PAGES_DIR)) {
         let html = layout.replace(/{{ROOT}}/g, '.');
         html = html.replace('{{TITLE}}', pageData.title);
         
-        const ttsBtnEn = `<button class="tts-btn" onclick="toggleSpeech(this, 'en-US')"><span>▶️</span> Listen (EN)</button>`;
-        const ttsBtnTr = `<button class="tts-btn" onclick="toggleSpeech(this, 'tr-TR')"><span>▶️</span> Dinle (TR)</button>`;
+        const showTTS = pageData.slug !== 'gallery'; 
+        const ttsBtnEn = showTTS ? `<button class="tts-btn" onclick="toggleSpeech(this, 'en-US')"><span>▶️</span> Listen (EN)</button>` : '';
+        const ttsBtnTr = showTTS ? `<button class="tts-btn" onclick="toggleSpeech(this, 'tr-TR')"><span>▶️</span> Dinle (TR)</button>` : '';
 
         let content = '';
         if (pageData.content_en && pageData.content_tr) {
@@ -141,6 +143,7 @@ if (fs.existsSync(PAGES_DIR)) {
         html = html.replace('{{ACTIVE_JOURNAL}}', '');
         html = html.replace('{{ACTIVE_ARTICLES}}', '');
         html = html.replace('{{ACTIVE_RADAR}}', '');
+        html = html.replace('{{ACTIVE_GALLERY}}', pageData.slug === 'gallery' ? 'active' : '');
         html = html.replace('{{ACTIVE_ABOUT}}', pageData.slug === 'about' ? 'active' : '');
 
         fs.writeFileSync(path.join(OUTPUT_DIR, `${pageData.slug}.html`), html);
