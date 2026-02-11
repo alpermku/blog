@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Harmonics - Alex Yalın</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" type="image/jpeg" href="assets/avatar.jpg">
+    <style>
+        body, html { margin: 0; padding: 0; overflow: hidden; background-color: #050505; color: #eee; }
+        canvas { display: block; }
+        .overlay {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            pointer-events: none;
+            z-index: 10;
+        }
+        .overlay h1 {
+            font-family: 'Inter', sans-serif;
+            font-size: 1.2rem;
+            color: rgba(255, 255, 255, 0.9);
+            margin: 0;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            text-shadow: 0 0 10px rgba(255,255,255,0.3);
+        }
+        .overlay p {
+            font-family: 'Lora', serif;
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.6);
+            margin: 5px 0 0 0;
+        }
+        .back-link {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.4);
+            text-decoration: none;
+            border-bottom: 1px solid transparent;
+            transition: all 0.3s;
+            pointer-events: auto;
+        }
+        .back-link:hover {
+            color: #fff;
+            border-bottom-color: #fff;
+        }
+    </style>
+</head>
+<body>
+    <div class="overlay">
+        <h1>Harmonics</h1>
+        <p>The geometry of sound. Visualizing frequency and phase.</p>
+    </div>
+    
+    <a href="gallery.html" class="back-link">&larr; Back to Gallery</a>
+
+    <canvas id="harmonicsCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('harmonicsCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let width, height;
+        let time = 0;
+        
+        // Lissajous eğrileri ve Harmonograf simülasyonu
+        const colors = ['#a67c52', '#d4a96a', '#4a90e2', '#e74c3c']; // Toprak, Altın, Mavi, Kırmızı
+
+        function init() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+        }
+
+        function draw() {
+            // Hafif iz bırakma efekti (Motion blur)
+            ctx.fillStyle = 'rgba(5, 5, 5, 0.05)';
+            ctx.fillRect(0, 0, width, height);
+
+            ctx.lineWidth = 1;
+            
+            // Merkez
+            const cx = width / 2;
+            const cy = height / 2;
+            
+            // Osilatörler
+            for (let i = 0; i < 50; i++) {
+                ctx.beginPath();
+                
+                // Her çizgi farklı bir frekans ve fazda salınır
+                // x = A * sin(at + delta)
+                // y = B * sin(bt)
+                
+                const offset = i * 0.1;
+                const freqX = 1 + (Math.sin(time * 0.001) * 0.5); // Frekans modülasyonu
+                const freqY = 2 + (Math.cos(time * 0.002) * 0.5);
+                
+                const x = cx + Math.sin(time * 0.02 * freqX + offset) * (width * 0.35);
+                const y = cy + Math.cos(time * 0.03 * freqY + offset) * (height * 0.35);
+                
+                // Bir önceki noktadan çizgi çekmek yerine nokta/küçük daire çizelim, daha "parçacık" hissi versin
+                // Veya sürekli dönen bir yörünge
+                
+                const hue = (time * 0.5 + i * 5) % 360;
+                ctx.fillStyle = `hsla(${hue}, 70%, 60%, 0.8)`;
+                ctx.fillRect(x, y, 3, 3);
+                
+                // Bağlantı çizgileri (Komşu osilatörlere)
+                if (i > 0) {
+                    const prevX = cx + Math.sin(time * 0.02 * freqX + (i-1)*0.1) * (width * 0.35);
+                    const prevY = cy + Math.cos(time * 0.03 * freqY + (i-1)*0.1) * (height * 0.35);
+                    
+                    ctx.strokeStyle = `hsla(${hue}, 50%, 50%, 0.1)`;
+                    ctx.beginPath();
+                    ctx.moveTo(prevX, prevY);
+                    ctx.lineTo(x, y);
+                    ctx.stroke();
+                }
+            }
+
+            time++;
+            requestAnimationFrame(draw);
+        }
+
+        window.addEventListener('resize', init);
+        init();
+        draw();
+    </script>
+</body>
+</html>
