@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Genesis — An Evolution Engine</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Outfit:wght@200;300;400;500&display=swap" rel="stylesheet">
+<style>
+:root{--era:#4fd1a5}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+body,html{overflow:hidden;background:#060810;color:#c8cad0;font-family:'Outfit',sans-serif;font-weight:300}
+canvas{display:block;position:fixed;top:0;left:0}
+.tl{position:fixed;top:24px;left:28px;z-index:10;pointer-events:none}
+.tl h1{font-family:'Playfair Display',serif;font-weight:400;font-size:1.4rem;color:var(--era);opacity:.65;letter-spacing:4px;text-transform:uppercase;transition:color 2s}
+.tl .sub{font-size:.55rem;letter-spacing:2.5px;text-transform:uppercase;color:rgba(255,255,255,.13);margin-top:3px}
+.pnl{position:fixed;top:24px;right:28px;z-index:10;pointer-events:none;text-align:right;width:195px}
+.pnl .g{margin-bottom:11px}
+.pnl .lb{font-size:.48rem;letter-spacing:2.2px;text-transform:uppercase;color:rgba(255,255,255,.13);font-weight:400;margin-bottom:1px}
+.pnl .v{font-family:'Playfair Display',serif;font-size:1.1rem;color:var(--era);opacity:.55;line-height:1;transition:color 2s}
+.pnl .v.s{font-size:.78rem}
+.pnl .br{width:100%;height:2px;background:rgba(255,255,255,.03);margin-top:3px;border-radius:1px;overflow:hidden}
+.pnl .bf{height:100%;border-radius:1px;background:var(--era);opacity:.45;transition:width .5s,background 2s}
+.ctrls{position:fixed;bottom:16px;right:28px;z-index:10;display:flex;gap:5px}
+.bt{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);color:rgba(255,255,255,.35);font-family:'Outfit',sans-serif;font-size:.5rem;letter-spacing:1.5px;text-transform:uppercase;padding:5px 12px;border-radius:2px;cursor:pointer;transition:all .3s;font-weight:300}
+.bt:hover{background:rgba(255,255,255,.08);color:rgba(255,255,255,.65)}
+.bt.on{background:rgba(255,255,255,.06);color:var(--era);border-color:var(--era);opacity:.8}
+.ann{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:20;pointer-events:none;text-align:center;opacity:0;transition:opacity 2s}
+.ann.show{opacity:1}
+.ann .ab{font-family:'Playfair Display',serif;font-size:2rem;font-style:italic;font-weight:400;color:var(--era);letter-spacing:3px}
+.ann .as{font-size:.55rem;letter-spacing:3px;text-transform:uppercase;color:rgba(255,255,255,.2);margin-top:5px}
+.flash{position:fixed;inset:0;z-index:15;pointer-events:none;opacity:0;transition:opacity 1s}
+.flash.ext{background:radial-gradient(ellipse at center,rgba(217,79,79,.2),transparent 70%);opacity:1}
+.bk{position:fixed;bottom:16px;left:28px;font-size:.55rem;color:rgba(255,255,255,.13);text-decoration:none;letter-spacing:1px;z-index:10;transition:color .3s;font-family:'Outfit',sans-serif}
+.bk:hover{color:var(--era)}
+.leg{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:10;pointer-events:none;display:flex;gap:10px;flex-wrap:wrap;justify-content:center;max-width:70vw}
+.leg .li{font-size:.45rem;color:rgba(255,255,255,.2);letter-spacing:.5px;display:flex;align-items:center;gap:3px}
+.leg .ld{width:4px;height:4px;border-radius:50%}
+</style>
+</head>
+<body>
+<div class="tl"><h1>Genesis</h1><div class="sub">An evolution engine</div></div>
+<div class="pnl">
+ <div class="g"><div class="lb">Era</div><div class="v s" id="uEra">Primordial</div></div>
+ <div class="g"><div class="lb">Time</div><div class="v" id="uTime">0 My</div></div>
+ <div class="g"><div class="lb">Species</div><div class="v" id="uSp">0</div></div>
+ <div class="g"><div class="lb">Population</div><div class="v" id="uPop">0</div><div class="br"><div class="bf" id="bPop"></div></div></div>
+ <div class="g"><div class="lb">Dominant Tier</div><div class="v s" id="uTier">Microbe</div></div>
+ <div class="g"><div class="lb">Oxygen</div><div class="v s" id="uOxy">2%</div><div class="br"><div class="bf" id="bOxy"></div></div></div>
+ <div class="g"><div class="lb">Temperature</div><div class="v s" id="uTemp">45°C</div></div>
+ <div class="g"><div class="lb">Max Intelligence</div><div class="v s" id="uInt">—</div></div>
+ <div class="g"><div class="lb">Extinctions</div><div class="v s" id="uExt">0</div></div>
+</div>
+<div class="ctrls">
+ <button class="bt on" onclick="SS(1)" id="s1">1×</button>
+ <button class="bt" onclick="SS(5)" id="s5">5×</button>
+ <button class="bt" onclick="SS(10)" id="s10">10×</button>
+ <button class="bt" onclick="SS(0)" id="s0">❚❚</button>
+</div>
+<div class="ann" id="ann"><div class="ab" id="anB"></div><div class="as" id="anS"></div></div>
+<div class="flash" id="flash"></div>
+<a href="javascript:history.back()" class="bk">← Back to Gallery</a>
+<div class="leg" id="legBar"></div>
+<canvas id="c"></canvas>
+<script>
+const C=document.getElementById('c'),ctx=C.getContext('2d');
+let W,H,frame=0,simSpd=1,mya=0;
+const MYA=.04;
+
+// ══════ TIERS — the backbone of visual evolution ══════
+// Each tier has a distinct body plan. Creatures are ASSIGNED a tier based on their complexity.
+const TIERS=[
+ {name:'Microbe',    minC:1, col:[120,60,45], szBase:3,  szMul:4},   // 0
+ {name:'Protozoan',  minC:2, col:[160,55,50], szBase:4,  szMul:5},   // 1
+ {name:'Worm',       minC:3, col:[30,50,45],  szBase:5,  szMul:7},   // 2
+ {name:'Fish',       minC:4, col:[200,60,50], szBase:7,  szMul:10},  // 3
+ {name:'Amphibian',  minC:5, col:[90,50,40],  szBase:8,  szMul:12},  // 4
+ {name:'Reptile',    minC:6, col:[50,55,42],  szBase:9,  szMul:14},  // 5
+ {name:'Mammal',     minC:7, col:[25,45,50],  szBase:10, szMul:14},  // 6
+ {name:'Primate',    minC:8, col:[15,40,55],  szBase:11, szMul:13},  // 7
+ {name:'Sapient',    minC:9, col:[45,70,60],  szBase:12, szMul:12},  // 8
+];
+function getTier(c){ return Math.min(TIERS.length-1, Math.max(0, c-1)); }
+
+// ══════ ENVIRONMENT ══════
+const env={oxygen:2,temperature:45,waterLevel:.78,radiation:.8,nutrients:.4};
+const ERAS=[
+ {n:'Primordial Ocean',    s:0,   c:'#2a6b7c',ot:43,ox:2, wt:.78,rd:.8, nu:.35},
+ {n:'Archaean',            s:50,  c:'#2d7a6e',ot:38,ox:5, wt:.72,rd:.5, nu:.45},
+ {n:'Great Oxygenation',   s:130, c:'#4fd1a5',ot:28,ox:16,wt:.65,rd:.2, nu:.6},
+ {n:'Cambrian Explosion',  s:230, c:'#e8a849',ot:24,ox:22,wt:.55,rd:.1, nu:.8},
+ {n:'Age of Fishes',       s:350, c:'#3a9ec4',ot:22,ox:28,wt:.48,rd:.07,nu:.85},
+ {n:'Colonization of Land',s:460, c:'#5ab34a',ot:20,ox:33,wt:.38,rd:.05,nu:.9},
+ {n:'Age of Reptiles',     s:580, c:'#c4a43a',ot:25,ox:26,wt:.32,rd:.04,nu:.88},
+ {n:'Age of Mammals',      s:720, c:'#d48c4e',ot:18,ox:21,wt:.30,rd:.03,nu:.92},
+ {n:'Rise of Primates',    s:860, c:'#b87d5a',ot:16,ox:21,wt:.28,rd:.02,nu:.94},
+ {n:'Age of Intelligence', s:980, c:'#6ec8e0',ot:15,ox:21,wt:.28,rd:.02,nu:.95},
+ {n:'Civilization',        s:1100,c:'#b898d4',ot:15,ox:21,wt:.28,rd:.02,nu:.9},
+];
+let curEra=ERAS[0],prevEI=-1,extCount=0,extCD=0;
+
+// ══════ SPATIAL GRID ══════
+const GS=80;
+let gW,gH,grid,fGrid;
+function initGrid(){gW=Math.ceil(W/GS);gH=Math.ceil(H/GS);grid=new Array(gW*gH);fGrid=new Array(gW*gH);}
+function clearGrids(){for(let i=0;i<grid.length;i++){grid[i]=null;fGrid[i]=null;}}
+function gKey(x,y){return Math.min(gW-1,Math.max(0,x/GS|0))+Math.min(gH-1,Math.max(0,y/GS|0))*gW;}
+function gIns(o){const k=gKey(o.x,o.y);o._gn=grid[k];grid[k]=o;}
+function fIns(f){const k=gKey(f.x,f.y);f._gn=fGrid[k];fGrid[k]=f;}
+function*gNear(x,y,r){const x0=Math.max(0,(x-r)/GS|0),x1=Math.min(gW-1,(x+r)/GS|0),y0=Math.max(0,(y-r)/GS|0),y1=Math.min(gH-1,(y+r)/GS|0);for(let j=y0;j<=y1;j++)for(let i=x0;i<=x1;i++){let o=grid[i+j*gW];while(o){yield o;o=o._gn;}}}
+function*fNear(x,y,r){const x0=Math.max(0,(x-r)/GS|0),x1=Math.min(gW-1,(x+r)/GS|0),y0=Math.max(0,(y-r)/GS|0),y1=Math.min(gH-1,(y+r)/GS|0);for(let j=y0;j<=y1;j++)for(let i=x0;i<=x1;i++){let f=fGrid[i+j*gW];while(f){yield f;f=f._gn;}}}
+function rebuildGrids(){clearGrids();for(const c of creatures)if(!c.dead)gIns(c);for(const f of foods)if(!f.eaten)fIns(f);}
+
+// ══════ CREATURES & FOOD ══════
+const creatures=[],foods=[];
+const MAX_C=450,MAX_F=250;
+let spIdCtr=0;const spMap=new Map();
+function cl(v,a,b){return Math.max(a,Math.min(b,v))}
+
+// ══════ MILESTONES ══════
+const MS={};
+function milestone(key,title,sub){if(MS[key])return;MS[key]=true;showAnn(title,sub);}
+
+// ══════ DNA ══════
+// Complexity is the KEY gene — it determines the creature's tier/body plan
+// Era forces minimum complexity upward over time
+function eraMinComplexity(){
+    if(mya<50)return 1;if(mya<130)return 1;if(mya<230)return 2;if(mya<350)return 3;
+    if(mya<460)return 4;if(mya<580)return 5;if(mya<720)return 6;if(mya<860)return 7;
+    if(mya<980)return 8;return 9;
+}
+
+function mkDNA(p1,p2){
+    if(!p1){
+        const mc=eraMinComplexity();
+        return{
+            complexity:mc,
+            size:.15+Math.random()*.2+mc*.04,
+            speed:.2+Math.random()*.4+mc*.05,
+            sense:.1+Math.random()*.2+mc*.03,
+            metabolism:.2+Math.random()*.2,
+            armor:Math.random()*.1, attack:mc>4?Math.random()*.2:0,
+            fertility:.5+Math.random()*.3,
+            lifespan:.4+Math.random()*.3,
+            limbCount:mc>=3?2:mc>=5?4:0,
+            eyeCount:mc>=2?1:0,
+            hue:Math.random()*360,
+            sat:25+Math.random()*50,
+            lum:35+Math.random()*25,
+            pattern:Math.floor(Math.random()*6),
+            diet:Math.random()*.3,
+            social:mc>=6?Math.random()*.3:Math.random()*.1,
+            aquatic:mc<5?(.5+Math.random()*.5):Math.random(),
+            intelligence:mc>=7?Math.random()*.15:0,
+            toolUse:0,communication:0,
+            warmBlooded:mc>=6?Math.random()*.5:0,
+            fur:mc>=7?Math.random()*.3:0,
+        };
+    }
+    const ch={};
+    for(const k of Object.keys(p1)){
+        ch[k]=Math.random()<.5?p1[k]:p2[k];
+        if(typeof ch[k]==='number'&&k!=='pattern'){
+            if(Math.random()<.14){
+                const ms=k==='hue'?30:k==='sat'||k==='lum'?10:.12;
+                ch[k]+=(Math.random()-.5)*ms*2;
+            }
+        }
+    }
+    const m=Math.random;
+    // Complexity ALWAYS trends upward — key mutation
+    if(m()<.06) ch.complexity=Math.min(12,ch.complexity+1);
+    if(m()<.01&&ch.complexity>eraMinComplexity()) ch.complexity=Math.max(eraMinComplexity(),ch.complexity-1);
+    // Morphology follows complexity
+    if(ch.complexity>=2&&ch.eyeCount<1) ch.eyeCount=1;
+    if(ch.complexity>=3&&ch.limbCount<2) ch.limbCount=2;
+    if(ch.complexity>=5){if(ch.limbCount<4&&m()<.3)ch.limbCount=4;if(m()<.1)ch.aquatic=Math.max(0,ch.aquatic-.2);}
+    if(ch.complexity>=6&&m()<.15) ch.warmBlooded=Math.min(1,ch.warmBlooded+.2);
+    if(ch.complexity>=7&&m()<.1) ch.fur=Math.min(1,ch.fur+.15);
+    // Intelligence chain
+    if(ch.complexity>=7&&m()<.03) ch.intelligence=Math.min(1,ch.intelligence+.06);
+    if(ch.intelligence>.15&&m()<.025) ch.communication=Math.min(1,ch.communication+.07);
+    if(ch.intelligence>.25&&ch.limbCount>=4&&m()<.02) ch.toolUse=Math.min(1,ch.toolUse+.07);
+    // Other mutations
+    if(m()<.02) ch.attack=Math.min(1,ch.attack+.15);
+    if(m()<.015) ch.armor=Math.min(1,ch.armor+.1);
+    if(m()<.03) ch.size=Math.min(2,ch.size+.06);
+    if(m()<.008) ch.social=Math.min(1,ch.social+.1);
+    if(m()<.04) ch.limbCount=Math.min(8,Math.max(0,ch.limbCount+(m()<.7?2:-2)));
+    if(m()<.03) ch.eyeCount=Math.min(4,ch.eyeCount+1);
+    // Ensure minimum complexity for era
+    ch.complexity=Math.max(ch.complexity, eraMinComplexity());
+    // Clamp
+    ch.size=cl(ch.size,.06,2);ch.speed=cl(ch.speed,.05,3.5);ch.sense=cl(ch.sense,.02,2);
+    ch.metabolism=cl(ch.metabolism,.1,1.5);ch.armor=cl(ch.armor,0,1);ch.attack=cl(ch.attack,0,1);
+    ch.fertility=cl(ch.fertility,.1,1);ch.lifespan=cl(ch.lifespan,.2,1.5);ch.diet=cl(ch.diet,0,1);
+    ch.social=cl(ch.social,0,1);ch.aquatic=cl(ch.aquatic,0,1);ch.intelligence=cl(ch.intelligence,0,1);
+    ch.toolUse=cl(ch.toolUse,0,1);ch.communication=cl(ch.communication,0,1);
+    ch.warmBlooded=cl(ch.warmBlooded,0,1);ch.fur=cl(ch.fur,0,1);
+    ch.limbCount=Math.max(0,Math.round(ch.limbCount));ch.eyeCount=Math.max(0,Math.round(ch.eyeCount));
+    ch.complexity=Math.max(1,Math.round(ch.complexity));
+    ch.hue=((ch.hue%360)+360)%360;ch.sat=cl(ch.sat,10,90);ch.lum=cl(ch.lum,25,70);
+    return ch;
+}
+
+function dnaDist(a,b){return Math.abs(a.size-b.size)*2+Math.abs(a.diet-b.diet)*4+Math.abs(a.aquatic-b.aquatic)*3+Math.abs(a.complexity-b.complexity)*2+Math.abs(a.attack-b.attack)*2+Math.abs(a.intelligence-b.intelligence)*3;}
+function assignSp(dna){
+    let bId=-1,bD=1e9;
+    for(const[id,sp]of spMap){if(sp.died>0)continue;const d=dnaDist(dna,sp.dna);if(d<bD){bD=d;bId=id;}}
+    if(bD<3.5&&bId>=0){spMap.get(bId).count++;return bId;}
+    const id=spIdCtr++;const t=TIERS[getTier(dna.complexity)];
+    spMap.set(id,{dna:{...dna},color:`hsl(${dna.hue},${dna.sat}%,${dna.lum}%)`,name:genName(dna),count:1,born:mya,died:0,tier:t.name});
+    return id;
+}
+function genName(d){
+    const ti=getTier(d.complexity);
+    const pre=['Xen','Vor','Tri','Pha','Nex','Lum','Cre','Arc','Zol','Mor','Kri','Sel','Pyr','Gal','Hyd','Fer','Neo','Dra','Sap','Cor'];
+    const mid=['o','a','i','u','ae',''];
+    const suf=[['plasma','coccus','moeba'],['zoon','ella','ium'],['verma','nema','poda'],['ichthy','branchi','ptera'],['amphi','racha','triton'],['saura','raptor','scelis'],['therium','odon','mimus'],['pithe','cebus','lemu'],['anthro','sapien','homin']][Math.min(ti,8)];
+    return pre[Math.random()*pre.length|0]+mid[Math.random()*mid.length|0]+suf[Math.random()*suf.length|0];
+}
+
+// ══════ CREATURE ══════
+class Creature{
+    constructor(x,y,dna,gen){
+        this.x=x;this.y=y;this.dna=dna;this.gen=gen||0;
+        this.spId=assignSp(dna);
+        this.energy=.8+dna.size*.5;
+        this.maxE=1.2+dna.size*1.2;
+        this.age=0;
+        this.maxAge=(400+dna.lifespan*600)*(1+dna.size*.3)*(1+dna.intelligence*.4);
+        this.vx=(Math.random()-.5)*dna.speed;this.vy=(Math.random()-.5)*dna.speed;
+        this.repCD=0;this.dead=false;
+        this.angle=Math.random()*Math.PI*2;this.phase=Math.random()*Math.PI*2;
+        this.tier=getTier(dna.complexity);
+    }
+    update(){
+        this.age++;this.phase+=.04;
+        this.repCD=Math.max(0,this.repCD-1);
+        const d=this.dna;
+        let burn=.0005*d.metabolism*(1+d.size*.3);
+        if(d.intelligence>.3)burn*=1+d.intelligence*.12;
+        this.energy-=burn;
+        if(d.speed>.01)this.think();
+        this.x+=this.vx;this.y+=this.vy;
+        if(this.x<5){this.x=5;this.vx*=-.5}if(this.x>W-5){this.x=W-5;this.vx*=-.5}
+        if(this.y<5){this.y=5;this.vy*=-.5}if(this.y>H-5){this.y=H-5;this.vy*=-.5}
+        this.vx*=.95;this.vy*=.95;
+        if(Math.hypot(this.vx,this.vy)>.08)this.angle=Math.atan2(this.vy,this.vx);
+        this.energy=Math.min(this.energy,this.maxE);
+        if(this.energy<=0||this.age>this.maxAge)this.die();
+        this.checkMS();
+    }
+    checkMS(){
+        const d=this.dna;
+        if(d.eyeCount>=1)milestone('eyes','Eyes Evolve','Light-sensitive organs appear');
+        if(d.limbCount>=2)milestone('limbs','First Limbs','Appendages emerge');
+        if(d.aquatic<.3&&d.limbCount>=4)milestone('land','Invasion of Land','Life leaves the ocean');
+        if(d.attack>.4)milestone('pred','Apex Predators','The arms race begins');
+        if(d.warmBlooded>.5)milestone('warm','Warm Blood','Endothermy unlocks new niches');
+        if(d.social>.4)milestone('soc','Social Bonds','Cooperation emerges');
+        if(d.intelligence>.25)milestone('int','Spark of Intelligence','Brains grow larger');
+        if(d.toolUse>.25)milestone('tool','Tool Use','Hands shape the world');
+        if(d.toolUse>.6&&d.intelligence>.5)milestone('fire','Discovery of Fire','The night is conquered');
+        if(d.communication>.5)milestone('lang','Language','Ideas transcend individuals');
+        if(d.intelligence>.6&&d.toolUse>.3&&d.communication>.3)milestone('sap','Sapience','A mind contemplates existence');
+        if(d.intelligence>.8&&d.toolUse>.5&&d.communication>.5&&d.social>.4)milestone('civ','Civilization','The world is forever changed');
+    }
+    think(){
+        const d=this.dna,sense=30+d.sense*70;
+        let fx=0,fy=0;
+        // Eat food
+        if(d.diet<.6){
+            let best=null,bd=sense;
+            for(const f of fNear(this.x,this.y,sense)){if(f.eaten)continue;const dd=Math.hypot(f.x-this.x,f.y-this.y);if(dd<bd){bd=dd;best=f;}}
+            if(best){fx+=(best.x-this.x)/bd*.5;fy+=(best.y-this.y)/bd*.5;if(bd<10+d.size*10){this.energy+=best.energy*(1-d.diet)*1.2;best.eaten=true;}}
+        }
+        // Hunt + Flee + Social in one pass
+        let prey=null,pd=sense;let sx=0,sy=0,sn=0;
+        for(const c of gNear(this.x,this.y,sense)){
+            if(c===this||c.dead)continue;
+            const dx=c.x-this.x,dy=c.y-this.y,dd=Math.sqrt(dx*dx+dy*dy);if(dd>sense)continue;
+            if(d.attack>.1&&c.dna.size<d.size*.9&&dd<pd){pd=dd;prey=c;}
+            if(c.dna.attack>.1&&c.dna.size>=d.size*.7&&dd<sense*.6&&dd>0){fx-=dx/dd*.5;fy-=dy/dd*.5;}
+            if(d.social>.15&&c.spId===this.spId&&dd>4){sx+=c.x;sy+=c.y;sn++;}
+        }
+        if(prey){fx+=(prey.x-this.x)/pd*d.attack*.7;fy+=(prey.y-this.y)/pd*d.attack*.7;
+            if(pd<8+d.size*10&&Math.random()<d.attack*.25*(1+d.intelligence*.5)){this.energy+=prey.energy*.7;prey.die();}}
+        if(sn>0){sx/=sn;sy/=sn;const dd=Math.hypot(sx-this.x,sy-this.y);if(dd>0){fx+=(sx-this.x)/dd*d.social*.25;fy+=(sy-this.y)/dd*d.social*.25;}}
+        const wl=H*(1-env.waterLevel);
+        if(d.aquatic>.6&&this.y<wl)fy+=.3;if(d.aquatic<.4&&this.y>wl)fy-=.3;
+        fx+=(Math.random()-.5)*.3;fy+=(Math.random()-.5)*.3;
+        this.vx+=fx*.13*d.speed;this.vy+=fy*.13*d.speed;
+        const ms=d.speed*1.5,sp=Math.hypot(this.vx,this.vy);if(sp>ms){this.vx=this.vx/sp*ms;this.vy=this.vy/sp*ms;}
+    }
+    tryReproduce(){
+        if(this.repCD>0||this.energy<this.maxE*.4)return;
+        if(Math.random()>this.dna.fertility*.015)return;
+        if(creatures.length>=MAX_C)return;
+        let mate=this.dna.complexity<=1?this:null;
+        if(!mate){for(const c of gNear(this.x,this.y,100)){if(c===this||c.dead||c.energy<c.maxE*.3)continue;if(c.spId===this.spId||dnaDist(this.dna,c.dna)<5){mate=c;break;}}}
+        if(!mate)return;
+        const cdna=mkDNA(this.dna,mate.dna);
+        const child=new Creature(cl((this.x+mate.x)/2+(Math.random()-.5)*15,5,W-5),cl((this.y+mate.y)/2+(Math.random()-.5)*15,5,H-5),cdna,Math.max(this.gen,mate===this?this.gen:mate.gen)+1);
+        child.energy=child.maxE*.6;creatures.push(child);
+        this.energy*=.6;if(mate!==this)mate.energy*=.65;
+        this.repCD=40+(1-this.dna.fertility)*70;if(mate!==this)mate.repCD=50;
+    }
+    die(){this.dead=true;const sp=spMap.get(this.spId);if(sp){sp.count--;if(sp.count<=0)sp.died=mya;}}
+
+    // ══════ TIER-BASED DRAWING ══════
+    draw(){
+        if(this.dead)return;
+        const d=this.dna,ti=this.tier;
+        const sz=TIERS[ti].szBase+d.size*TIERS[ti].szMul;
+        const a=cl(.5+this.energy*.5,0,1);
+        const h=d.hue,s=d.sat,l=d.lum;
+        const col=`hsla(${h},${s}%,${l}%,${a})`;
+        const col2=`hsla(${h},${s-5}%,${l-8}%,${a*.7})`;
+        const colL=`hsla(${h},${s+5}%,${l+10}%,${a*.5})`;
+        ctx.save();ctx.translate(this.x,this.y);ctx.rotate(this.angle);
+        // Glow
+        const gr=ctx.createRadialGradient(0,0,0,0,0,sz*2);
+        gr.addColorStop(0,`hsla(${h},${s}%,${l}%,${a*.12})`);gr.addColorStop(1,`hsla(${h},${s}%,${l}%,0)`);
+        ctx.beginPath();ctx.arc(0,0,sz*2,0,Math.PI*2);ctx.fillStyle=gr;ctx.fill();
+
+        if(ti===0){
+            // ── MICROBE: tiny blob with flagella ──
+            const w=Math.sin(this.phase)*1;
+            ctx.beginPath();ctx.ellipse(0,0,sz+w,sz*.6,0,0,Math.PI*2);ctx.fillStyle=col;ctx.fill();
+            ctx.strokeStyle=colL;ctx.lineWidth=.5;ctx.beginPath();ctx.moveTo(-sz,0);
+            ctx.quadraticCurveTo(-sz*1.6,Math.sin(this.phase*3)*3,-sz*2.2,0);ctx.stroke();
+        }else if(ti===1){
+            // ── PROTOZOAN: larger cell with cilia ──
+            ctx.beginPath();ctx.ellipse(0,0,sz,sz*.7,0,0,Math.PI*2);ctx.fillStyle=col;ctx.fill();
+            ctx.strokeStyle=col2;ctx.lineWidth=.8;
+            for(let i=0;i<8;i++){const ang=Math.PI*2/8*i+Math.sin(this.phase+i)*.2;
+                ctx.beginPath();ctx.moveTo(Math.cos(ang)*sz*.8,Math.sin(ang)*sz*.6);
+                ctx.lineTo(Math.cos(ang)*sz*1.3,Math.sin(ang)*sz*1);ctx.stroke();}
+            // Nucleus
+            ctx.beginPath();ctx.arc(0,0,sz*.25,0,Math.PI*2);ctx.fillStyle=col2;ctx.fill();
+        }else if(ti===2){
+            // ── WORM: segmented body ──
+            const segs=4+Math.floor(d.size*3);
+            for(let i=segs-1;i>=0;i--){const t=i/segs;const sx=-sz*t*1.5;
+                const ss=sz*(1-t*.4)*(.35+.1*Math.sin(this.phase+i*.8));
+                ctx.beginPath();ctx.ellipse(sx,0,ss*.5,ss*.35,0,0,Math.PI*2);
+                ctx.fillStyle=i%2===0?col:col2;ctx.fill();}
+        }else if(ti===3){
+            // ── FISH: streamlined body + fins + tail ──
+            ctx.beginPath();ctx.ellipse(0,0,sz,sz*.4,0,0,Math.PI*2);ctx.fillStyle=col;ctx.fill();
+            // Tail
+            const tw=Math.sin(this.phase*2.5)*4;
+            ctx.beginPath();ctx.moveTo(-sz*.8,0);ctx.lineTo(-sz*1.5,tw-sz*.3);ctx.lineTo(-sz*1.5,tw+sz*.3);ctx.closePath();ctx.fillStyle=col2;ctx.fill();
+            // Dorsal fin
+            ctx.beginPath();ctx.moveTo(-sz*.2,-sz*.35);ctx.lineTo(sz*.2,-sz*.55);ctx.lineTo(sz*.4,-sz*.35);ctx.closePath();ctx.fillStyle=colL;ctx.fill();
+            // Eye
+            ctx.beginPath();ctx.arc(sz*.6,sz*-.1,sz*.1,0,Math.PI*2);ctx.fillStyle=`rgba(255,255,255,${a*.9})`;ctx.fill();
+            ctx.beginPath();ctx.arc(sz*.62,sz*-.1,sz*.05,0,Math.PI*2);ctx.fillStyle=`rgba(0,0,0,${a})`;ctx.fill();
+        }else if(ti===4){
+            // ── AMPHIBIAN: bulky body + 4 legs + big eyes ──
+            ctx.beginPath();ctx.ellipse(0,0,sz*.9,sz*.55,0,0,Math.PI*2);ctx.fillStyle=col;ctx.fill();
+            // Legs
+            const lsw=Math.sin(this.phase)*8*Math.PI/180;
+            for(const s of[-1,1]){for(const xo of[-.3,.3]){
+                ctx.save();ctx.translate(sz*xo,s*sz*.45);ctx.rotate(s*(.6+lsw));
+                ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(sz*.5,0);ctx.lineTo(sz*.55,s*2);
+                ctx.strokeStyle=col;ctx.lineWidth=Math.max(1,sz*.07);ctx.stroke();ctx.restore();}}
+            // Eyes (big, frog-like)
+            for(const s of[-1,1]){ctx.beginPath();ctx.arc(sz*.5,s*sz*.25,sz*.15,0,Math.PI*2);ctx.fillStyle=`rgba(255,255,220,${a*.9})`;ctx.fill();
+                ctx.beginPath();ctx.arc(sz*.52,s*sz*.25,sz*.07,0,Math.PI*2);ctx.fillStyle=`rgba(10,10,10,${a})`;ctx.fill();}
+        }else if(ti===5){
+            // ── REPTILE: elongated body, scales pattern, tail, claws ──
+            // Tail
+            const tw=Math.sin(this.phase*1.5)*5;
+            ctx.strokeStyle=col;ctx.lineWidth=sz*.12;ctx.beginPath();ctx.moveTo(-sz*.7,0);
+            ctx.quadraticCurveTo(-sz*1.4,tw,-sz*2,tw*1.5);ctx.stroke();
+            // Body
+            ctx.beginPath();ctx.ellipse(0,0,sz,sz*.4,0,0,Math.PI*2);ctx.fillStyle=col;ctx.fill();
+            // Scales
+            ctx.fillStyle=`hsla(${h+15},${s}%,${l-10}%,${a*.2})`;
+            for(let i=-3;i<=3;i++)for(let j=-1;j<=1;j++){ctx.beginPath();ctx.arc(i*sz*.2,j*sz*.12,sz*.06,0,Math.PI*2);ctx.fill();}
+            // Head
+            ctx.beginPath();ctx.ellipse(sz*.7,0,sz*.3,sz*.22,0,0,Math.PI*2);ctx.fillStyle=col;ctx.fill();
+            // Legs with claws
+            for(const s2 of[-1,1])for(const xo of[-.2,.2]){
+                ctx.save();ctx.translate(sz*xo,s2*sz*.35);ctx.rotate(s2*.5);
+                ctx.strokeStyle=col2;ctx.lineWidth=sz*.06;ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(sz*.45,0);ctx.stroke();
+                ctx.beginPath();ctx.moveTo(sz*.45,0);ctx.lineTo(sz*.52,-1.5);ctx.lineTo(sz*.52,1.5);ctx.strokeStyle=`hsla(${h},${s-10}%,${l+15}%,${a*.6})`;ctx.lineWidth=.5;ctx.stroke();
+                ctx.restore();}
+            // Eyes
+            ctx.beginPath();ctx.arc(sz*.85,-sz*.08,sz*.06,0,Math.PI*2);ctx.fillStyle=`rgba(255,200,50,${a*.9})`;ctx.fill();
+            ctx.beginPath();ctx.arc(sz*.86,-sz*.08,sz*.025,0,Math.PI*2);ctx.fillStyle=`rgba(0,0,0,${a})`;ctx.fill();
+        }else if(ti===6){
+            // ── MAMMAL: round body, fur texture, ears, tail ──
+            const tw=Math.sin(this.phase*1.2)*3;
+            ctx.strokeStyle=col2;ctx.lineWidth=sz*.08;ctx.beginPath();ctx.moveTo(-sz*.7,0);
+            ctx.quadraticCurveTo(-sz*1.2,tw,-sz*1.5,tw);ctx.stroke();
+            ctx.beginPath();ctx.ellipse(0,0,sz*.85,sz*.55,0,0,Math.PI*2);ctx.fillStyle=col;ctx.fill();
+            // Fur lines
+            if(d.fur>.2){ctx.strokeStyle=`hsla(${h},${s-10}%,${l+5}%,${a*.15})`;ctx.lineWidth=.4;
+                for(let i=0;i<8;i++){const px=(Math.random()-.3)*sz,py=(Math.random()-.5)*sz*.6;ctx.beginPath();ctx.moveTo(px,py);ctx.lineTo(px+1.5,py+(Math.random()-.5)*3);ctx.stroke();}}
+            // Head
+            ctx.beginPath();ctx.arc(sz*.55,0,sz*.3,0,Math.PI*2);ctx.fillStyle=col;ctx.fill();
+            // Ears
+            ctx.beginPath();ctx.ellipse(sz*.65,-sz*.35,sz*.08,sz*.14,-.3,0,Math.PI*2);ctx.fillStyle=col2;ctx.fill();
+            ctx.beginPath();ctx.ellipse(sz*.65,sz*.35,sz*.08,sz*.14,.3,0,Math.PI*2);ctx.fillStyle=col2;ctx.fill();
+            // Legs
+            for(const s2 of[-1,1])for(const xo of[-.25,.15]){ctx.save();ctx.translate(sz*xo,s2*sz*.48);ctx.rotate(s2*.3);
+                ctx.strokeStyle=col;ctx.lineWidth=sz*.07;ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(sz*.35,0);ctx.stroke();ctx.restore();}
+            // Eyes
+            ctx.beginPath();ctx.arc(sz*.7,-sz*.08,sz*.07,0,Math.PI*2);ctx.fillStyle=`rgba(255,255,255,${a*.9})`;ctx.fill();
+            ctx.beginPath();ctx.arc(sz*.72,-sz*.08,sz*.035,0,Math.PI*2);ctx.fillStyle=`rgba(30,20,10,${a})`;ctx.fill();
+            // Nose
+            ctx.beginPath();ctx.arc(sz*.82,0,sz*.03,0,Math.PI*2);ctx.fillStyle=`rgba(40,20,20,${a*.6})`;ctx.fill();
+        }else if(ti===7){
+            // ── PRIMATE: upright tendency, long arms, expressive face ──
+            ctx.beginPath();ctx.ellipse(0,0,sz*.7,sz*.6,0,0,Math.PI*2);ctx.fillStyle=col;ctx.fill();
+            // Head (larger)
+            ctx.beginPath();ctx.arc(sz*.45,0,sz*.35,0,Math.PI*2);ctx.fillStyle=col;ctx.fill();
+            // Arms (long)
+            for(const s2 of[-1,1]){const sw=Math.sin(this.phase+s2)*10*Math.PI/180;
+                ctx.save();ctx.translate(-.1*sz,s2*sz*.5);ctx.rotate(s2*(.7+sw));
+                ctx.strokeStyle=col2;ctx.lineWidth=sz*.06;ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(sz*.6,0);ctx.stroke();
+                ctx.beginPath();ctx.arc(sz*.6,0,sz*.04,0,Math.PI*2);ctx.fillStyle=col2;ctx.fill();ctx.restore();}
+            // Legs
+            for(const s2 of[-1,1]){ctx.save();ctx.translate(-.2*sz,s2*sz*.5);ctx.rotate(s2*.4);
+                ctx.strokeStyle=col;ctx.lineWidth=sz*.07;ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(sz*.4,0);ctx.stroke();ctx.restore();}
+            // Face
+            for(const s2 of[-1,1]){ctx.beginPath();ctx.arc(sz*.55,s2*sz*.12,sz*.08,0,Math.PI*2);ctx.fillStyle=`rgba(255,255,255,${a*.9})`;ctx.fill();
+                ctx.beginPath();ctx.arc(sz*.57,s2*sz*.12,sz*.04,0,Math.PI*2);ctx.fillStyle=`rgba(40,25,10,${a})`;ctx.fill();}
+            ctx.beginPath();ctx.arc(sz*.62,sz*.02,sz*.03,0,Math.PI*2);ctx.fillStyle=`rgba(60,30,30,${a*.5})`;ctx.fill();
+        }else{
+            // ── SAPIENT: upright, aura, tools, fire ──
+            ctx.beginPath();ctx.ellipse(0,0,sz*.6,sz*.55,0,0,Math.PI*2);ctx.fillStyle=col;ctx.fill();
+            ctx.beginPath();ctx.arc(sz*.35,0,sz*.38,0,Math.PI*2);ctx.fillStyle=col;ctx.fill();
+            // Sapient aura
+            const ag=ctx.createRadialGradient(0,-sz*.2,0,0,-sz*.2,sz*1.5);
+            ag.addColorStop(0,`hsla(45,80%,70%,${a*.15})`);ag.addColorStop(1,'hsla(45,80%,70%,0)');
+            ctx.beginPath();ctx.arc(0,-sz*.2,sz*1.5,0,Math.PI*2);ctx.fillStyle=ag;ctx.fill();
+            // Arms
+            for(const s2 of[-1,1]){const sw=Math.sin(this.phase+s2)*.15;ctx.save();ctx.translate(0,s2*sz*.45);ctx.rotate(s2*(.6+sw));
+                ctx.strokeStyle=col;ctx.lineWidth=sz*.06;ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(sz*.55,0);ctx.stroke();ctx.restore();}
+            // Legs
+            for(const s2 of[-1,1]){ctx.save();ctx.translate(-sz*.15,s2*sz*.48);ctx.rotate(s2*.3);
+                ctx.strokeStyle=col;ctx.lineWidth=sz*.07;ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(sz*.4,0);ctx.stroke();ctx.restore();}
+            // Eyes
+            for(const s2 of[-1,1]){ctx.beginPath();ctx.arc(sz*.45,s2*sz*.12,sz*.09,0,Math.PI*2);ctx.fillStyle=`rgba(255,255,255,${a})`;ctx.fill();
+                ctx.beginPath();ctx.arc(sz*.47,s2*sz*.12,sz*.045,0,Math.PI*2);ctx.fillStyle=`rgba(40,60,80,${a})`;ctx.fill();}
+            // Tool
+            if(d.toolUse>.2){ctx.strokeStyle=`hsla(30,40%,50%,${a*.6})`;ctx.lineWidth=1.2;ctx.beginPath();ctx.moveTo(sz*.55,sz*.4);ctx.lineTo(sz*1,sz*.6);ctx.stroke();
+                if(d.toolUse>.5){ctx.beginPath();ctx.moveTo(sz*1,sz*.6);ctx.lineTo(sz*1.1,sz*.5);ctx.lineTo(sz*1.05,sz*.7);ctx.closePath();ctx.fillStyle=`hsla(0,0%,60%,${a*.5})`;ctx.fill();}}
+            // Fire
+            if(d.toolUse>.6&&d.intelligence>.5){const ff=Math.sin(this.phase*5)*1.5;
+                ctx.beginPath();ctx.arc(sz*1.15,sz*.5+ff,3,0,Math.PI*2);ctx.fillStyle=`hsla(25,90%,55%,${a*.5})`;ctx.fill();
+                ctx.beginPath();ctx.arc(sz*1.15,sz*.42+ff,2,0,Math.PI*2);ctx.fillStyle=`hsla(50,95%,70%,${a*.4})`;ctx.fill();}
+        }
+        ctx.restore();
+    }
+}
+
+// ══════ FOOD ══════
+class Food{
+    constructor(){this.x=Math.random()*W;this.y=Math.random()*H;this.energy=.15+Math.random()*.15;this.size=2+Math.random()*2.5;this.eaten=false;this.age=0;this.hue=this.y>H*(1-env.waterLevel)?130+Math.random()*30:80+Math.random()*40;}
+    update(){this.age++;if(this.age>2000)this.eaten=true;}
+    draw(){if(this.eaten)return;ctx.beginPath();ctx.arc(this.x,this.y,this.size,0,Math.PI*2);ctx.fillStyle=`hsla(${this.hue},45%,38%,.35)`;ctx.fill();}
+}
+
+// ══════ SIM ══════
+function updateEnv(){
+    let ei=0;for(let i=ERAS.length-1;i>=0;i--)if(mya>=ERAS[i].s){ei=i;break;}
+    curEra=ERAS[ei];const e=curEra,lr=.003;
+    env.oxygen+=(e.ox-env.oxygen)*lr;env.temperature+=(e.ot-env.temperature)*lr;
+    env.waterLevel+=(e.wt-env.waterLevel)*lr*.5;env.radiation+=(e.rd-env.radiation)*lr;env.nutrients+=(e.nu-env.nutrients)*lr;
+    if(ei!==prevEI){prevEI=ei;showAnn(e.n,`${Math.round(mya)} million years`);document.documentElement.style.setProperty('--era',e.c);}
+    extCD=Math.max(0,extCD-1);
+    if(Math.random()<.00006&&creatures.length>20&&extCD<=0)triggerExt();
+}
+function triggerExt(){
+    extCount++;extCD=500;const sev=.25+Math.random()*.45;
+    showAnn(['Meteor Impact','Volcanic Winter','Ice Age','Gamma Ray Burst','Supervolcano'][Math.random()*5|0],`Mass extinction — ${Math.round(sev*100)}% mortality`);
+    document.getElementById('flash').className='flash ext';setTimeout(()=>document.getElementById('flash').className='flash',2500);
+    for(const c of creatures){let dc=sev;if(c.dna.size<.3)dc*=.7;if(c.dna.warmBlooded>.5)dc*=.85;if(c.dna.intelligence>.3)dc*=.8;if(Math.random()<dc)c.die();}
+    for(const f of foods)if(Math.random()<sev*.4)f.eaten=true;
+    env.temperature+=(Math.random()-.5)*8;env.oxygen*=(1-sev*.15);
+}
+function spawn(){
+    if(creatures.length<10&&mya<10){const wy=H*(1-env.waterLevel);creatures.push(new Creature(Math.random()*W,wy+Math.random()*(H-wy),mkDNA(),0));}
+    if(creatures.length<15)creatures.push(new Creature(Math.random()*W,Math.random()*H,mkDNA(),0));
+    const rolls=mya>700?3:mya>350?2:1;
+    for(let r=0;r<rolls;r++){if(creatures.length>=MAX_C*.92||Math.random()>.007)continue;
+        const wy=H*(1-env.waterLevel);const dna=mkDNA();
+        creatures.push(new Creature(Math.random()*W,dna.aquatic>.5?wy+Math.random()*(H-wy):Math.random()*wy,dna,0));}
+    const ft=MAX_F*env.nutrients;if(foods.length<ft){const b=Math.min(3,Math.ceil((ft-foods.length)*.05));for(let i=0;i<b;i++)foods.push(new Food());}
+}
+function simTick(){
+    mya+=MYA;updateEnv();spawn();rebuildGrids();
+    for(const c of creatures)if(!c.dead){c.update();c.tryReproduce();}
+    for(const f of foods)f.update();
+    for(let i=creatures.length-1;i>=0;i--)if(creatures[i].dead)creatures.splice(i,1);
+    for(let i=foods.length-1;i>=0;i--)if(foods[i].eaten)foods.splice(i,1);
+}
+
+// ══════ RENDER ══════
+function drawEnv(){
+    const wy=H*(1-env.waterLevel);
+    const sg=ctx.createLinearGradient(0,0,0,H);sg.addColorStop(0,'#060810');
+    sg.addColorStop(Math.max(0,wy/H-.08),curEra.c+'12');sg.addColorStop(Math.min(1,wy/H),curEra.c+'22');sg.addColorStop(1,curEra.c+'30');
+    ctx.fillStyle=sg;ctx.fillRect(0,0,W,H);
+    if(env.waterLevel<.95){const lg=ctx.createLinearGradient(0,0,0,wy);lg.addColorStop(0,'#0a0c08');lg.addColorStop(1,mya>400?'#141a0e':'#0e100a');ctx.fillStyle=lg;ctx.fillRect(0,0,W,wy);}
+    ctx.beginPath();ctx.moveTo(0,wy);for(let x=0;x<=W;x+=25)ctx.lineTo(x,wy+Math.sin(frame*.015+x*.008)*2.5);
+    ctx.lineTo(W,H);ctx.lineTo(0,H);ctx.closePath();ctx.fillStyle=curEra.c+'0d';ctx.fill();
+}
+function drawVig(){const r=Math.hypot(W,H)/2;const g=ctx.createRadialGradient(W/2,H/2,r*.35,W/2,H/2,r);
+    g.addColorStop(0,'rgba(6,8,16,0)');g.addColorStop(.65,'rgba(6,8,16,.3)');g.addColorStop(1,'rgba(6,8,16,.88)');ctx.fillStyle=g;ctx.fillRect(0,0,W,H);}
+
+// ══════ UI ══════
+function updateUI(){
+    document.getElementById('uEra').textContent=curEra.n;
+    document.getElementById('uTime').textContent=Math.round(mya)+' My';
+    document.getElementById('uPop').textContent=creatures.length;
+    document.getElementById('bPop').style.width=(creatures.length/MAX_C*100)+'%';
+    const live=[...spMap.values()].filter(s=>s.count>0);
+    document.getElementById('uSp').textContent=live.length;
+    // Dominant tier
+    const tc={};for(const c of creatures)if(!c.dead){const t=TIERS[c.tier].name;tc[t]=(tc[t]||0)+1;}
+    let dt='—',dm=0;for(const[t,n]of Object.entries(tc))if(n>dm){dm=n;dt=t;}
+    document.getElementById('uTier').textContent=dt;
+    document.getElementById('uOxy').textContent=Math.round(env.oxygen)+'%';
+    document.getElementById('bOxy').style.width=Math.min(100,env.oxygen/35*100)+'%';
+    document.getElementById('uTemp').textContent=env.temperature.toFixed(1)+'°C';
+    document.getElementById('uExt').textContent=extCount;
+    let mi=0;for(const c of creatures)if(!c.dead&&c.dna.intelligence>mi)mi=c.dna.intelligence;
+    document.getElementById('uInt').textContent=mi>0?(Math.round(mi*100)+'%'+(mi>.6?' ★':'')):'—';
+    const sorted=live.sort((a,b)=>b.count-a.count).slice(0,6);
+    document.getElementById('legBar').innerHTML=sorted.map(s=>`<div class="li"><div class="ld" style="background:${s.color}"></div>${s.name} (${s.count})</div>`).join('');
+}
+let annTO;function showAnn(b,s){document.getElementById('anB').textContent=b;document.getElementById('anS').textContent=s;document.getElementById('ann').classList.add('show');clearTimeout(annTO);annTO=setTimeout(()=>document.getElementById('ann').classList.remove('show'),4000);}
+function SS(s){simSpd=s;document.querySelectorAll('.bt').forEach(b=>b.classList.remove('on'));(s===0?document.getElementById('s0'):s===1?document.getElementById('s1'):s===5?document.getElementById('s5'):document.getElementById('s10')).classList.add('on');}
+window.SS=SS;
+
+// ══════ MAIN ══════
+function init(){W=C.width=innerWidth;H=C.height=innerHeight;initGrid();}
+let uiCD=0,lastTS=0;
+function animate(ts){
+    if(!lastTS)lastTS=ts;const dt=ts-lastTS;lastTS=ts;
+    for(let i=0;i<simSpd;i++){frame++;simTick();}
+    drawEnv();for(const f of foods)f.draw();
+    // Sort by tier for layering
+    creatures.sort((a,b)=>a.tier-b.tier);
+    for(const c of creatures)c.draw();
+    drawVig();uiCD+=dt;if(uiCD>180){uiCD=0;updateUI();}
+    requestAnimationFrame(animate);
+}
+window.addEventListener('resize',init);init();showAnn('Genesis','Life begins');requestAnimationFrame(animate);
+</script>
+</body>
+</html>
