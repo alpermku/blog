@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neon Terrain - Alex Yalın</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" type="image/jpeg" href="assets/avatar.jpg">
+    <style>
+        body, html { margin: 0; padding: 0; overflow: hidden; background-color: #050505; color: #eee; }
+        canvas { display: block; }
+        .overlay {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            pointer-events: none;
+            z-index: 10;
+        }
+        .overlay h1 {
+            font-family: 'Inter', sans-serif;
+            font-size: 1.2rem;
+            color: rgba(255, 255, 255, 0.9);
+            margin: 0;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            text-shadow: 0 0 10px rgba(255,0,255,0.3);
+        }
+        .overlay p {
+            font-family: 'Lora', serif;
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.6);
+            margin: 5px 0 0 0;
+        }
+        .back-link {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.4);
+            text-decoration: none;
+            border-bottom: 1px solid transparent;
+            transition: all 0.3s;
+            pointer-events: auto;
+        }
+        .back-link:hover {
+            color: #fff;
+            border-bottom-color: #fff;
+        }
+    </style>
+</head>
+<body>
+    <div class="overlay">
+        <h1>Neon Terrain</h1>
+        <p>Infinite procedural landscape. The retro-future.</p>
+    </div>
+    
+    <a href="gallery.html" class="back-link">&larr; Back to Gallery</a>
+
+    <canvas id="terrainCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('terrainCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let width, height;
+        let flight = 0;
+        const scale = 20;
+        let cols, rows;
+        let terrain = [];
+
+        // Simplex Noise (Basitleştirilmiş)
+        function noise(x, y) {
+            return Math.sin(x) * Math.cos(y); 
+        }
+
+        function init() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+            
+            cols = Math.floor(width / scale) + 2; // +2 for padding
+            rows = Math.floor(height / scale) + 2;
+            
+            // Grid'i başlatmaya gerek yok, her karede hesaplanacak
+        }
+
+        function draw() {
+            ctx.fillStyle = '#050505';
+            ctx.fillRect(0, 0, width, height);
+
+            flight -= 0.05; // İleri hareket
+
+            let yoff = flight;
+            for (let y = 0; y < rows; y++) {
+                let xoff = 0;
+                for (let x = 0; x < cols; x++) {
+                    // Basit yükseklik haritası (Trigonometrik)
+                    // Daha karmaşık noise için kütüphane lazım ama sin/cos kombinasyonu yeterli
+                    const h = (Math.sin(xoff) + Math.cos(yoff)) * 50; 
+                    
+                    // Perspektif dönüşümü (Pseudo-3D)
+                    // Üst taraf dar, alt taraf geniş (Trapezoid)
+                    
+                    // Aslında düz 2D grid çizelim ama renk ve çizgilerle derinlik verelim
+                    // Ya da basit izometrik? Hayır, perspektif daha iyi.
+                    
+                    // Basit 2D "Heatmap" tarzı çizim yerine tel kafes (wireframe)
+                    
+                    // Grid noktalarını sakla
+                    if (!terrain[x]) terrain[x] = [];
+                    terrain[x][y] = h;
+
+                    xoff += 0.1;
+                }
+                yoff += 0.1;
+            }
+
+            // Çizim
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 1;
+
+            // Tel kafes
+            // Üst yarıyı gökyüzü bırak, alt yarıya araziyi yatır
+            
+            // Horizon
+            const horizon = height / 3;
+            
+            for (let y = 0; y < rows - 1; y++) {
+                ctx.beginPath();
+                for (let x = 0; x < cols; x++) {
+                    // 3D Projeksiyon
+                    // z = y (derinlik)
+                    // x = x (genişlik)
+                    // Derinlik arttıkça noktalar birbirine yaklaşmalı ve yukarı çıkmalı
+                    
+                    // Tersine çevir: y=0 en uzak (horizon), y=rows en yakın
+                    
+                    const z = (y) * 20; // Derinlik
+                    const zFactor = 200 / (z + 100); // Perspektif faktörü
+                    
+                    // Merkezden x sapması
+                    const dx = (x * scale - width / 2) * zFactor * 4 + width / 2;
+                    const dy = horizon + z + terrain[x][y] * zFactor; // Yükseklik etkisi
+                    
+                    // Bu basit projeksiyon hatalı olabilir, daha basit bir "Retro" yaklaşımı:
+                    // Sadece çizgileri çiz
+                    
+                    // Düzeltme:
+                    // Y döngüsü "uzaktan yakına" doğru (0 to rows)
+                    // Uzaktaki çizgiler daha kısa ve yukarıda
+                    
+                    // Basitleştirilmiş "Synthwave" ızgarası:
+                    const perspective = (y / rows); // 0 (uzak) -> 1 (yakın)
+                    const py = horizon + Math.pow(perspective, 2) * (height - horizon); // Üstel derinlik
+                    
+                    // Genişlik perspektifi
+                    const roadWidth = width * (0.1 + perspective * 2);
+                    const px = (width - roadWidth)/2 + (x / cols) * roadWidth;
+                    
+                    // Yükseklik (Noise)
+                    const alt = terrain[x][y] * perspective;
+                    
+                    if (x === 0) ctx.moveTo(px, py - alt);
+                    else ctx.lineTo(px, py - alt);
+                }
+                
+                // Renk: Uzak (Mor) -> Yakın (Mavi)
+                const hue = 280 - (y / rows) * 60;
+                ctx.strokeStyle = `hsla(${hue}, 100%, 50%, ${y/rows})`;
+                ctx.stroke();
+            }
+            
+            // Dikey çizgiler
+            for (let x = 0; x < cols; x++) {
+                ctx.beginPath();
+                for (let y = 0; y < rows; y++) {
+                     const perspective = (y / rows);
+                     const py = horizon + Math.pow(perspective, 2) * (height - horizon);
+                     const roadWidth = width * (0.1 + perspective * 2);
+                     const px = (width - roadWidth)/2 + (x / cols) * roadWidth;
+                     const alt = terrain[x][y] * perspective;
+                     
+                     if (y === 0) ctx.moveTo(px, py - alt);
+                     else ctx.lineTo(px, py - alt);
+                }
+                ctx.strokeStyle = `hsla(300, 50%, 50%, 0.3)`;
+                ctx.stroke();
+            }
+
+            requestAnimationFrame(draw);
+        }
+
+        window.addEventListener('resize', init);
+        init();
+        draw();
+    </script>
+</body>
+</html>
