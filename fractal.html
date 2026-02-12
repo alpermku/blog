@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Fractal Tree - Kadim Ağaç</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Cormorant+Garamond:ital,wght@0,300;1,300&display=swap');
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #0a0c0f;
+            overflow: hidden;
+            font-family: 'Cinzel', serif;
+            height: 100dvh; width: 100vw;
+            touch-action: none;
+        }
+        canvas { display: block; position: absolute; top: 0; left: 0; }
+        .overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+            background: radial-gradient(ellipse at 50% 100%, transparent 40%, rgba(5,8,12,0.6) 100%);
+            z-index: 2;
+        }
+        .title {
+            position: fixed; top: 20px; left: 20px; z-index: 10;
+            color: rgba(200, 185, 155, 0.7); pointer-events: none;
+        }
+        .title h1 {
+            font-family: 'Cinzel', serif; font-size: clamp(14px, 3vw, 22px);
+            font-weight: 400; letter-spacing: clamp(3px, 1vw, 6px); text-transform: uppercase;
+        }
+        .title p {
+            font-family: 'Cormorant Garamond', serif; font-style: italic;
+            font-weight: 300; font-size: clamp(11px, 2vw, 14px); margin-top: 4px;
+            opacity: 0.6; letter-spacing: clamp(1px, 0.5vw, 2px);
+        }
+
+        /* Controls — responsive layout */
+        .controls {
+            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+            z-index: 10; display: flex; gap: 20px; align-items: center;
+            flex-wrap: wrap; justify-content: center;
+            padding: 0 16px;
+            max-width: 100vw;
+        }
+        .controls label {
+            font-family: 'Cormorant Garamond', serif;
+            color: rgba(200, 185, 155, 0.5); font-size: clamp(11px, 2vw, 13px);
+            letter-spacing: 1px; display: flex; align-items: center; gap: 8px;
+            white-space: nowrap;
+        }
+        input[type="range"] {
+            -webkit-appearance: none; width: clamp(70px, 15vw, 120px); height: 2px;
+            background: rgba(200, 185, 155, 0.2); border-radius: 2px; outline: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none; width: 16px; height: 16px;
+            border-radius: 50%; background: rgba(200, 185, 155, 0.6); cursor: pointer;
+        }
+        .back-link {
+            position: fixed; bottom: 20px; left: 16px; z-index: 10;
+            color: rgba(200, 185, 155, 0.4); text-decoration: none;
+            font-family: 'Cormorant Garamond', serif; font-size: clamp(11px, 2vw, 13px);
+            letter-spacing: 1.5px; transition: color 0.3s;
+        }
+        .back-link:hover { color: rgba(200, 185, 155, 0.8); }
+
+        /* Mobile: stack controls vertically, move back link */
+        @media (max-width: 600px) {
+            .controls {
+                bottom: 16px;
+                flex-direction: column;
+                gap: 10px;
+                align-items: stretch;
+                padding: 0 24px;
+            }
+            .controls label {
+                justify-content: space-between;
+            }
+            input[type="range"] {
+                width: 100%;
+                flex: 1;
+            }
+            .back-link {
+                top: 20px; bottom: auto; right: 16px; left: auto;
+            }
+            .title {
+                top: 16px; left: 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    <div class="overlay"></div>
+    <div class="title">
+        <h1>Fractal Tree</h1>
+        <p>Recursive growth. The mathematics of nature.</p>
+    </div>
+    <div class="controls">
+        <label>Rüzgar<input type="range" id="windSlider" min="0" max="100" value="50"></label>
+        <label>Derinlik<input type="range" id="depthSlider" min="6" max="13" value="11"></label>
+        <label>Mevsim<input type="range" id="seasonSlider" min="0" max="100" value="60"></label>
+    </div>
+    <a href="gallery.html" class="back-link">← Gallery</a>
+
+    <script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    let W, H, isMobile;
+
+    function resize() {
+        W = canvas.width = window.innerWidth;
+        H = canvas.height = window.innerHeight;
+        isMobile = W < 600;
+    }
+    resize();
+    window.addEventListener('resize', resize);
+
+    // ─── DETERMINISTIC HASH NOISE ───
+    function hash(n) {
+        let x = Math.sin(n) * 43758.5453;
+        return x - Math.floor(x);
+    }
+
+    function valueNoise(t) {
+        const i = Math.floor(t);
+        const f = t - i;
+        const u = f * f * f * (f * (f * 6 - 15) + 10);
+        return hash(i) * (1 - u) + hash(i + 1) * u;
+    }
+
+    function fbm(t, octaves) {
+        let val = 0, amp = 0.5, freq = 1;
+        for (let i = 0; i < octaves; i++) {
+            val += amp * (valueNoise(t * freq) - 0.5);
+            amp *= 0.5;
+            freq *= 2.1;
+        }
+        return val;
+    }
+
+    // ─── PARAMETERS ───
+    let time = 0;
+    let windStrength = 0.05;  // slider 50 → 0.05, range 0–0.1
+    let maxDepth = 11;
+    let season = 0.6;
+
+    document.getElementById('windSlider').addEventListener('input', e => windStrength = e.target.value / 1000);
+    document.getElementById('depthSlider').addEventListener('input', e => {
+        maxDepth = parseInt(e.target.value);
+        // On mobile, cap depth for performance
+        if (isMobile && maxDepth > 11) maxDepth = 11;
+    });
+    document.getElementById('seasonSlider').addEventListener('input', e => season = e.target.value / 100);
+
+    // ─── WIND FUNCTION ───
+    // The multiplier is now 17.5 (was 3.5) — 5× stronger
+    // This means slider middle (0.05) gives clearly visible sway
+    // Slider max (0.1) gives dramatic storm-like movement
+    function getWind(depth, branchId, t) {
+        const normDepth = depth / maxDepth;
+        const flexibility = normDepth * normDepth;
+
+        // Layer 1: Deep slow sway (~6s period) — the crown leans
+        const deepSway = Math.sin(t * 0.35) * 0.6 
+                       + Math.sin(t * 0.22 + 1.4) * 0.4;
+
+        // Layer 2: Medium rhythm (~3s) — branches drift
+        const medSway = fbm(t * 0.4 + branchId * 0.15 + 30, 2) * 0.5;
+
+        // Layer 3: Gentle tip flutter — outermost only
+        const tipFlutter = normDepth > 0.7
+            ? fbm(t * 1.2 + branchId * 0.9 + 80, 2) * 0.25 * normDepth
+            : 0;
+
+        const totalWind = (deepSway * 0.7 + medSway * 0.3 + tipFlutter) * flexibility;
+
+        return totalWind * windStrength * 17.5;
+    }
+
+    // ─── COLORS ───
+    function getBranchColor(depth) {
+        const t = depth / maxDepth;
+        return `rgba(${Math.floor(50 + t * 25)},${Math.floor(35 + t * 18)},${Math.floor(20 + t * 10)},${0.95 - t * 0.35})`;
+    }
+
+    function getLeafColor(depth, bid) {
+        const t = depth / maxDepth;
+        const h = hash(bid * 13.7 + depth * 3.1);
+        let r, g, b, a;
+        if (season < 0.15) return null;
+        if (season < 0.4) {
+            const s = (season - 0.15) / 0.25;
+            r = 75 + h * 35; g = 135 + h * 65 + t * 35; b = 55 + h * 30;
+            a = s * (0.12 + t * 0.2);
+        } else if (season < 0.7) {
+            r = 25 + h * 45 + t * 15; g = 85 + h * 75 + t * 25; b = 18 + h * 30;
+            a = 0.14 + t * 0.18;
+        } else {
+            if (h < 0.35) { r = 175 + h * 65; g = 115 + h * 55; b = 18 + h * 20; }
+            else if (h < 0.65) { r = 195 + h * 55; g = 65 + h * 45; b = 12 + h * 22; }
+            else { r = 155 + h * 45; g = 35 + h * 35; b = 22 + h * 22; }
+            a = 0.12 + t * 0.28;
+        }
+        return `rgba(${Math.floor(r)},${Math.floor(g)},${Math.floor(b)},${a})`;
+    }
+
+    // ─── FALLING LEAVES ───
+    const fallingLeaves = [];
+    let leafSpawnAccum = 0;
+
+    function maybeSpawnLeaf(x, y, bid) {
+        if (season < 0.75) return;
+        leafSpawnAccum += 0.00008;
+        if (leafSpawnAccum > 1) {
+            leafSpawnAccum -= 1;
+            const s = hash(time * 97.3 + bid);
+            fallingLeaves.push({
+                x, y, vx: (s - 0.3) * 1.0, vy: 0.15 + s * 0.35,
+                rot: s * Math.PI * 2, rotSpeed: (s - 0.5) * 0.03,
+                size: 2 + s * 3, life: 1,
+                r: 175 + s * 75, g: 55 + s * 85, b: 12 + s * 22
+            });
+        }
+    }
+
+    function updateAndDrawFallingLeaves() {
+        for (let i = fallingLeaves.length - 1; i >= 0; i--) {
+            const l = fallingLeaves[i];
+            l.x += l.vx + Math.sin(time * 0.4 + l.y * 0.004) * windStrength * 60;
+            l.y += l.vy;
+            l.rot += l.rotSpeed;
+            l.life -= 0.0015;
+            if (l.life <= 0 || l.y > H) { fallingLeaves.splice(i, 1); continue; }
+            ctx.save();
+            ctx.translate(l.x, l.y);
+            ctx.rotate(l.rot);
+            ctx.fillStyle = `rgba(${Math.floor(l.r)},${Math.floor(l.g)},${Math.floor(l.b)},${l.life * 0.5})`;
+            ctx.beginPath();
+            ctx.ellipse(0, 0, l.size, l.size * 0.45, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+    }
+
+    // ─── SCENERY ───
+    const stars = Array.from({length: 120}, (_, i) => ({
+        x: hash(i * 1.1), y: hash(i * 2.3 + 7) * 0.45,
+        size: hash(i * 3.7 + 13) * 1.5 + 0.3,
+        phase: hash(i * 5.1 + 19) * Math.PI * 2,
+        twinkle: 0.3 + hash(i * 7.3 + 31) * 1.5
+    }));
+
+    const fireflies = Array.from({length: 20}, (_, i) => ({
+        x: hash(i * 11.3 + 5) * 0.8 + 0.1,
+        y: hash(i * 13.7 + 9) * 0.5 + 0.3,
+        phase: hash(i * 17.1) * Math.PI * 2,
+        speed: 0.2 + hash(i * 19.3) * 0.4,
+        size: 1 + hash(i * 23.7) * 1.8
+    }));
+
+    function drawSky() {
+        const grad = ctx.createLinearGradient(0, 0, 0, H);
+        grad.addColorStop(0, '#080b12'); grad.addColorStop(0.3, '#0d1220');
+        grad.addColorStop(0.6, '#111a28'); grad.addColorStop(0.85, '#0f1610');
+        grad.addColorStop(1, '#0a0e08');
+        ctx.fillStyle = grad; ctx.fillRect(0, 0, W, H);
+    }
+
+    function drawStars() {
+        for (const s of stars) {
+            const flicker = Math.sin(time * s.twinkle + s.phase) * 0.3 + 0.7;
+            ctx.fillStyle = `rgba(220,215,200,${0.22 * flicker})`;
+            ctx.beginPath(); ctx.arc(s.x * W, s.y * H, s.size, 0, Math.PI * 2); ctx.fill();
+        }
+    }
+
+    function drawMoon() {
+        const mr = isMobile ? 22 : 35;
+        const mx = W * 0.78, my = H * (isMobile ? 0.08 : 0.12);
+        const g = ctx.createRadialGradient(mx, my, mr * 0.5, mx, my, mr * 6);
+        g.addColorStop(0, 'rgba(220,215,190,0.15)');
+        g.addColorStop(0.3, 'rgba(180,175,155,0.05)');
+        g.addColorStop(1, 'rgba(180,175,155,0)');
+        ctx.fillStyle = g; ctx.beginPath(); ctx.arc(mx, my, mr * 6, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = 'rgba(220,218,200,0.7)';
+        ctx.beginPath(); ctx.arc(mx, my, mr, 0, Math.PI * 2); ctx.fill();
+    }
+
+    function drawMist() {
+        for (let i = 0; i < 3; i++) {
+            const my = H * (0.6 + i * 0.1);
+            const mx = W * 0.5 + Math.sin(time * 0.08 + i * 2.5) * W * 0.08;
+            const g = ctx.createRadialGradient(mx, my, 0, mx, my, W * 0.45);
+            g.addColorStop(0, `rgba(150,160,140,${0.018 + Math.sin(time * 0.12 + i * 2) * 0.008})`);
+            g.addColorStop(1, 'rgba(150,160,140,0)');
+            ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+        }
+    }
+
+    function drawGround() {
+        const groundTop = H * (isMobile ? 0.78 : 0.82);
+        const grad = ctx.createLinearGradient(0, groundTop, 0, H);
+        grad.addColorStop(0, 'rgba(15,20,12,0)');
+        grad.addColorStop(0.3, 'rgba(15,20,12,0.6)');
+        grad.addColorStop(1, 'rgba(10,14,8,0.9)');
+        ctx.fillStyle = grad; ctx.fillRect(0, groundTop, W, H - groundTop);
+        ctx.strokeStyle = 'rgba(40,55,25,0.25)'; ctx.lineWidth = 1;
+        const baseY = H * (isMobile ? 0.82 : 0.88);
+        for (let i = 0; i < 80; i++) {
+            const gx = (i / 80) * W + hash(i * 3.7) * 25;
+            const sway = Math.sin(time * 0.35 + i * 0.5) * windStrength * 1500;
+            const h = 14 + hash(i * 5.3) * 8;
+            ctx.beginPath(); ctx.moveTo(gx, baseY);
+            ctx.quadraticCurveTo(gx + sway * 0.5, baseY - h * 0.6, gx + sway, baseY - h);
+            ctx.stroke();
+        }
+    }
+
+    function drawRoots() {
+        const bx = W * 0.48, by = getTreeBase();
+        ctx.strokeStyle = 'rgba(40,30,18,0.45)';
+        for (let i = 0; i < 5; i++) {
+            const angle = Math.PI / 2 + (i - 2) * 0.35 + (hash(i * 11 + 7) - 0.5) * 0.15;
+            const len = (isMobile ? 18 : 28) + hash(i * 13 + 3) * (isMobile ? 25 : 40);
+            ctx.lineWidth = 3 - i * 0.4; ctx.beginPath(); ctx.moveTo(bx, by);
+            ctx.quadraticCurveTo(
+                bx + Math.cos(angle) * len * 0.5 + (hash(i * 17) - 0.5) * 15,
+                by + Math.sin(angle) * len * 0.3,
+                bx + Math.cos(angle) * len, by + Math.sin(angle) * len
+            );
+            ctx.stroke();
+        }
+    }
+
+    function drawFireflies() {
+        for (const f of fireflies) {
+            const flicker = Math.sin(time * f.speed + f.phase) * 0.5 + 0.5;
+            const glow = flicker * 0.35;
+            const fx = f.x * W + Math.sin(time * 0.15 + f.phase) * 25;
+            const fy = f.y * H + Math.cos(time * 0.1 + f.phase * 1.3) * 18;
+            const g = ctx.createRadialGradient(fx, fy, 0, fx, fy, f.size * 8);
+            g.addColorStop(0, `rgba(255,230,140,${glow})`);
+            g.addColorStop(0.5, `rgba(255,200,80,${glow * 0.3})`);
+            g.addColorStop(1, 'rgba(255,200,80,0)');
+            ctx.fillStyle = g; ctx.beginPath(); ctx.arc(fx, fy, f.size * 8, 0, Math.PI * 2); ctx.fill();
+        }
+    }
+
+    // ─── THE FRACTAL TREE ───
+    let branchCounter = 0;
+
+    function getTreeBase() {
+        // On mobile (portrait), place tree higher so it fits with controls below
+        return isMobile ? H * 0.82 : H * 0.88;
+    }
+
+    function getTrunkLength() {
+        if (isMobile) {
+            // Scale trunk to fit portrait screen — use ~30% of height but cap it
+            return Math.min(H * 0.28, W * 0.45, 180);
+        }
+        return Math.min(H * 0.24, 195);
+    }
+
+    function drawTree() {
+        branchCounter = 0;
+        const startX = W * 0.48;
+        const startY = getTreeBase();
+        const trunkLen = getTrunkLength();
+
+        // On mobile reduce depth for performance
+        const effectiveDepth = isMobile ? Math.min(maxDepth, 10) : maxDepth;
+        drawBranch(startX, startY, -Math.PI / 2, trunkLen, 0, 0, effectiveDepth);
+    }
+
+    function drawBranch(x, y, angle, length, depth, parentId, effMaxDepth) {
+        if (depth > effMaxDepth || length < 1.5) return;
+        branchCounter++;
+        const bid = parentId * 3.71 + depth * 7.13 + branchCounter * 0.31;
+
+        const wind = getWind(depth, bid, time);
+        const staticBend = (hash(bid * 17.3 + depth * 5.7) - 0.5) * 0.08;
+        const currentAngle = angle + wind + staticBend;
+
+        const endX = x + Math.cos(currentAngle) * length;
+        const endY = y + Math.sin(currentAngle) * length;
+
+        const ratio = depth / effMaxDepth;
+        const maxThick = isMobile ? Math.min(12, W * 0.02) : Math.min(16, W * 0.011);
+        const thickness = Math.max(0.6, (1 - ratio) * maxThick);
+
+        const curvature = (hash(bid * 23.1) - 0.5) * length * 0.06;
+        const midX = (x + endX) / 2 + Math.sin(currentAngle) * curvature;
+        const midY = (y + endY) / 2 + Math.cos(currentAngle) * curvature;
+
+        ctx.beginPath(); ctx.moveTo(x, y);
+        ctx.quadraticCurveTo(midX, midY, endX, endY);
+        ctx.strokeStyle = getBranchColor(depth);
+        ctx.lineWidth = thickness; ctx.lineCap = 'round'; ctx.stroke();
+
+        if (depth >= effMaxDepth - 3) {
+            const leafCol = getLeafColor(depth, bid);
+            if (leafCol) {
+                const leafSize = (2.5 + hash(bid * 31.7) * 4) * (1 - ratio * 0.25);
+                ctx.fillStyle = leafCol; ctx.beginPath();
+                ctx.ellipse(endX, endY, leafSize * 1.4, leafSize, currentAngle, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            maybeSpawnLeaf(endX, endY, bid);
+        }
+
+        const shrink = 0.67 + hash(bid * 41.3) * 0.08;
+        const spread = 0.32 + depth * 0.022;
+        const asym = (hash(bid * 53.7) - 0.5) * 0.08;
+
+        drawBranch(endX, endY, currentAngle - spread + asym, length * (shrink + 0.015), depth + 1, bid, effMaxDepth);
+        drawBranch(endX, endY, currentAngle + spread + asym, length * (shrink - 0.015), depth + 1, bid + 1, effMaxDepth);
+
+        if (depth > 1 && depth < effMaxDepth - 2 && hash(bid * 67.1 + depth * 11) > 0.62) {
+            const midAngle = currentAngle + (hash(bid * 79.3) - 0.5) * spread * 0.5;
+            drawBranch(endX, endY, midAngle, length * shrink * 0.7, depth + 1, bid + 2, effMaxDepth);
+        }
+    }
+
+    // ─── MAIN LOOP ───
+    function animate() {
+        time += 0.016;
+        ctx.clearRect(0, 0, W, H);
+        drawSky(); drawStars(); drawMoon(); drawMist();
+        drawGround(); drawRoots(); drawTree();
+        drawFireflies(); updateAndDrawFallingLeaves();
+        requestAnimationFrame(animate);
+    }
+    animate();
+    </script>
+</body>
+</html>
