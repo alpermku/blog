@@ -146,10 +146,18 @@
             return noise(i, seed) * (1 - u) + noise(i + 1, seed) * u;
         }
         function windAt(depth, t) {
-            // Multi-frequency wind: big gusts + small trembles
-            const gust = Math.sin(t * 0.3) * 0.5 + Math.sin(t * 0.7 + 2) * 0.3;
-            const tremble = smoothNoise(t * 2 + depth * 0.5, depth) * 0.4;
-            const micro = Math.sin(t * 4.5 + depth * 1.7) * 0.15;
+            // Rüzgarı sakinleştir (Daha yavaş, daha derin salınım)
+            // Eski: t * 0.3 (Gust), t * 2 (Tremble), t * 4.5 (Micro) -> Çok hızlıydı
+            
+            // Ana rüzgar (Yavaş salınım)
+            const gust = Math.sin(t * 0.5) * 0.5 + Math.sin(t * 0.2 + 2) * 0.3;
+            
+            // Hafif titreme (Yapraklar için, ama çok az)
+            const tremble = smoothNoise(t * 0.8 + depth * 0.1, depth) * 0.2;
+            
+            // Mikro titreşimi (Çiftetelli etkisi) kaldırdım veya çok azalttım
+            const micro = Math.sin(t * 1.5 + depth) * 0.05; 
+            
             return (gust + tremble + micro) * windStrength * (depth / maxDepth);
         }
 
