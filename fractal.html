@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fractal Tree - Alex Yalın</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" type="image/jpeg" href="assets/avatar.jpg">
+    <style>
+        body, html { margin: 0; padding: 0; overflow: hidden; background-color: #050505; color: #eee; }
+        canvas { display: block; }
+        .overlay {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            pointer-events: none;
+            z-index: 10;
+        }
+        .overlay h1 {
+            font-family: 'Inter', sans-serif;
+            font-size: 1.2rem;
+            color: rgba(255, 255, 255, 0.9);
+            margin: 0;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            text-shadow: 0 0 10px rgba(255,255,255,0.3);
+        }
+        .overlay p {
+            font-family: 'Lora', serif;
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.6);
+            margin: 5px 0 0 0;
+        }
+        .back-link {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.4);
+            text-decoration: none;
+            border-bottom: 1px solid transparent;
+            transition: all 0.3s;
+            pointer-events: auto;
+        }
+        .back-link:hover {
+            color: #fff;
+            border-bottom-color: #fff;
+        }
+    </style>
+</head>
+<body>
+    <div class="overlay">
+        <h1>Fractal Tree</h1>
+        <p>Recursive growth. The mathematics of nature.</p>
+    </div>
+    
+    <a href="gallery.html" class="back-link">&larr; Back to Gallery</a>
+
+    <canvas id="fractalCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('fractalCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let width, height;
+        let angle = Math.PI / 4;
+        let branchRatio = 0.67;
+        let wind = 0;
+        let time = 0;
+
+        function init() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+        }
+
+        function drawTree(x, y, len, angle, depth) {
+            ctx.beginPath();
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(angle);
+            
+            // Dal kalınlığı ve rengi derinliğe göre
+            ctx.lineWidth = depth; 
+            // Renk: Gövde koyu kahve, uçlar yeşil/pembe (çiçek)
+            const hue = 30 + (10 - depth) * 10; 
+            ctx.strokeStyle = `hsla(${hue}, ${50 + depth*5}%, ${30 + depth*5}%, 1)`;
+            
+            if (depth < 2) { // Yaprak/Çiçek
+                ctx.strokeStyle = `hsla(${330 + Math.random()*30}, 80%, 70%, 0.8)`;
+                ctx.lineWidth = 4;
+            }
+
+            ctx.moveTo(0, 0);
+            ctx.lineTo(0, -len);
+            ctx.stroke();
+
+            if (len > 10) {
+                // Rüzgar etkisi (Zamanla değişen sinüs)
+                const windEffect = Math.sin(time * 0.002 + depth) * 0.05 * (10-depth);
+                
+                // Sağ Dal
+                drawTree(0, -len, len * branchRatio, angle * 0.5 + windEffect, depth - 1);
+                // Sol Dal
+                drawTree(0, -len, len * branchRatio, -angle * 0.5 + windEffect, depth - 1);
+            }
+            ctx.restore();
+        }
+
+        function animate() {
+            ctx.fillStyle = '#050505';
+            ctx.fillRect(0, 0, width, height);
+
+            time++;
+            
+            // Ağacı merkezden başlat
+            // Mouse ile açıyı kontrol etme opsiyonu eklenebilir ama otomatik daha hipnotik
+            // Açıyı yavaşça değiştirerek ağacın "nefes almasını" sağlayalım
+            const breathingAngle = Math.PI / 4 + Math.sin(time * 0.005) * 0.1;
+            
+            drawTree(width / 2, height, height / 4, 0, 10); // Başlangıç: Merkez, Alt, Uzunluk, Açı 0
+
+            requestAnimationFrame(animate);
+        }
+
+        window.addEventListener('resize', init);
+        
+        // Mouse interaction for Wind
+        window.addEventListener('mousemove', (e) => {
+            const x = (e.clientX / width - 0.5) * 2; // -1 to 1
+            wind = x * 0.2;
+        });
+
+        init();
+        animate();
+    </script>
+</body>
+</html>
