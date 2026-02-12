@@ -1,149 +1,460 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="tr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fractal Tree - Alex Yalın</title>
-    <link rel="stylesheet" href="style.css">
-    <link rel="icon" type="image/jpeg" href="assets/avatar.jpg">
+    <title>Fractal Tree - Kadim Ağaç</title>
     <style>
-        body, html { margin: 0; padding: 0; overflow: hidden; background-color: #050505; color: #eee; }
-        canvas { display: block; }
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Cormorant+Garamond:ital,wght@0,300;1,300&display=swap');
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #0a0c0f; overflow: hidden; font-family: 'Cinzel', serif; height: 100vh; width: 100vw; }
+        canvas { display: block; position: absolute; top: 0; left: 0; }
         .overlay {
-            position: absolute;
-            top: 20px;
-            left: 20px;
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             pointer-events: none;
-            z-index: 10;
+            background: radial-gradient(ellipse at 50% 100%, transparent 40%, rgba(5,8,12,0.6) 100%);
+            z-index: 2;
         }
-        .overlay h1 {
-            font-family: 'Inter', sans-serif;
-            font-size: 1.2rem;
-            color: rgba(255, 255, 255, 0.9);
-            margin: 0;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            text-shadow: 0 0 10px rgba(255,255,255,0.3);
+        .title {
+            position: fixed; top: 32px; left: 40px; z-index: 10;
+            color: rgba(200, 185, 155, 0.7); pointer-events: none;
         }
-        .overlay p {
-            font-family: 'Lora', serif;
-            font-size: 0.8rem;
-            color: rgba(255, 255, 255, 0.6);
-            margin: 5px 0 0 0;
+        .title h1 {
+            font-family: 'Cinzel', serif; font-size: 22px; font-weight: 400;
+            letter-spacing: 6px; text-transform: uppercase;
+        }
+        .title p {
+            font-family: 'Cormorant Garamond', serif; font-style: italic;
+            font-weight: 300; font-size: 14px; margin-top: 6px;
+            opacity: 0.6; letter-spacing: 2px;
+        }
+        .controls {
+            position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+            z-index: 10; display: flex; gap: 24px; align-items: center;
+        }
+        .controls label {
+            font-family: 'Cormorant Garamond', serif; color: rgba(200, 185, 155, 0.5);
+            font-size: 13px; letter-spacing: 1.5px; display: flex; align-items: center; gap: 10px;
+        }
+        input[type="range"] {
+            -webkit-appearance: none; width: 120px; height: 2px;
+            background: rgba(200, 185, 155, 0.2); border-radius: 2px; outline: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%;
+            background: rgba(200, 185, 155, 0.6); cursor: pointer;
         }
         .back-link {
-            position: absolute;
-            bottom: 20px;
-            left: 20px;
-            font-family: 'Inter', sans-serif;
-            font-size: 0.8rem;
-            color: rgba(255, 255, 255, 0.4);
-            text-decoration: none;
-            border-bottom: 1px solid transparent;
-            transition: all 0.3s;
-            pointer-events: auto;
+            position: fixed; bottom: 30px; left: 40px; z-index: 10;
+            color: rgba(200, 185, 155, 0.4); text-decoration: none;
+            font-family: 'Cormorant Garamond', serif; font-size: 13px;
+            letter-spacing: 2px; transition: color 0.3s;
         }
-        .back-link:hover {
-            color: #fff;
-            border-bottom-color: #fff;
-        }
+        .back-link:hover { color: rgba(200, 185, 155, 0.8); }
     </style>
 </head>
 <body>
-    <div class="overlay">
+    <canvas id="canvas"></canvas>
+    <div class="overlay"></div>
+    <div class="title">
         <h1>Fractal Tree</h1>
         <p>Recursive growth. The mathematics of nature.</p>
     </div>
-    
-    <a href="gallery.html" class="back-link">&larr; Back to Gallery</a>
-
-    <canvas id="fractalCanvas"></canvas>
+    <div class="controls">
+        <label>
+            Rüzgar
+            <input type="range" id="windSlider" min="0" max="100" value="35">
+        </label>
+        <label>
+            Derinlik
+            <input type="range" id="depthSlider" min="6" max="14" value="11">
+        </label>
+        <label>
+            Mevsim
+            <input type="range" id="seasonSlider" min="0" max="100" value="60">
+        </label>
+    </div>
+    <a href="gallery.html" class="back-link">← Back to Gallery</a>
 
     <script>
-        const canvas = document.getElementById('fractalCanvas');
+        const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
+        let W, H;
+        function resize() {
+            W = canvas.width = window.innerWidth;
+            H = canvas.height = window.innerHeight;
+        }
+        resize();
+        window.addEventListener('resize', resize);
 
-        let width, height;
+        // Parameters
         let time = 0;
-        
-        // Ağaç parametreleri (Daha doğal görünüm için)
-        const maxDepth = 12;
-        const branchAngle = Math.PI / 5; // Daha geniş açı
-        const lengthRatio = 0.75; 
+        let windStrength = 0.035;
+        let maxDepth = 11;
+        let season = 0.6; // 0=winter, 0.5=spring, 1=autumn
 
-        function init() {
-            width = canvas.width = window.innerWidth;
-            height = canvas.height = window.innerHeight;
+        const windSlider = document.getElementById('windSlider');
+        const depthSlider = document.getElementById('depthSlider');
+        const seasonSlider = document.getElementById('seasonSlider');
+
+        windSlider.addEventListener('input', e => windStrength = e.target.value / 1000);
+        depthSlider.addEventListener('input', e => maxDepth = parseInt(e.target.value));
+        seasonSlider.addEventListener('input', e => season = e.target.value / 100);
+
+        // Perlin-like wind noise
+        function noise(x, y) {
+            const s = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
+            return s - Math.floor(s);
+        }
+        function smoothNoise(t, seed) {
+            const i = Math.floor(t);
+            const f = t - i;
+            const u = f * f * (3 - 2 * f); // smoothstep
+            return noise(i, seed) * (1 - u) + noise(i + 1, seed) * u;
+        }
+        function windAt(depth, t) {
+            // Multi-frequency wind: big gusts + small trembles
+            const gust = Math.sin(t * 0.3) * 0.5 + Math.sin(t * 0.7 + 2) * 0.3;
+            const tremble = smoothNoise(t * 2 + depth * 0.5, depth) * 0.4;
+            const micro = Math.sin(t * 4.5 + depth * 1.7) * 0.15;
+            return (gust + tremble + micro) * windStrength * (depth / maxDepth);
         }
 
-        function drawTree(x, y, len, angle, depth) {
-            ctx.beginPath();
-            ctx.save();
-            ctx.translate(x, y);
-            ctx.rotate(angle);
+        // Color palettes for season
+        function getBranchColor(depth, ratio) {
+            // Deep bark at trunk, lighter towards tips
+            const t = depth / maxDepth;
+            const r = Math.floor(45 + t * 30);
+            const g = Math.floor(30 + t * 20);
+            const b = Math.floor(18 + t * 10);
+            const a = 0.9 - t * 0.3;
+            return `rgba(${r},${g},${b},${a})`;
+        }
+
+        function getLeafColor(depth) {
+            const t = depth / maxDepth;
+            // season: 0=bare, 0.3=spring green, 0.6=summer, 1.0=autumn gold/red
+            let r, g, b, a;
             
-            // Dal kalınlığı: Kökten uca incelme
-            ctx.lineWidth = depth * 1.5; 
-            
-            // Renk: Gövde koyu, uçlar açık/renkli
-            // Derinliğe göre renk değişimi
-            if (depth > 8) {
-                ctx.strokeStyle = '#4a3b2a'; // Koyu Kahve (Gövde)
-            } else if (depth > 4) {
-                ctx.strokeStyle = '#8c5e3c'; // Açık Kahve (Dallar)
-            } else {
-                // Yaprak/Çiçek (Pembe/Beyaz - Sakura)
-                // Zamanla hafif renk değişimi
-                const hue = 320 + Math.sin(time * 0.01 + depth) * 20; 
-                ctx.strokeStyle = `hsla(${hue}, 80%, 70%, 0.8)`;
-                ctx.lineWidth = depth * 2; // Yapraklar biraz daha dolgun görünsün
+            if (season < 0.15) { // Winter - no leaves
+                return null;
+            } else if (season < 0.4) { // Spring - light greens
+                const s = (season - 0.15) / 0.25;
+                r = 80 + Math.random() * 30;
+                g = 140 + Math.random() * 60 + t * 40;
+                b = 60 + Math.random() * 30;
+                a = s * (0.15 + t * 0.25);
+            } else if (season < 0.7) { // Summer - deep greens
+                r = 30 + Math.random() * 40 + t * 20;
+                g = 90 + Math.random() * 70 + t * 30;
+                b = 20 + Math.random() * 30;
+                a = 0.18 + t * 0.2;
+            } else { // Autumn - golds, oranges, reds
+                const s = (season - 0.7) / 0.3;
+                const hue = Math.random();
+                if (hue < 0.4) {
+                    r = 180 + Math.random() * 60;
+                    g = 120 + Math.random() * 50;
+                    b = 20 + Math.random() * 20;
+                } else if (hue < 0.7) {
+                    r = 200 + Math.random() * 50;
+                    g = 70 + Math.random() * 40;
+                    b = 15 + Math.random() * 20;
+                } else {
+                    r = 160 + Math.random() * 40;
+                    g = 40 + Math.random() * 30;
+                    b = 25 + Math.random() * 20;
+                }
+                a = 0.15 + t * 0.3;
             }
+            return `rgba(${Math.floor(r)},${Math.floor(g)},${Math.floor(b)},${a})`;
+        }
 
-            ctx.moveTo(0, 0);
-            ctx.lineTo(0, -len);
-            ctx.stroke();
+        // Falling leaves particles
+        const fallingLeaves = [];
+        function spawnFallingLeaf(x, y) {
+            if (season < 0.75 || Math.random() > 0.0004) return;
+            fallingLeaves.push({
+                x, y,
+                vx: (Math.random() - 0.3) * 1.5,
+                vy: Math.random() * 0.5 + 0.3,
+                rot: Math.random() * Math.PI * 2,
+                rotSpeed: (Math.random() - 0.5) * 0.08,
+                size: 2 + Math.random() * 3,
+                life: 1,
+                r: 180 + Math.random() * 70,
+                g: 60 + Math.random() * 80,
+                b: 15 + Math.random() * 20
+            });
+        }
 
-            if (depth > 0) {
-                // Rüzgar etkisi (Periyodik salınım)
-                // Alt dallar az, üst dallar çok sallanır
-                const wind = Math.sin(time * 0.002 + depth * 0.5) * 0.02 * (maxDepth - depth);
-                
-                // Rastgelelik (Doğallık için)
-                // Her dal tam simetrik olmasın
-                const noise = Math.sin(depth * 132.1) * 0.1;
-
-                // Sağ Dal
-                drawTree(0, -len, len * lengthRatio, angle + branchAngle + wind + noise, depth - 1);
-                // Sol Dal
-                drawTree(0, -len, len * lengthRatio, angle - branchAngle + wind - noise, depth - 1);
-                
-                // Bazen 3. bir dal çıkar (Daha dolgun görünüm için)
-                if (depth > 6 && depth % 2 === 0) {
-                     drawTree(0, -len, len * lengthRatio * 0.8, wind, depth - 2);
+        function updateFallingLeaves() {
+            for (let i = fallingLeaves.length - 1; i >= 0; i--) {
+                const l = fallingLeaves[i];
+                l.x += l.vx + Math.sin(time * 2 + l.y * 0.01) * 0.5 * windStrength * 30;
+                l.y += l.vy;
+                l.rot += l.rotSpeed;
+                l.life -= 0.003;
+                if (l.life <= 0 || l.y > H) {
+                    fallingLeaves.splice(i, 1);
                 }
             }
-            ctx.restore();
         }
 
-        function animate() {
-            // Hafif iz bırakarak temizle (Rüzgar efekti daha akıcı görünür)
-            // Ama tam temizleme yapalım, yoksa ağaç kalınlaşır
-            ctx.fillStyle = '#050505';
-            ctx.fillRect(0, 0, width, height);
+        function drawFallingLeaves() {
+            for (const l of fallingLeaves) {
+                ctx.save();
+                ctx.translate(l.x, l.y);
+                ctx.rotate(l.rot);
+                ctx.fillStyle = `rgba(${Math.floor(l.r)},${Math.floor(l.g)},${Math.floor(l.b)},${l.life * 0.6})`;
+                ctx.beginPath();
+                ctx.ellipse(0, 0, l.size, l.size * 0.5, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+        }
 
-            time++;
+        // Fireflies
+        const fireflies = [];
+        for (let i = 0; i < 25; i++) {
+            fireflies.push({
+                x: Math.random() * 1920,
+                y: Math.random() * 1080 * 0.7,
+                phase: Math.random() * Math.PI * 2,
+                speed: 0.3 + Math.random() * 0.5,
+                size: 1 + Math.random() * 2
+            });
+        }
+
+        function drawFireflies() {
+            for (const f of fireflies) {
+                const flicker = Math.sin(time * f.speed + f.phase) * 0.5 + 0.5;
+                const glow = flicker * 0.4;
+                const fx = f.x / 1920 * W + Math.sin(time * 0.5 + f.phase) * 30;
+                const fy = f.y / 1080 * H + Math.cos(time * 0.3 + f.phase) * 20;
+                
+                const grad = ctx.createRadialGradient(fx, fy, 0, fx, fy, f.size * 8);
+                grad.addColorStop(0, `rgba(255, 230, 140, ${glow})`);
+                grad.addColorStop(0.5, `rgba(255, 200, 80, ${glow * 0.3})`);
+                grad.addColorStop(1, 'rgba(255, 200, 80, 0)');
+                
+                ctx.fillStyle = grad;
+                ctx.beginPath();
+                ctx.arc(fx, fy, f.size * 8, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        // Stars
+        const stars = [];
+        for (let i = 0; i < 120; i++) {
+            stars.push({
+                x: Math.random(),
+                y: Math.random() * 0.45,
+                size: Math.random() * 1.5 + 0.3,
+                phase: Math.random() * Math.PI * 2,
+                twinkle: 0.5 + Math.random() * 2
+            });
+        }
+
+        function drawStars() {
+            for (const s of stars) {
+                const flicker = Math.sin(time * s.twinkle + s.phase) * 0.3 + 0.7;
+                ctx.fillStyle = `rgba(220, 215, 200, ${0.25 * flicker})`;
+                ctx.beginPath();
+                ctx.arc(s.x * W, s.y * H, s.size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        // Ground
+        function drawGround() {
+            const grad = ctx.createLinearGradient(0, H * 0.85, 0, H);
+            grad.addColorStop(0, 'rgba(15, 20, 12, 0)');
+            grad.addColorStop(0.3, 'rgba(15, 20, 12, 0.6)');
+            grad.addColorStop(1, 'rgba(10, 14, 8, 0.9)');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, H * 0.82, W, H * 0.2);
+
+            // Grass tufts
+            ctx.strokeStyle = 'rgba(40, 55, 25, 0.3)';
+            ctx.lineWidth = 1;
+            const baseY = H * 0.88;
+            for (let i = 0; i < 80; i++) {
+                const gx = (i / 80) * W + Math.sin(i * 3.7) * 20;
+                const sway = Math.sin(time * 1.5 + i * 0.7) * windStrength * 200;
+                ctx.beginPath();
+                ctx.moveTo(gx, baseY);
+                ctx.quadraticCurveTo(gx + sway * 0.5, baseY - 12, gx + sway, baseY - 18 - Math.random() * 8);
+                ctx.stroke();
+            }
+        }
+
+        // Moon glow
+        function drawMoon() {
+            const mx = W * 0.78, my = H * 0.12, mr = 35;
+            const moonGlow = ctx.createRadialGradient(mx, my, mr * 0.5, mx, my, mr * 6);
+            moonGlow.addColorStop(0, 'rgba(220, 215, 190, 0.15)');
+            moonGlow.addColorStop(0.3, 'rgba(180, 175, 155, 0.05)');
+            moonGlow.addColorStop(1, 'rgba(180, 175, 155, 0)');
             
-            // Kökten başla
-            // Boyut ekrana göre ölçekli
-            const trunkLen = height / 4.5;
-            drawTree(width / 2, height, trunkLen, 0, maxDepth);
+            ctx.fillStyle = moonGlow;
+            ctx.beginPath();
+            ctx.arc(mx, my, mr * 6, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.fillStyle = 'rgba(220, 218, 200, 0.7)';
+            ctx.beginPath();
+            ctx.arc(mx, my, mr, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // === THE FRACTAL TREE ===
+        function drawTree() {
+            const startX = W * 0.48;
+            const startY = H * 0.88;
+            const trunkLen = Math.min(H * 0.25, 200);
+            
+            drawBranch(startX, startY, -Math.PI / 2, trunkLen, 0);
+        }
+
+        function drawBranch(x, y, angle, length, depth) {
+            if (depth > maxDepth || length < 2) return;
+
+            const wind = windAt(depth, time);
+            
+            // Slight organic variation
+            const seed = x * 0.01 + y * 0.01 + depth;
+            const variance = smoothNoise(seed, depth * 7) * 0.1 - 0.05;
+            
+            const currentAngle = angle + wind + variance;
+            const endX = x + Math.cos(currentAngle) * length;
+            const endY = y + Math.sin(currentAngle) * length;
+
+            // Branch thickness: thick trunk tapering to thin tips
+            const ratio = depth / maxDepth;
+            const thickness = Math.max(1, (1 - ratio) * (trunkWidth()));
+
+            // Draw branch
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            // Add slight curve for organic feel
+            const midX = (x + endX) / 2 + Math.sin(currentAngle) * length * 0.05;
+            const midY = (y + endY) / 2 + Math.cos(currentAngle) * length * 0.05;
+            ctx.quadraticCurveTo(midX, midY, endX, endY);
+            ctx.strokeStyle = getBranchColor(depth, ratio);
+            ctx.lineWidth = thickness;
+            ctx.lineCap = 'round';
+            ctx.stroke();
+
+            // Spawn falling leaf candidate
+            if (depth > maxDepth - 3) {
+                spawnFallingLeaf(endX, endY);
+            }
+
+            // Draw leaves on outer branches
+            if (depth >= maxDepth - 3 && depth <= maxDepth) {
+                const leafCol = getLeafColor(depth);
+                if (leafCol) {
+                    const leafSize = (3 + Math.random() * 4) * (1 - ratio * 0.3);
+                    ctx.fillStyle = leafCol;
+                    ctx.beginPath();
+                    ctx.ellipse(endX, endY, leafSize * 1.5, leafSize, currentAngle, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+
+            // Branching: asymmetric for natural look
+            const shrink = 0.68 + smoothNoise(depth + time * 0.05, seed) * 0.08;
+            const spread = 0.35 + depth * 0.02;
+            
+            // Main branches (2 primary splits)
+            const leftAngle = currentAngle - spread + (Math.random() - 0.5) * 0.1;
+            const rightAngle = currentAngle + spread + (Math.random() - 0.5) * 0.1;
+            
+            const leftLen = length * (shrink + 0.02);
+            const rightLen = length * (shrink - 0.02);
+
+            drawBranch(endX, endY, leftAngle, leftLen, depth + 1);
+            drawBranch(endX, endY, rightAngle, rightLen, depth + 1);
+            
+            // Occasional third branch for fullness (on lower depths)
+            if (depth < maxDepth - 2 && depth > 1 && noise(depth, seed) > 0.6) {
+                const midAngle = currentAngle + (Math.random() - 0.5) * spread * 0.6;
+                drawBranch(endX, endY, midAngle, length * shrink * 0.75, depth + 1);
+            }
+        }
+
+        function trunkWidth() {
+            return Math.min(18, W * 0.012);
+        }
+
+        // Background gradient - night sky
+        function drawSky() {
+            const grad = ctx.createLinearGradient(0, 0, 0, H);
+            grad.addColorStop(0, '#080b12');
+            grad.addColorStop(0.3, '#0d1220');
+            grad.addColorStop(0.6, '#111a28');
+            grad.addColorStop(0.85, '#0f1610');
+            grad.addColorStop(1, '#0a0e08');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, W, H);
+        }
+
+        // Misty atmosphere
+        function drawMist() {
+            for (let i = 0; i < 3; i++) {
+                const my = H * (0.6 + i * 0.1);
+                const mx = W * 0.5 + Math.sin(time * 0.2 + i) * W * 0.1;
+                const grad = ctx.createRadialGradient(mx, my, 0, mx, my, W * 0.5);
+                grad.addColorStop(0, `rgba(150, 160, 140, ${0.02 + Math.sin(time * 0.3 + i * 2) * 0.01})`);
+                grad.addColorStop(1, 'rgba(150, 160, 140, 0)');
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, W, H);
+            }
+        }
+
+        // Root system
+        function drawRoots() {
+            const baseX = W * 0.48;
+            const baseY = H * 0.88;
+            ctx.strokeStyle = 'rgba(40, 30, 18, 0.5)';
+            for (let i = 0; i < 5; i++) {
+                const angle = Math.PI / 2 + (i - 2) * 0.35 + (Math.random() - 0.5) * 0.15;
+                const len = 30 + Math.random() * 40;
+                ctx.lineWidth = 3 - i * 0.3;
+                ctx.beginPath();
+                ctx.moveTo(baseX, baseY);
+                const ex = baseX + Math.cos(angle) * len;
+                const ey = baseY + Math.sin(angle) * len;
+                ctx.quadraticCurveTo(
+                    baseX + Math.cos(angle) * len * 0.5 + (Math.random() - 0.5) * 15, 
+                    baseY + Math.sin(angle) * len * 0.3,
+                    ex, ey
+                );
+                ctx.stroke();
+            }
+        }
+
+        // === MAIN LOOP ===
+        function animate() {
+            time += 0.016;
+            ctx.clearRect(0, 0, W, H);
+            
+            drawSky();
+            drawStars();
+            drawMoon();
+            drawMist();
+            drawGround();
+            drawRoots();
+            drawTree();
+            drawFireflies();
+            updateFallingLeaves();
+            drawFallingLeaves();
 
             requestAnimationFrame(animate);
         }
 
-        window.addEventListener('resize', init);
-        
-        init();
         animate();
     </script>
 </body>
