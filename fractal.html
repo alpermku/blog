@@ -51,6 +51,39 @@
             letter-spacing: 2px; transition: color 0.3s;
         }
         .back-link:hover { color: rgba(200, 185, 155, 0.8); }
+
+        /* Mobile Responsiveness */
+        @media (max-width: 768px) {
+            .title {
+                top: 20px;
+                left: 20px;
+                width: calc(100% - 40px);
+                text-align: center;
+            }
+            .title h1 {
+                font-size: 18px;
+                letter-spacing: 4px;
+            }
+            .title p {
+                font-size: 12px;
+            }
+            
+            .controls {
+                flex-direction: column;
+                gap: 15px;
+                bottom: 80px; /* Leave space for back link */
+                width: 100%;
+                align-items: center;
+            }
+            
+            .back-link {
+                bottom: 20px;
+                left: 50%;
+                transform: translateX(-50%);
+                text-align: center;
+                width: 100%;
+            }
+        }
     </style>
 </head>
 <body>
