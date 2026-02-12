@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Apiary - Alex Yalın</title>
+    <link rel="icon" type="image/jpeg" href="assets/avatar.jpg">
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,500;1,300&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+        body, html { overflow: hidden; background: #0d0b07; color: #e8dcc8; font-family: 'DM Sans', sans-serif; }
+        canvas { display: block; position: fixed; top: 0; left: 0; }
+
+        .overlay-top {
+            position: fixed; top: 0; left: 0; right: 0;
+            padding: 28px 32px;
+            pointer-events: none; z-index: 10;
+            display: flex; justify-content: space-between; align-items: flex-start;
+        }
+        .overlay-top h1 {
+            font-family: 'Cormorant Garamond', serif;
+            font-weight: 300; font-size: 1.6rem;
+            color: #d4a84480;
+            letter-spacing: 6px; text-transform: uppercase;
+        }
+        .overlay-top h1 span {
+            display: block; font-size: 0.65rem; letter-spacing: 3px;
+            color: #d4a84430; margin-top: 2px;
+            font-family: 'DM Sans', sans-serif; font-weight: 300;
+        }
+
+        .info-panel {
+            position: fixed; top: 28px; right: 32px;
+            pointer-events: none; z-index: 10;
+            text-align: right; min-width: 180px;
+        }
+        .info-panel .stat-group { margin-bottom: 16px; }
+        .info-panel .stat-label {
+            font-size: 0.55rem; letter-spacing: 2.5px; text-transform: uppercase;
+            color: #d4a84440; font-weight: 500; margin-bottom: 3px;
+        }
+        .info-panel .stat-value {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 1.4rem; font-weight: 300;
+            color: #d4a844aa; line-height: 1;
+        }
+        .info-panel .stat-value.small { font-size: 0.9rem; }
+        .info-panel .stat-bar {
+            width: 100%; height: 2px; background: #d4a84415;
+            margin-top: 5px; border-radius: 1px; overflow: hidden;
+        }
+        .info-panel .stat-bar-fill {
+            height: 100%; background: #d4a844; border-radius: 1px;
+            transition: width 0.5s ease;
+        }
+
+        .overlay-bottom {
+            position: fixed; bottom: 0; left: 0; right: 0;
+            padding: 20px 32px;
+            display: flex; justify-content: space-between; align-items: flex-end;
+            pointer-events: none; z-index: 10;
+        }
+        .back-link {
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.7rem; font-weight: 300;
+            color: #d4a84430; text-decoration: none;
+            letter-spacing: 1px; pointer-events: auto; transition: color 0.4s;
+        }
+        .back-link:hover { color: #d4a844cc; }
+
+        .legend { display: flex; gap: 20px; align-items: center; }
+        .legend-item {
+            display: flex; align-items: center; gap: 6px;
+            font-size: 0.6rem; color: #d4a84440; letter-spacing: 1px;
+        }
+        .legend-dot { width: 6px; height: 6px; border-radius: 50%; }
+        .legend-dot.worker { background: #e8c44a; }
+        .legend-dot.scout { background: #7ecfdf; }
+        .legend-dot.queen { background: #ff6b8a; }
+
+        .controls {
+            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+            display: flex; gap: 8px; z-index: 10;
+        }
+        .ctrl-btn {
+            background: #d4a84412; border: 1px solid #d4a84420;
+            color: #d4a84466; font-family: 'DM Sans', sans-serif;
+            font-size: 0.6rem; letter-spacing: 1.5px; text-transform: uppercase;
+            padding: 8px 16px; border-radius: 3px;
+            cursor: pointer; transition: all 0.3s;
+        }
+        .ctrl-btn:hover { background: #d4a84425; color: #d4a844cc; border-color: #d4a84440; }
+        .ctrl-btn.active { background: #d4a84425; color: #d4a844aa; border-color: #d4a84450; }
+
+        .phase-announce {
+            position: fixed; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 2rem; font-weight: 300; font-style: italic;
+            color: #d4a84400; letter-spacing: 4px;
+            pointer-events: none; z-index: 20;
+            transition: color 1.5s ease;
+        }
+        .phase-announce.show { color: #d4a844aa; }
+        .phase-announce.hide { color: #d4a84400; }
+    </style>
+</head>
+<body>
+    <div class="overlay-top">
+        <h1>The Apiary<span>A living colony simulation</span></h1>
+    </div>
+
+    <div class="info-panel">
+        <div class="stat-group">
+            <div class="stat-label">Colony Phase</div>
+            <div class="stat-value small" id="phaseLabel">Founding</div>
+        </div>
+        <div class="stat-group">
+            <div class="stat-label">Population</div>
+            <div class="stat-value" id="popLabel">0</div>
+        </div>
+        <div class="stat-group">
+            <div class="stat-label">Cells Built</div>
+            <div class="stat-value" id="cellsLabel">0</div>
+            <div class="stat-bar"><div class="stat-bar-fill" id="cellsBar" style="width:0%"></div></div>
+        </div>
+        <div class="stat-group">
+            <div class="stat-label">Honey Stored</div>
+            <div class="stat-value" id="honeyLabel">0%</div>
+            <div class="stat-bar"><div class="stat-bar-fill" id="honeyBar" style="width:0%"></div></div>
+        </div>
+        <div class="stat-group">
+            <div class="stat-label">Temperature</div>
+            <div class="stat-value small" id="tempLabel">34.5°C</div>
+        </div>
+    </div>
+
+    <div class="overlay-bottom">
+        <a href="gallery.html" class="back-link">← Back to Gallery</a>
+        <div class="legend">
+            <div class="legend-item"><div class="legend-dot worker"></div>Worker</div>
+            <div class="legend-item"><div class="legend-dot scout"></div>Scout</div>
+            <div class="legend-item"><div class="legend-dot queen"></div>Queen</div>
+        </div>
+    </div>
+
+    <div class="controls">
+        <button class="ctrl-btn active" onclick="setSpeed(1)" id="btn1x">1×</button>
+        <button class="ctrl-btn" onclick="setSpeed(3)" id="btn3x">3×</button>
+        <button class="ctrl-btn" onclick="setSpeed(0)" id="btnPause">Pause</button>
+    </div>
+
+    <div class="phase-announce" id="phaseAnnounce"></div>
+
+    <canvas id="apiaryCanvas"></canvas>
+
+    <script>
+    const canvas = document.getElementById('apiaryCanvas');
+    const ctx = canvas.getContext('2d');
+    let W, H, cx, cy;
+    let simSpeed = 1;
+    let frame = 0;
+
+    const HEX = 14;
+    const HEX_H = HEX * Math.sqrt(3);
+    const cells = new Map();
+    const cellList = [];
+    const builtCells = [];
+
+    const bees = [];
+    let queen = null;
+
+    const colony = {
+        phase: 'founding',
+        totalWax: 0, totalHoney: 0,
+        temperature: 34.5,
+        birthTimer: 0, phaseTimer: 0,
+    };
+
+    // ── Hex math ──
+    // Pointy-top hex layout
+    function hexToPixel(q, r) {
+        const x = cx + HEX * Math.sqrt(3) * (q + r / 2);
+        const y = cy + HEX * 1.5 * r;
+        return { x, y };
+    }
+    function hexNeighbors(q, r) {
+        return [[1,0],[-1,0],[0,1],[0,-1],[1,-1],[-1,1]].map(([dq,dr]) => ({q:q+dq, r:r+dr}));
+    }
+    function getCell(q, r) {
+        const key = q+','+r;
+        if (!cells.has(key)) {
+            const c = { q, r, wax: 0, honey: 0, pollen: 0, egg: 0, ...hexToPixel(q,r) };
+            cells.set(key, c);
+            cellList.push(c);
+        }
+        return cells.get(key);
+    }
+
+    // ── Drawing helpers ──
+    function drawHex(x, y, size, fill, stroke, lw) {
+        ctx.beginPath();
+        for (let i = 0; i < 6; i++) {
+            const a = Math.PI / 3 * i + Math.PI / 6;  // pointy-top
+            const px = x + size * Math.cos(a);
+            const py = y + size * Math.sin(a);
+            i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+        if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+        if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lw || 1; ctx.stroke(); }
+    }
+
+    function drawCell(c) {
+        if (c.wax <= 0) return;
+        const w = Math.min(1, c.wax);
+        const size = HEX * (0.5 + 0.5 * w);
+        const baseR = 180 + 40 * w, baseG = 140 + 30 * w, baseB = 40;
+        drawHex(c.x, c.y, size, null, `rgba(${baseR},${baseG},${baseB},${w * 0.7})`, 1.2);
+
+        if (c.honey > 0.05) {
+            const h = Math.min(1, c.honey);
+            const grad = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, size * 0.85);
+            grad.addColorStop(0, `rgba(255, 195, 50, ${h * 0.6})`);
+            grad.addColorStop(0.6, `rgba(210, 155, 30, ${h * 0.3})`);
+            grad.addColorStop(1, `rgba(180, 120, 20, 0)`);
+            drawHex(c.x, c.y, size * 0.9, grad, null);
+        }
+        if (c.pollen > 0.1) {
+            ctx.beginPath();
+            ctx.arc(c.x + 3, c.y - 2, 2 * c.pollen, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(230, 160, 50, ${c.pollen * 0.8})`;
+            ctx.fill();
+        }
+        if (c.egg > 0) {
+            ctx.beginPath();
+            ctx.arc(c.x, c.y, 1.5 + c.egg, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(255,255,240,${Math.min(0.8, c.egg * 0.4)})`;
+            ctx.fill();
+        }
+    }
+
+    // ── Bee ──
+    class Bee {
+        constructor(x, y, role) {
+            this.x = x || cx + (Math.random() - 0.5) * 60;
+            this.y = y || cy + (Math.random() - 0.5) * 60;
+            this.vx = (Math.random() - 0.5) * 2;
+            this.vy = (Math.random() - 0.5) * 2;
+            this.role = role || 'worker';
+            this.state = 'idle';
+            this.target = null;
+            this.carrying = null;
+            this.stateTimer = 0;
+            this.trail = [];
+            this.wingPhase = Math.random() * Math.PI * 2;
+            this.size = role === 'queen' ? 4 : (role === 'scout' ? 2.5 : 2);
+        }
+
+        pickTask() {
+            if (this.role === 'queen') {
+                this.state = 'queenDuty';
+                this.target = { x: cx + (Math.random()-0.5)*30, y: cy + (Math.random()-0.5)*30 };
+                return;
+            }
+            if (this.role === 'scout') {
+                this.state = 'scouting';
+                const angle = Math.random() * Math.PI * 2;
+                const dist = 150 + Math.random() * Math.min(W,H) * 0.35;
+                this.target = { x: cx + Math.cos(angle)*dist, y: cy + Math.sin(angle)*dist };
+                return;
+            }
+            const rand = Math.random();
+            if (colony.phase === 'founding' || (colony.phase === 'building' && rand < 0.7)) {
+                this.state = 'building';
+                const tgt = this.findBuildTarget();
+                if (tgt) this.target = { x: tgt.x, y: tgt.y, cell: tgt };
+                else this.target = { x: cx + (Math.random()-0.5)*40, y: cy + (Math.random()-0.5)*40 };
+            } else {
+                this.state = 'foraging';
+                const angle = Math.random() * Math.PI * 2;
+                const dist = 120 + Math.random() * Math.min(W,H)*0.3;
+                this.target = { x: cx + Math.cos(angle)*dist, y: cy + Math.sin(angle)*dist };
+                this.carrying = null;
+            }
+        }
+
+        findBuildTarget() {
+            if (builtCells.length === 0) return getCell(0, 0);
+            const src = builtCells[Math.floor(Math.random() * builtCells.length)];
+            const neighbors = hexNeighbors(src.q, src.r).sort(() => Math.random() - 0.5);
+            for (const n of neighbors) {
+                const c = getCell(n.q, n.r);
+                if (c.wax < 1) return c;
+            }
+            return src;
+        }
+
+        update() {
+            this.wingPhase += 0.5;
+            this.stateTimer++;
+            if (this.state === 'idle' || this.stateTimer > 400) {
+                this.pickTask();
+                this.stateTimer = 0;
+            }
+
+            if (this.target) {
+                const dx = this.target.x - this.x;
+                const dy = this.target.y - this.y;
+                const dist = Math.hypot(dx, dy);
+                if (dist > 5) {
+                    this.vx += (dx / dist) * 0.3;
+                    this.vy += (dy / dist) * 0.3;
+                } else {
+                    this.onArrival();
+                }
+            }
+
+            this.vx += (Math.random() - 0.5) * 0.3;
+            this.vy += (Math.random() - 0.5) * 0.3;
+
+            const maxSpd = this.role === 'scout' ? 3.5 : (this.role === 'queen' ? 1.2 : 2.5);
+            const spd = Math.hypot(this.vx, this.vy);
+            if (spd > maxSpd) { this.vx = (this.vx/spd)*maxSpd; this.vy = (this.vy/spd)*maxSpd; }
+
+            this.x += this.vx;
+            this.y += this.vy;
+
+            const margin = 30;
+            if (this.x < margin) this.vx += 0.5;
+            if (this.x > W - margin) this.vx -= 0.5;
+            if (this.y < margin) this.vy += 0.5;
+            if (this.y > H - margin) this.vy -= 0.5;
+
+            if (frame % 3 === 0) {
+                this.trail.push({ x: this.x, y: this.y, a: 0.3 });
+                if (this.trail.length > 12) this.trail.shift();
+            }
+            this.trail.forEach(t => t.a *= 0.92);
+        }
+
+        onArrival() {
+            if (this.state === 'building' && this.target && this.target.cell) {
+                const c = this.target.cell;
+                if (c.wax < 1) {
+                    c.wax = Math.min(1, c.wax + 0.08);
+                    if (c.wax >= 0.1 && !builtCells.includes(c)) builtCells.push(c);
+                    colony.totalWax += 0.08;
+                }
+                this.stateTimer = 380;
+            } else if (this.state === 'foraging') {
+                this.carrying = Math.random() < 0.6 ? 'nectar' : 'pollen';
+                this.state = 'returning';
+                this.target = { x: cx + (Math.random()-0.5)*40, y: cy + (Math.random()-0.5)*40 };
+            } else if (this.state === 'returning') {
+                if (builtCells.length > 0) {
+                    let best = builtCells[0], bestD = Infinity;
+                    for (const c of builtCells) {
+                        const d = Math.hypot(c.x - this.x, c.y - this.y);
+                        if (d < bestD) { bestD = d; best = c; }
+                    }
+                    if (this.carrying === 'nectar' && best.wax >= 0.5) {
+                        best.honey = Math.min(1, best.honey + 0.05);
+                        colony.totalHoney += 0.05;
+                    } else if (this.carrying === 'pollen') {
+                        best.pollen = Math.min(1, best.pollen + 0.1);
+                    }
+                }
+                this.carrying = null;
+                this.state = 'dancing';
+                this.stateTimer = 370;
+            } else if (this.state === 'scouting') {
+                this.state = 'returning';
+                this.target = { x: cx + (Math.random()-0.5)*30, y: cy + (Math.random()-0.5)*30 };
+            } else if (this.state === 'queenDuty') {
+                if (builtCells.length > 3) {
+                    const c = builtCells[Math.floor(Math.random() * builtCells.length)];
+                    if (c.wax >= 0.8 && c.egg < 1) c.egg = Math.min(3, c.egg + 0.3);
+                }
+                this.stateTimer = 350;
+            } else {
+                this.state = 'idle';
+            }
+        }
+
+        draw() {
+            const baseCol = this.role === 'scout' ? [126,207,223] :
+                            this.role === 'queen' ? [255,107,138] : [232,196,74];
+
+            for (const t of this.trail) {
+                if (t.a < 0.02) continue;
+                ctx.beginPath();
+                ctx.arc(t.x, t.y, 1, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(${baseCol[0]},${baseCol[1]},${baseCol[2]},${t.a})`;
+                ctx.fill();
+            }
+
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+            ctx.fillStyle = `rgb(${baseCol.join(',')})`;
+            ctx.fill();
+
+            const grd = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.size * 4);
+            grd.addColorStop(0, `rgba(${baseCol.join(',')},0.15)`);
+            grd.addColorStop(1, `rgba(${baseCol.join(',')},0)`);
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.size * 4, 0, Math.PI * 2);
+            ctx.fillStyle = grd;
+            ctx.fill();
+
+            const wOff = Math.sin(this.wingPhase) * 3;
+            ctx.fillStyle = 'rgba(255,255,255,0.18)';
+            ctx.beginPath();
+            ctx.ellipse(this.x - wOff, this.y - this.size, 3, 1.5, -0.3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.ellipse(this.x + wOff, this.y - this.size, 3, 1.5, 0.3, 0, Math.PI * 2);
+            ctx.fill();
+
+            if (this.carrying === 'nectar') {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y + this.size + 2, 1.5, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(255,220,80,0.7)';
+                ctx.fill();
+            } else if (this.carrying === 'pollen') {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y + this.size + 2, 1.5, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(230,160,50,0.7)';
+                ctx.fill();
+            }
+
+            if (this.state === 'dancing') {
+                ctx.beginPath();
+                ctx.arc(this.x + Math.sin(frame*0.2)*6, this.y + Math.cos(frame*0.4)*3, 1, 0, Math.PI*2);
+                ctx.fillStyle = `rgba(${baseCol.join(',')},0.4)`;
+                ctx.fill();
+            }
+        }
+    }
+
+    // ── Background particles ──
+    const particles = [];
+    function initParticles() {
+        for (let i = 0; i < 40; i++) {
+            particles.push({
+                x: Math.random() * W, y: Math.random() * H,
+                vx: (Math.random()-0.5)*0.3, vy: (Math.random()-0.5)*0.2 - 0.1,
+                size: Math.random()*1.5+0.5, alpha: Math.random()*0.15+0.03
+            });
+        }
+    }
+    function drawParticles() {
+        for (const p of particles) {
+            p.x += p.vx; p.y += p.vy;
+            if (p.x < 0) p.x = W; if (p.x > W) p.x = 0;
+            if (p.y < 0) p.y = H; if (p.y > H) p.y = 0;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(212,168,68,${p.alpha})`;
+            ctx.fill();
+        }
+    }
+
+    // ── Ghost grid ──
+    function drawGhostGrid() {
+        const range = Math.floor(Math.min(W, H) / (HEX * 3.5));
+        ctx.globalAlpha = 0.04;
+        for (let q = -range; q <= range; q++) {
+            const r1 = Math.max(-range, -q - range);
+            const r2 = Math.min(range, -q + range);
+            for (let r = r1; r <= r2; r++) {
+                const key = q+','+r;
+                if (cells.has(key) && cells.get(key).wax > 0.1) continue;
+                const {x, y} = hexToPixel(q, r);
+                drawHex(x, y, HEX * 0.6, null, '#d4a844', 0.5);
+            }
+        }
+        ctx.globalAlpha = 1;
+    }
+
+    // ── Phase management ──
+    const announceEl = document.getElementById('phaseAnnounce');
+    function setPhase(phase, msg) {
+        colony.phase = phase;
+        announceEl.textContent = msg;
+        announceEl.className = 'phase-announce show';
+        setTimeout(() => announceEl.className = 'phase-announce hide', 3000);
+    }
+
+    function updatePhase() {
+        colony.phaseTimer++;
+        const built = builtCells.length;
+        const pop = bees.length;
+
+        if (colony.phase === 'founding' && built >= 7)
+            setPhase('building', 'The colony takes shape');
+        else if (colony.phase === 'building' && built >= 40)
+            setPhase('foraging', 'Workers begin to forage');
+        else if (colony.phase === 'foraging' && colony.totalHoney > 15)
+            setPhase('thriving', 'The hive thrives');
+
+        colony.birthTimer++;
+        const maxPop = colony.phase === 'thriving' ? 90 :
+                       colony.phase === 'foraging' ? 70 :
+                       colony.phase === 'building' ? 50 : 25;
+        const birthRate = colony.phase === 'thriving' ? 80 : 120;
+        if (colony.birthTimer > birthRate && pop < maxPop) {
+            colony.birthTimer = 0;
+            const role = Math.random() < 0.15 ? 'scout' : 'worker';
+            bees.push(new Bee(cx + (Math.random()-0.5)*20, cy + (Math.random()-0.5)*20, role));
+        }
+
+        colony.temperature = 34.5 + Math.sin(frame * 0.005) * 0.8 + (Math.random()-0.5)*0.2;
+    }
+
+    // ── UI update ──
+    function updateUI() {
+        if (frame % 15 !== 0) return;
+        const phaseNames = { founding:'Founding', building:'Building', foraging:'Foraging', thriving:'Thriving' };
+        document.getElementById('phaseLabel').textContent = phaseNames[colony.phase] || colony.phase;
+        document.getElementById('popLabel').textContent = bees.length;
+        document.getElementById('cellsLabel').textContent = builtCells.length;
+        document.getElementById('cellsBar').style.width = Math.min(100, builtCells.length / 200 * 100) + '%';
+        const honeyPct = builtCells.length > 0 ?
+            Math.round(builtCells.reduce((s,c) => s + c.honey, 0) / builtCells.length * 100) : 0;
+        document.getElementById('honeyLabel').textContent = honeyPct + '%';
+        document.getElementById('honeyBar').style.width = honeyPct + '%';
+        document.getElementById('tempLabel').textContent = colony.temperature.toFixed(1) + '°C';
+    }
+
+    // ── Speed control ──
+    function setSpeed(s) {
+        simSpeed = s;
+        document.querySelectorAll('.ctrl-btn').forEach(b => b.classList.remove('active'));
+        if (s === 0) document.getElementById('btnPause').classList.add('active');
+        else if (s === 1) document.getElementById('btn1x').classList.add('active');
+        else document.getElementById('btn3x').classList.add('active');
+    }
+    window.setSpeed = setSpeed;
+
+    // ── Vignette ──
+    let vignetteGrad;
+    function createVignette() {
+        const r = Math.hypot(W, H) / 2;
+        vignetteGrad = ctx.createRadialGradient(cx, cy, r * 0.3, cx, cy, r);
+        vignetteGrad.addColorStop(0, 'rgba(13,11,7,0)');
+        vignetteGrad.addColorStop(0.7, 'rgba(13,11,7,0.2)');
+        vignetteGrad.addColorStop(1, 'rgba(13,11,7,0.85)');
+    }
+
+    // ── Init ──
+    function init() {
+        W = canvas.width = window.innerWidth;
+        H = canvas.height = window.innerHeight;
+        cx = W / 2; cy = H / 2;
+        createVignette();
+
+        if (bees.length === 0) {
+            getCell(0, 0).wax = 0.3;
+            builtCells.push(getCell(0, 0));
+            queen = new Bee(cx, cy, 'queen');
+            bees.push(queen);
+            for (let i = 0; i < 12; i++) bees.push(new Bee(null, null, 'worker'));
+            for (let i = 0; i < 3; i++) bees.push(new Bee(null, null, 'scout'));
+            initParticles();
+            setPhase('founding', 'A new colony begins');
+        } else {
+            for (const c of cellList) {
+                const p = hexToPixel(c.q, c.r);
+                c.x = p.x; c.y = p.y;
+            }
+        }
+    }
+
+    // ── Main loop ──
+    function animate() {
+        const steps = simSpeed;
+        for (let s = 0; s < steps; s++) {
+            frame++;
+            for (const bee of bees) bee.update();
+            updatePhase();
+        }
+
+        ctx.fillStyle = '#0d0b07';
+        ctx.fillRect(0, 0, W, H);
+
+        const cGlow = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.min(W,H)*0.4);
+        cGlow.addColorStop(0, 'rgba(60,40,15,0.15)');
+        cGlow.addColorStop(1, 'rgba(13,11,7,0)');
+        ctx.fillStyle = cGlow;
+        ctx.fillRect(0, 0, W, H);
+
+        drawGhostGrid();
+        drawParticles();
+        for (const c of builtCells) drawCell(c);
+        for (const bee of bees) bee.draw();
+
+        ctx.fillStyle = vignetteGrad;
+        ctx.fillRect(0, 0, W, H);
+
+        updateUI();
+        requestAnimationFrame(animate);
+    }
+
+    window.addEventListener('resize', init);
+    init();
+    animate();
+    </script>
+</body>
+</html>
