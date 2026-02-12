@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neon Terrain — Synthwave Odyssey</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body, html {
+            overflow: hidden;
+            background: #000;
+            color: #eee;
+            font-family: 'Rajdhani', sans-serif;
+            cursor: crosshair;
+        }
+
+        canvas { display: block; position: absolute; top: 0; left: 0; }
+        #bgCanvas { z-index: 0; }
+        #terrainCanvas { z-index: 1; }
+        #fxCanvas { z-index: 2; pointer-events: none; }
+
+        .overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            z-index: 10;
+            pointer-events: none;
+            padding: 28px 32px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .title-block h1 {
+            font-family: 'Orbitron', monospace;
+            font-size: clamp(1rem, 2.5vw, 1.6rem);
+            font-weight: 900;
+            color: #fff;
+            text-transform: uppercase;
+            letter-spacing: 6px;
+            text-shadow:
+                0 0 10px rgba(255,0,200,0.8),
+                0 0 30px rgba(255,0,200,0.4),
+                0 0 60px rgba(255,0,200,0.2);
+            animation: titleGlow 3s ease-in-out infinite alternate;
+        }
+
+        .title-block p {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 0.8rem;
+            font-weight: 300;
+            color: rgba(255,255,255,0.45);
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            margin-top: 6px;
+        }
+
+        @keyframes titleGlow {
+            0% { text-shadow: 0 0 10px rgba(255,0,200,0.8), 0 0 30px rgba(255,0,200,0.4), 0 0 60px rgba(255,0,200,0.2); }
+            100% { text-shadow: 0 0 10px rgba(0,200,255,0.8), 0 0 30px rgba(0,200,255,0.4), 0 0 60px rgba(0,200,255,0.2); }
+        }
+
+        .stats-panel {
+            text-align: right;
+            font-family: 'Orbitron', monospace;
+            font-size: 0.65rem;
+            color: rgba(255,255,255,0.35);
+            letter-spacing: 2px;
+            line-height: 1.8;
+        }
+        .stats-panel .val { color: rgba(0,255,200,0.7); }
+
+        .controls {
+            position: absolute;
+            bottom: 24px;
+            left: 32px;
+            z-index: 10;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .ctrl-btn {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.12);
+            color: rgba(255,255,255,0.5);
+            padding: 8px 18px;
+            font-family: 'Orbitron', monospace;
+            font-size: 0.6rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .ctrl-btn::before {
+            content: '';
+            position: absolute;
+            top: 0; left: -100%; width: 100%; height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,0,200,0.15), transparent);
+            transition: left 0.5s;
+        }
+        .ctrl-btn:hover::before { left: 100%; }
+
+        .ctrl-btn:hover {
+            border-color: rgba(255,0,200,0.5);
+            color: #fff;
+            box-shadow: 0 0 20px rgba(255,0,200,0.2), inset 0 0 20px rgba(255,0,200,0.05);
+        }
+        .ctrl-btn.active {
+            border-color: rgba(0,255,200,0.5);
+            color: rgba(0,255,200,0.9);
+            box-shadow: 0 0 20px rgba(0,255,200,0.15);
+        }
+
+        .speed-indicator {
+            position: absolute;
+            bottom: 24px;
+            right: 32px;
+            z-index: 10;
+            font-family: 'Orbitron', monospace;
+            font-size: 2rem;
+            font-weight: 900;
+            color: rgba(255,255,255,0.08);
+            letter-spacing: 4px;
+            pointer-events: none;
+        }
+        .speed-indicator .unit { font-size: 0.6rem; color: rgba(255,255,255,0.2); vertical-align: super; }
+
+        .scanlines {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 5;
+            pointer-events: none;
+            background: repeating-linear-gradient(
+                0deg,
+                transparent,
+                transparent 2px,
+                rgba(0,0,0,0.06) 2px,
+                rgba(0,0,0,0.06) 4px
+            );
+        }
+
+        .vignette {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 4;
+            pointer-events: none;
+            background: radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.7) 100%);
+        }
+
+        @keyframes flicker {
+            0%, 95%, 100% { opacity: 1; }
+            96% { opacity: 0.85; }
+            97% { opacity: 1; }
+            98% { opacity: 0.9; }
+        }
+
+        .flicker { animation: flicker 8s infinite; }
+
+        .loader {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 100;
+            background: #000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: opacity 1.5s ease, visibility 1.5s;
+        }
+        .loader.hidden { opacity: 0; visibility: hidden; }
+        .loader-text {
+            font-family: 'Orbitron', monospace;
+            font-size: 0.7rem;
+            letter-spacing: 8px;
+            color: rgba(255,0,200,0.8);
+            text-transform: uppercase;
+        }
+        .loader-bar {
+            width: 200px; height: 2px;
+            background: rgba(255,255,255,0.05);
+            margin-top: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+        .loader-bar::after {
+            content: '';
+            position: absolute;
+            height: 100%;
+            background: linear-gradient(90deg, #ff00c8, #00ffc8);
+            animation: loadAnim 2s ease-in-out forwards;
+        }
+        @keyframes loadAnim { 0% { width: 0; } 100% { width: 100%; } }
+
+        .help-hint {
+            position: absolute;
+            bottom: 70px;
+            left: 32px;
+            z-index: 10;
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 0.65rem;
+            color: rgba(255,255,255,0.2);
+            letter-spacing: 1px;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="loader" id="loader">
+        <div class="loader-text">Initializing Terrain</div>
+        <div class="loader-bar"></div>
+    </div>
+
+    <canvas id="bgCanvas"></canvas>
+    <canvas id="terrainCanvas"></canvas>
+    <canvas id="fxCanvas"></canvas>
+
+    <div class="vignette"></div>
+    <div class="scanlines flicker"></div>
+
+    <div class="overlay">
+        <div class="title-block">
+            <h1>Neon Terrain</h1>
+            <p>Infinite procedural landscape</p>
+        </div>
+        <div class="stats-panel" id="stats">
+            ALTITUDE <span class="val" id="altVal">0</span> M<br>
+            SPEED <span class="val" id="spdVal">120</span> KM/H<br>
+            COORD <span class="val" id="coordVal">0.00, 0.00</span><br>
+            FPS <span class="val" id="fpsVal">60</span>
+        </div>
+    </div>
+
+    <div class="controls">
+        <button class="ctrl-btn active" data-mode="neon" onclick="setColorMode('neon')">Neon</button>
+        <button class="ctrl-btn" data-mode="cyber" onclick="setColorMode('cyber')">Cyber</button>
+        <button class="ctrl-btn" data-mode="inferno" onclick="setColorMode('inferno')">Inferno</button>
+        <button class="ctrl-btn" data-mode="arctic" onclick="setColorMode('arctic')">Arctic</button>
+        <button class="ctrl-btn" id="audioBtn" onclick="toggleAudio()">&#9835; Audio</button>
+    </div>
+
+    <div class="help-hint">SCROLL = speed &nbsp;|&nbsp; MOUSE = camera &nbsp;|&nbsp; SPACE = boost &nbsp;|&nbsp; 1-4 = themes &nbsp;|&nbsp; M = music</div>
+
+    <div class="speed-indicator">
+        <span id="speedDisplay">120</span><span class="unit"> KM/H</span>
+    </div>
+
+<script>
+// ========================================
+// CONFIGURATION
+// ========================================
+const CONFIG = {
+    terrain: { cols: 70, rows: 60, noiseScale: 0.055, heightMul: 130, speed: 0.04, sideExpand: 2.6 },
+    sun: { radius: 0.13, bands: 8, y: 0.28 },
+    stars: { count: 300, shootingInterval: 4000 }
+};
+
+// ========================================
+// COLOR THEMES
+// ========================================
+const THEMES = {
+    neon: {
+        skyTop: '#0a000f', skyMid: '#1a0030', skyBot: '#ff0066',
+        sunColors: ['#ff0066', '#ff3300', '#ffaa00'],
+        gridNear: [320, 100, 55], gridFar: [270, 80, 40],
+        fogColor: [255, 0, 100], mtnColor: '#120020'
+    },
+    cyber: {
+        skyTop: '#000a0f', skyMid: '#001a2a', skyBot: '#00ccff',
+        sunColors: ['#00ccff', '#0066ff', '#00ffaa'],
+        gridNear: [190, 100, 55], gridFar: [220, 80, 40],
+        fogColor: [0, 200, 255], mtnColor: '#001020'
+    },
+    inferno: {
+        skyTop: '#0f0500', skyMid: '#2a0a00', skyBot: '#ff4400',
+        sunColors: ['#ff4400', '#ff8800', '#ffcc00'],
+        gridNear: [20, 100, 55], gridFar: [40, 80, 40],
+        fogColor: [255, 80, 0], mtnColor: '#200800'
+    },
+    arctic: {
+        skyTop: '#050a15', skyMid: '#0a2040', skyBot: '#88ccff',
+        sunColors: ['#88ccff', '#aaddff', '#ffffff'],
+        gridNear: [200, 60, 65], gridFar: [210, 40, 50],
+        fogColor: [100, 180, 255], mtnColor: '#0a1525'
+    }
+};
+
+let currentMode = 'neon';
+function setColorMode(mode) {
+    currentMode = mode;
+    document.querySelectorAll('.ctrl-btn[data-mode]').forEach(b =>
+        b.classList.toggle('active', b.dataset.mode === mode));
+}
+function theme() { return THEMES[currentMode]; }
+
+// ========================================
+// PERLIN NOISE
+// ========================================
+class Perlin {
+    constructor() {
+        this.p = new Uint8Array(512);
+        const t = new Uint8Array(256);
+        for (let i = 0; i < 256; i++) t[i] = i;
+        for (let i = 255; i > 0; i--) { const j = Math.floor(Math.random()*(i+1)); [t[i],t[j]]=[t[j],t[i]]; }
+        for (let i = 0; i < 512; i++) this.p[i] = t[i & 255];
+    }
+    fade(t){return t*t*t*(t*(t*6-15)+10);}
+    lerp(a,b,t){return a+t*(b-a);}
+    grad(h,x,y){const v=h&3;return((v&1)?-x:x)+((v&2)?-y:y);}
+    noise(x,y){
+        const X=Math.floor(x)&255, Y=Math.floor(y)&255;
+        const xf=x-Math.floor(x), yf=y-Math.floor(y);
+        const u=this.fade(xf), v=this.fade(yf), p=this.p;
+        return this.lerp(
+            this.lerp(this.grad(p[p[X]+Y],xf,yf), this.grad(p[p[X+1]+Y],xf-1,yf), u),
+            this.lerp(this.grad(p[p[X]+Y+1],xf,yf-1), this.grad(p[p[X+1]+Y+1],xf-1,yf-1), u), v);
+    }
+    fbm(x,y,oct=5){
+        let v=0,a=1,f=1,m=0;
+        for(let i=0;i<oct;i++){v+=this.noise(x*f,y*f)*a;m+=a;a*=0.5;f*=2;}
+        return v/m;
+    }
+}
+const perlin = new Perlin();
+
+// ========================================
+// CANVAS SETUP
+// ========================================
+const bgC = document.getElementById('bgCanvas'), bgX = bgC.getContext('2d');
+const mnC = document.getElementById('terrainCanvas'), mnX = mnC.getContext('2d');
+const fxC = document.getElementById('fxCanvas'), fxX = fxC.getContext('2d');
+let W, H;
+
+// ========================================
+// STARS
+// ========================================
+let stars = [], shootingStars = [];
+function initStars() {
+    stars = [];
+    for (let i = 0; i < CONFIG.stars.count; i++)
+        stars.push({
+            x: Math.random()*W, y: Math.random()*H*0.42,
+            r: Math.random()*1.5+0.3,
+            ts: Math.random()*2+1, to: Math.random()*Math.PI*2,
+            b: Math.random()*0.5+0.3
+        });
+}
+function spawnShooting() {
+    shootingStars.push({
+        x: Math.random()*W*0.8+W*0.1, y: Math.random()*H*0.15,
+        vx: (Math.random()-0.3)*8, vy: Math.random()*3+2,
+        life: 1, len: Math.random()*80+40
+    });
+}
+
+// ========================================
+// PARTICLES
+// ========================================
+let particles = [];
+function initParticles() {
+    particles = [];
+    for (let i = 0; i < 100; i++)
+        particles.push({
+            x: Math.random()*W, y: Math.random()*H,
+            z: Math.random()*3+0.5,
+            sz: Math.random()*2+0.5,
+            sp: Math.random()*2+1
+        });
+}
+
+// ========================================
+// MOUNTAINS
+// ========================================
+function drawMountains(ctx, horizon, t) {
+    const c = theme();
+    const layers = [
+        { y: horizon-20, sc: 0.004, h: 100, a: 0.6, sp: 0.002 },
+        { y: horizon+5, sc: 0.006, h: 70, a: 0.4, sp: 0.004 },
+        { y: horizon+20, sc: 0.01, h: 45, a: 0.25, sp: 0.008 }
+    ];
+    layers.forEach(l => {
+        ctx.beginPath();
+        ctx.moveTo(0, H);
+        for (let x = 0; x <= W; x += 3) {
+            const h = perlin.fbm((x+t*l.sp*400)*l.sc, 0, 3)*l.h+l.h*0.5;
+            ctx.lineTo(x, l.y-h);
+        }
+        ctx.lineTo(W, H); ctx.closePath();
+        ctx.fillStyle = c.mtnColor;
+        ctx.globalAlpha = l.a; ctx.fill(); ctx.globalAlpha = 1;
+    });
+}
+
+// ========================================
+// SUN
+// ========================================
+function drawSun(ctx) {
+    const c = theme();
+    const cx = W/2, cy = H*CONFIG.sun.y, r = Math.min(W,H)*CONFIG.sun.radius;
+
+    // Glow
+    const gR = r*3.5;
+    const gg = ctx.createRadialGradient(cx,cy,r*0.3,cx,cy,gR);
+    gg.addColorStop(0, c.sunColors[0]+'40');
+    gg.addColorStop(0.5, c.sunColors[1]+'12');
+    gg.addColorStop(1, 'transparent');
+    ctx.fillStyle = gg;
+    ctx.fillRect(cx-gR, cy-gR, gR*2, gR*2);
+
+    // Body
+    ctx.save();
+    ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.clip();
+    const sg = ctx.createLinearGradient(cx,cy-r,cx,cy+r);
+    sg.addColorStop(0, c.sunColors[2]);
+    sg.addColorStop(0.5, c.sunColors[0]);
+    sg.addColorStop(1, c.sunColors[0]+'00');
+    ctx.fillStyle = sg;
+    ctx.fillRect(cx-r,cy-r,r*2,r*2);
+
+    // Bands
+    for (let i = 0; i < CONFIG.sun.bands; i++) {
+        const by = cy + (i/CONFIG.sun.bands)*r*1.2 - r*0.1;
+        const bh = (r/CONFIG.sun.bands)*(0.3+i*0.12);
+        ctx.fillStyle = '#000'; ctx.globalAlpha = 0.9;
+        ctx.fillRect(cx-r,by,r*2,bh);
+    }
+    ctx.globalAlpha = 1; ctx.restore();
+
+    // Reflection
+    const rg = ctx.createLinearGradient(cx-r*1.5,0,cx+r*1.5,0);
+    rg.addColorStop(0, 'transparent');
+    rg.addColorStop(0.5, c.sunColors[0]+'30');
+    rg.addColorStop(1, 'transparent');
+    ctx.fillStyle = rg;
+    ctx.fillRect(cx-r*1.5, cy+r, r*3, 2);
+}
+
+// ========================================
+// BACKGROUND
+// ========================================
+function drawBackground(ctx, time) {
+    const c = theme();
+    const sg = ctx.createLinearGradient(0,0,0,H*0.5);
+    sg.addColorStop(0, c.skyTop);
+    sg.addColorStop(0.6, c.skyMid);
+    sg.addColorStop(1, c.skyBot+'80');
+    ctx.fillStyle = sg;
+    ctx.fillRect(0,0,W,H);
+
+    // Stars
+    stars.forEach(s => {
+        const tw = Math.sin(time*0.001*s.ts+s.to)*0.5+0.5;
+        const a = s.b*tw;
+        ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,Math.PI*2);
+        ctx.fillStyle = `rgba(255,255,255,${a})`; ctx.fill();
+        if (s.r > 1.2) {
+            ctx.beginPath(); ctx.arc(s.x,s.y,s.r*3,0,Math.PI*2);
+            ctx.fillStyle = `rgba(255,255,255,${a*0.08})`; ctx.fill();
+        }
+    });
+
+    // Shooting stars
+    shootingStars.forEach(ss => {
+        ss.x += ss.vx; ss.y += ss.vy; ss.life -= 0.015;
+        if (ss.life > 0) {
+            ctx.beginPath(); ctx.moveTo(ss.x,ss.y);
+            ctx.lineTo(ss.x-ss.vx*ss.len/8, ss.y-ss.vy*ss.len/8);
+            const g = ctx.createLinearGradient(ss.x,ss.y,ss.x-ss.vx*ss.len/8,ss.y-ss.vy*ss.len/8);
+            g.addColorStop(0, `rgba(255,255,255,${ss.life})`);
+            g.addColorStop(1, 'transparent');
+            ctx.strokeStyle = g; ctx.lineWidth = 2; ctx.stroke();
+        }
+    });
+    shootingStars = shootingStars.filter(s => s.life > 0);
+
+    drawSun(ctx);
+    drawMountains(ctx, H*0.38, time);
+}
+
+// ========================================
+// TERRAIN
+// ========================================
+let flight = 0, terrainData = [];
+let mouseX = 0, mouseY = 0;
+let targetSpeed = CONFIG.terrain.speed, currentSpeed = CONFIG.terrain.speed;
+
+function computeTerrain() {
+    const { cols, rows, noiseScale, heightMul } = CONFIG.terrain;
+    terrainData = [];
+    for (let y = 0; y <= rows; y++) {
+        terrainData[y] = [];
+        for (let x = 0; x <= cols; x++) {
+            const nx = x * noiseScale;
+            const ny = (y + flight*20) * noiseScale;
+            let h = perlin.fbm(nx, ny, 5) * heightMul;
+            const cd = Math.abs(x/cols - 0.5)*2;
+            if (cd < 0.12) h -= (1-cd/0.12)*40;
+            if (cd > 0.6) h += (cd-0.6)*80;
+            terrainData[y][x] = h;
+        }
+    }
+}
+
+function projectPt(x, y, h, horizon) {
+    const { cols, rows, sideExpand } = CONFIG.terrain;
+    const p = y / rows;
+    const pf = Math.pow(p, 1.8);
+    const py = horizon + pf*(H-horizon);
+    const rw = W*(0.05 + p*sideExpand);
+    const px = (W-rw)/2 + (x/cols)*rw;
+    return { x: px, y: py - h*p*0.8, p };
+}
+
+function lerpHSL(a,b,t) {
+    return [a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t, a[2]+(b[2]-a[2])*t];
+}
+
+function drawTerrain(ctx, time) {
+    const c = theme();
+    const { cols, rows } = CONFIG.terrain;
+    const horizon = H*0.38;
+
+    // Horizontal lines
+    for (let y = 1; y <= rows; y++) {
+        ctx.beginPath();
+        for (let x = 0; x <= cols; x++) {
+            const pt = projectPt(x, y, terrainData[y]?terrainData[y][x]||0:0, horizon);
+            if (x===0) ctx.moveTo(pt.x,pt.y); else ctx.lineTo(pt.x,pt.y);
+        }
+        const t = y/rows;
+        const hsl = lerpHSL(c.gridFar, c.gridNear, t);
+        ctx.strokeStyle = `hsla(${hsl[0]},${hsl[1]}%,${hsl[2]}%,${Math.pow(t,0.6)*0.85})`;
+        ctx.lineWidth = 0.5+t*1.5;
+        ctx.stroke();
+    }
+
+    // Vertical lines
+    for (let x = 0; x <= cols; x++) {
+        ctx.beginPath();
+        for (let y = 0; y <= rows; y++) {
+            const pt = projectPt(x, y, terrainData[y]?terrainData[y][x]||0:0, horizon);
+            if (y===0) ctx.moveTo(pt.x,pt.y); else ctx.lineTo(pt.x,pt.y);
+        }
+        const cd = Math.abs(x/cols-0.5)*2;
+        ctx.strokeStyle = `hsla(${c.gridFar[0]},50%,45%,${0.06+cd*0.15})`;
+        ctx.lineWidth = 0.5;
+        ctx.stroke();
+    }
+
+    // Peak glow
+    for (let y = Math.floor(rows*0.3); y <= rows; y += 3) {
+        for (let x = 0; x <= cols; x += 4) {
+            if (!terrainData[y]) continue;
+            const h = terrainData[y][x]||0;
+            if (h > 60) {
+                const pt = projectPt(x, y, h, horizon);
+                const gs = (h-60)*pt.p*0.4;
+                const g = ctx.createRadialGradient(pt.x,pt.y,0,pt.x,pt.y,gs);
+                g.addColorStop(0, `rgba(${c.fogColor[0]},${c.fogColor[1]},${c.fogColor[2]},${0.12*pt.p})`);
+                g.addColorStop(1, 'transparent');
+                ctx.fillStyle = g;
+                ctx.fillRect(pt.x-gs,pt.y-gs,gs*2,gs*2);
+            }
+        }
+    }
+}
+
+// ========================================
+// ATMOSPHERE
+// ========================================
+function drawFog(ctx) {
+    const c = theme();
+    const horizon = H*0.38;
+    const fg = ctx.createLinearGradient(0,horizon-80,0,horizon+100);
+    fg.addColorStop(0,'transparent');
+    fg.addColorStop(0.4,`rgba(${c.fogColor[0]},${c.fogColor[1]},${c.fogColor[2]},0.06)`);
+    fg.addColorStop(0.6,`rgba(${c.fogColor[0]},${c.fogColor[1]},${c.fogColor[2]},0.1)`);
+    fg.addColorStop(1,'transparent');
+    ctx.fillStyle = fg; ctx.fillRect(0,horizon-80,W,180);
+
+    const bf = ctx.createLinearGradient(0,H-150,0,H);
+    bf.addColorStop(0,'transparent');
+    bf.addColorStop(1,`rgba(${c.fogColor[0]},${c.fogColor[1]},${c.fogColor[2]},0.06)`);
+    ctx.fillStyle = bf; ctx.fillRect(0,H-150,W,150);
+}
+
+function drawParticles(ctx, dt) {
+    const c = theme();
+    particles.forEach(p => {
+        p.y += p.sp*p.z*dt*60;
+        p.x += Math.sin(p.y*0.01)*0.5;
+        if (p.y > H) { p.y = -10; p.x = Math.random()*W; }
+        const a = Math.min(p.z/3,0.5)*0.35;
+        ctx.fillStyle = `rgba(${c.fogColor[0]},${c.fogColor[1]},${c.fogColor[2]},${a})`;
+        ctx.fillRect(p.x, p.y, p.sz, p.sz*3);
+    });
+}
+
+function drawChromatic(ctx) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    ctx.fillStyle = 'rgba(255,0,0,0.012)'; ctx.fillRect(-3,0,W,H);
+    ctx.fillStyle = 'rgba(0,0,255,0.012)'; ctx.fillRect(3,0,W,H);
+    ctx.restore();
+}
+
+// ========================================
+// AUDIO
+// ========================================
+let audioCtx = null, audioPlaying = false, masterGain = null;
+
+function initAudio() {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    masterGain = audioCtx.createGain();
+    masterGain.gain.value = 0.12;
+    masterGain.connect(audioCtx.destination);
+
+    // Bass drone
+    const bass = audioCtx.createOscillator();
+    bass.type = 'sine'; bass.frequency.value = 55;
+    const bg = audioCtx.createGain(); bg.gain.value = 0.3;
+    bass.connect(bg).connect(masterGain); bass.start();
+
+    // Sub
+    const sub = audioCtx.createOscillator();
+    sub.type = 'sine'; sub.frequency.value = 27.5;
+    const sg = audioCtx.createGain(); sg.gain.value = 0.2;
+    sub.connect(sg).connect(masterGain); sub.start();
+
+    // Pad
+    const pad = audioCtx.createOscillator();
+    pad.type = 'triangle'; pad.frequency.value = 220;
+    const pf = audioCtx.createBiquadFilter();
+    pf.type = 'lowpass'; pf.frequency.value = 400;
+    const pg = audioCtx.createGain(); pg.gain.value = 0.08;
+    pad.connect(pf).connect(pg).connect(masterGain); pad.start();
+
+    const lfo = audioCtx.createOscillator(); lfo.frequency.value = 0.1;
+    const lg = audioCtx.createGain(); lg.gain.value = 100;
+    lfo.connect(lg).connect(pf.frequency); lfo.start();
+
+    // Shimmer
+    const sh = audioCtx.createOscillator();
+    sh.type = 'sine'; sh.frequency.value = 880;
+    const shg = audioCtx.createGain(); shg.gain.value = 0.02;
+    sh.connect(shg).connect(masterGain); sh.start();
+
+    const l2 = audioCtx.createOscillator(); l2.frequency.value = 0.05;
+    const l2g = audioCtx.createGain(); l2g.gain.value = 200;
+    l2.connect(l2g).connect(sh.frequency); l2.start();
+
+    // Arp notes
+    const arpNotes = [220, 330, 440, 550, 660, 550, 440, 330];
+    let arpIdx = 0;
+    const arpOsc = audioCtx.createOscillator();
+    arpOsc.type = 'sawtooth';
+    const arpFilt = audioCtx.createBiquadFilter();
+    arpFilt.type = 'lowpass'; arpFilt.frequency.value = 800;
+    const arpGain = audioCtx.createGain(); arpGain.gain.value = 0.015;
+    arpOsc.connect(arpFilt).connect(arpGain).connect(masterGain);
+    arpOsc.start();
+
+    setInterval(() => {
+        if (!audioPlaying) return;
+        arpOsc.frequency.setTargetAtTime(arpNotes[arpIdx % arpNotes.length], audioCtx.currentTime, 0.02);
+        arpIdx++;
+    }, 400);
+}
+
+function toggleAudio() {
+    const btn = document.getElementById('audioBtn');
+    if (!audioPlaying) {
+        if (!audioCtx) initAudio(); else audioCtx.resume();
+        masterGain.gain.setTargetAtTime(0.12, audioCtx.currentTime, 0.5);
+        audioPlaying = true; btn.classList.add('active');
+    } else {
+        masterGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.5);
+        audioPlaying = false; btn.classList.remove('active');
+    }
+}
+
+// ========================================
+// STATS
+// ========================================
+let fCount = 0, lastFT = 0, dFps = 60;
+function updateStats(t) {
+    fCount++;
+    if (t - lastFT >= 1000) { dFps = fCount; fCount = 0; lastFT = t; }
+    document.getElementById('fpsVal').textContent = dFps;
+    document.getElementById('altVal').textContent = Math.floor(Math.sin(t*0.001)*200+400);
+    document.getElementById('spdVal').textContent = Math.floor(currentSpeed*3000);
+    document.getElementById('speedDisplay').textContent = Math.floor(currentSpeed*3000);
+    document.getElementById('coordVal').textContent = (flight*10).toFixed(1)+', '+(Math.sin(t*0.0003)*50).toFixed(1);
+}
+
+// ========================================
+// INPUT
+// ========================================
+document.addEventListener('mousemove', e => {
+    mouseX = (e.clientX/W - 0.5)*2;
+    mouseY = (e.clientY/H - 0.5)*2;
+});
+document.addEventListener('wheel', e => {
+    targetSpeed = Math.max(0.005, Math.min(0.12, targetSpeed + e.deltaY*0.00005));
+});
+document.addEventListener('keydown', e => {
+    if (e.code === 'Space') { e.preventDefault(); targetSpeed = targetSpeed > 0.06 ? 0.02 : 0.08; }
+    if (e.key === '1') setColorMode('neon');
+    if (e.key === '2') setColorMode('cyber');
+    if (e.key === '3') setColorMode('inferno');
+    if (e.key === '4') setColorMode('arctic');
+    if (e.key === 'm' || e.key === 'M') toggleAudio();
+});
+
+// Touch support
+let touchStartY = 0;
+document.addEventListener('touchstart', e => { touchStartY = e.touches[0].clientY; });
+document.addEventListener('touchmove', e => {
+    const dy = e.touches[0].clientY - touchStartY;
+    targetSpeed = Math.max(0.005, Math.min(0.12, targetSpeed - dy*0.0001));
+    mouseX = (e.touches[0].clientX/W - 0.5)*2;
+    mouseY = (e.touches[0].clientY/H - 0.5)*2;
+});
+
+// ========================================
+// RESIZE
+// ========================================
+function resize() {
+    W = window.innerWidth; H = window.innerHeight;
+    [bgC, mnC, fxC].forEach(c => { c.width = W; c.height = H; });
+    initStars(); initParticles();
+}
+window.addEventListener('resize', resize);
+
+// ========================================
+// MAIN LOOP
+// ========================================
+let lastTime = 0, shootTimer = 0;
+
+function loop(ts) {
+    const dt = Math.min((ts-lastTime)/1000, 0.05);
+    lastTime = ts;
+
+    currentSpeed += (targetSpeed - currentSpeed)*0.03;
+    flight -= currentSpeed*dt*60;
+
+    // Shooting stars
+    shootTimer += dt*1000;
+    if (shootTimer > CONFIG.stars.shootingInterval) {
+        spawnShooting(); shootTimer = 0;
+        CONFIG.stars.shootingInterval = 3000+Math.random()*5000;
+    }
+
+    computeTerrain();
+
+    bgX.clearRect(0,0,W,H);
+    mnX.clearRect(0,0,W,H);
+    fxX.clearRect(0,0,W,H);
+
+    drawBackground(bgX, ts);
+    drawTerrain(mnX, ts);
+    drawFog(mnX);
+    drawParticles(fxX, dt);
+    drawChromatic(fxX);
+
+    // Camera sway
+    mnC.style.transform = `translate(${mouseX*-4}px, ${mouseY*-2}px)`;
+    bgC.style.transform = `translate(${mouseX*-1}px, ${mouseY*-0.5}px)`;
+
+    updateStats(ts);
+    requestAnimationFrame(loop);
+}
+
+// ========================================
+// INIT
+// ========================================
+resize();
+setTimeout(() => {
+    document.getElementById('loader').classList.add('hidden');
+    requestAnimationFrame(loop);
+}, 2200);
+</script>
+</body>
+</html>
