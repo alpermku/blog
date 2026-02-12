@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Void - Alex Yalın</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" type="image/jpeg" href="assets/avatar.jpg">
+    <style>
+        body, html { margin: 0; padding: 0; overflow: hidden; background-color: #000; color: #eee; }
+        canvas { display: block; }
+        .overlay {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            pointer-events: none;
+            z-index: 10;
+        }
+        .overlay h1 {
+            font-family: 'Inter', sans-serif;
+            font-size: 1.2rem;
+            color: rgba(255, 255, 255, 0.9);
+            margin: 0;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            text-shadow: 0 0 10px rgba(255,255,255,0.3);
+        }
+        .overlay p {
+            font-family: 'Lora', serif;
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.6);
+            margin: 5px 0 0 0;
+        }
+        .back-link {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.4);
+            text-decoration: none;
+            border-bottom: 1px solid transparent;
+            transition: all 0.3s;
+            pointer-events: auto;
+        }
+        .back-link:hover {
+            color: #fff;
+            border-bottom-color: #fff;
+        }
+    </style>
+</head>
+<body>
+    <div class="overlay">
+        <h1>The Void</h1>
+        <p>Gravitational singularity. Event horizon simulation.</p>
+    </div>
+    
+    <a href="gallery.html" class="back-link">&larr; Back to Gallery</a>
+
+    <canvas id="voidCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('voidCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let width, height;
+        let particles = [];
+        const particleCount = 1000;
+        const centerMass = 2000;
+
+        class Particle {
+            constructor() {
+                // Rastgele yörünge başlangıcı
+                const angle = Math.random() * Math.PI * 2;
+                // Merkezden uzaklık (Accretion disk)
+                const dist = Math.random() * 300 + 50; 
+                
+                this.x = width/2 + Math.cos(angle) * dist;
+                this.y = height/2 + Math.sin(angle) * dist;
+                
+                // Yörünge hızı: v = sqrt(GM/r)
+                // Dik açı verelim
+                const speed = Math.sqrt(centerMass / dist);
+                
+                this.vx = -Math.sin(angle) * speed;
+                this.vy = Math.cos(angle) * speed;
+                
+                this.size = Math.random() * 2 + 0.5;
+                // Renk: Isıya göre (Merkeze yakın sıcak/beyaz, uzak kırmızı/turuncu)
+                this.baseColor = Math.random() > 0.9 ? '#fff' : (Math.random() > 0.5 ? '#ffcc00' : '#ff4400');
+            }
+
+            update() {
+                const dx = width/2 - this.x;
+                const dy = height/2 - this.y;
+                const distSq = dx*dx + dy*dy;
+                const dist = Math.sqrt(distSq);
+
+                // Olay ufku (Yutulma)
+                if (dist < 20) {
+                    this.reset();
+                    return;
+                }
+
+                // Kütleçekim
+                const force = centerMass / distSq;
+                const ax = force * dx / dist;
+                const ay = force * dy / dist;
+
+                this.vx += ax;
+                this.vy += ay;
+
+                this.x += this.vx;
+                this.y += this.vy;
+                
+                // Relativistik Renk Değişimi (Simüle edilmiş)
+                // Hızlı gidenler maviye kayar, yavaşlar kırmızıya
+                // Veya merkeze yakınlar parlaklaşır
+                // Basit: Hıza göre alpha
+                this.alpha = Math.min(1, 500 / distSq); 
+            }
+            
+            reset() {
+                const angle = Math.random() * Math.PI * 2;
+                const dist = Math.random() * 400 + 200; // Dışarıdan besle
+                this.x = width/2 + Math.cos(angle) * dist;
+                this.y = height/2 + Math.sin(angle) * dist;
+                const speed = Math.sqrt(centerMass / dist);
+                this.vx = -Math.sin(angle) * speed;
+                this.vy = Math.cos(angle) * speed;
+            }
+
+            draw() {
+                ctx.globalAlpha = this.alpha;
+                ctx.fillStyle = this.baseColor;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.globalAlpha = 1.0;
+            }
+        }
+
+        function init() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+            particles = [];
+            for (let i = 0; i < particleCount; i++) {
+                particles.push(new Particle());
+            }
+        }
+
+        function animate() {
+            // Motion Blur
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+            ctx.fillRect(0, 0, width, height);
+
+            // Olay Ufku (Siyah Daire)
+            ctx.beginPath();
+            ctx.arc(width/2, height/2, 20, 0, Math.PI*2);
+            ctx.fillStyle = '#000';
+            ctx.fill();
+            // Accretion Disk Glow
+            ctx.shadowBlur = 30;
+            ctx.shadowColor = '#ff4400';
+            ctx.strokeStyle = '#ffcc00';
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+
+            for (let p of particles) {
+                p.update();
+                p.draw();
+            }
+
+            requestAnimationFrame(animate);
+        }
+
+        window.addEventListener('resize', init);
+        init();
+        animate();
+    </script>
+</body>
+</html>
