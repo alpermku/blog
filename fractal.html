@@ -64,10 +64,12 @@
         const ctx = canvas.getContext('2d');
 
         let width, height;
-        let angle = Math.PI / 4;
-        let branchRatio = 0.67;
-        let wind = 0;
         let time = 0;
+        
+        // Ağaç parametreleri (Daha doğal görünüm için)
+        const maxDepth = 12;
+        const branchAngle = Math.PI / 5; // Daha geniş açı
+        const lengthRatio = 0.75; 
 
         function init() {
             width = canvas.width = window.innerWidth;
@@ -80,57 +82,67 @@
             ctx.translate(x, y);
             ctx.rotate(angle);
             
-            // Dal kalınlığı ve rengi derinliğe göre
-            ctx.lineWidth = depth; 
-            // Renk: Gövde koyu kahve, uçlar yeşil/pembe (çiçek)
-            const hue = 30 + (10 - depth) * 10; 
-            ctx.strokeStyle = `hsla(${hue}, ${50 + depth*5}%, ${30 + depth*5}%, 1)`;
+            // Dal kalınlığı: Kökten uca incelme
+            ctx.lineWidth = depth * 1.5; 
             
-            if (depth < 2) { // Yaprak/Çiçek
-                ctx.strokeStyle = `hsla(${330 + Math.random()*30}, 80%, 70%, 0.8)`;
-                ctx.lineWidth = 4;
+            // Renk: Gövde koyu, uçlar açık/renkli
+            // Derinliğe göre renk değişimi
+            if (depth > 8) {
+                ctx.strokeStyle = '#4a3b2a'; // Koyu Kahve (Gövde)
+            } else if (depth > 4) {
+                ctx.strokeStyle = '#8c5e3c'; // Açık Kahve (Dallar)
+            } else {
+                // Yaprak/Çiçek (Pembe/Beyaz - Sakura)
+                // Zamanla hafif renk değişimi
+                const hue = 320 + Math.sin(time * 0.01 + depth) * 20; 
+                ctx.strokeStyle = `hsla(${hue}, 80%, 70%, 0.8)`;
+                ctx.lineWidth = depth * 2; // Yapraklar biraz daha dolgun görünsün
             }
 
             ctx.moveTo(0, 0);
             ctx.lineTo(0, -len);
             ctx.stroke();
 
-            if (len > 10) {
-                // Rüzgar etkisi (Zamanla değişen sinüs)
-                const windEffect = Math.sin(time * 0.002 + depth) * 0.05 * (10-depth);
+            if (depth > 0) {
+                // Rüzgar etkisi (Periyodik salınım)
+                // Alt dallar az, üst dallar çok sallanır
+                const wind = Math.sin(time * 0.002 + depth * 0.5) * 0.02 * (maxDepth - depth);
                 
+                // Rastgelelik (Doğallık için)
+                // Her dal tam simetrik olmasın
+                const noise = Math.sin(depth * 132.1) * 0.1;
+
                 // Sağ Dal
-                drawTree(0, -len, len * branchRatio, angle * 0.5 + windEffect, depth - 1);
+                drawTree(0, -len, len * lengthRatio, angle + branchAngle + wind + noise, depth - 1);
                 // Sol Dal
-                drawTree(0, -len, len * branchRatio, -angle * 0.5 + windEffect, depth - 1);
+                drawTree(0, -len, len * lengthRatio, angle - branchAngle + wind - noise, depth - 1);
+                
+                // Bazen 3. bir dal çıkar (Daha dolgun görünüm için)
+                if (depth > 6 && depth % 2 === 0) {
+                     drawTree(0, -len, len * lengthRatio * 0.8, wind, depth - 2);
+                }
             }
             ctx.restore();
         }
 
         function animate() {
+            // Hafif iz bırakarak temizle (Rüzgar efekti daha akıcı görünür)
+            // Ama tam temizleme yapalım, yoksa ağaç kalınlaşır
             ctx.fillStyle = '#050505';
             ctx.fillRect(0, 0, width, height);
 
             time++;
             
-            // Ağacı merkezden başlat
-            // Mouse ile açıyı kontrol etme opsiyonu eklenebilir ama otomatik daha hipnotik
-            // Açıyı yavaşça değiştirerek ağacın "nefes almasını" sağlayalım
-            const breathingAngle = Math.PI / 4 + Math.sin(time * 0.005) * 0.1;
-            
-            drawTree(width / 2, height, height / 4, 0, 10); // Başlangıç: Merkez, Alt, Uzunluk, Açı 0
+            // Kökten başla
+            // Boyut ekrana göre ölçekli
+            const trunkLen = height / 4.5;
+            drawTree(width / 2, height, trunkLen, 0, maxDepth);
 
             requestAnimationFrame(animate);
         }
 
         window.addEventListener('resize', init);
         
-        // Mouse interaction for Wind
-        window.addEventListener('mousemove', (e) => {
-            const x = (e.clientX / width - 0.5) * 2; // -1 to 1
-            wind = x * 0.2;
-        });
-
         init();
         animate();
     </script>
