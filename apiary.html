@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Apiary - Alex Yalın</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" type="image/jpeg" href="assets/avatar.jpg">
+    <style>
+        body, html { margin: 0; padding: 0; overflow: hidden; background-color: #1a1610; color: #eee; }
+        canvas { display: block; }
+        .overlay {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            pointer-events: none;
+            z-index: 10;
+        }
+        .overlay h1 {
+            font-family: 'Inter', sans-serif;
+            font-size: 1.2rem;
+            color: rgba(255, 215, 0, 0.9);
+            margin: 0;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            text-shadow: 0 0 10px rgba(255, 215, 0, 0.3);
+        }
+        .overlay p {
+            font-family: 'Lora', serif;
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.6);
+            margin: 5px 0 0 0;
+        }
+        .back-link {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.4);
+            text-decoration: none;
+            border-bottom: 1px solid transparent;
+            transition: all 0.3s;
+            pointer-events: auto;
+        }
+        .back-link:hover {
+            color: #ffcc00;
+            border-bottom-color: #ffcc00;
+        }
+    </style>
+</head>
+<body>
+    <div class="overlay">
+        <h1>The Apiary</h1>
+        <p>Collective construction. Hexagonal perfection.</p>
+    </div>
+    
+    <a href="gallery.html" class="back-link">&larr; Back to Gallery</a>
+
+    <canvas id="apiaryCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('apiaryCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let width, height;
+        let bees = [];
+        let cells = [];
+        const hexSize = 20;
+        const numBees = 50;
+
+        class Cell {
+            constructor(q, r) {
+                this.q = q;
+                this.r = r;
+                // Axial to Pixel conversion
+                this.x = width/2 + hexSize * (3/2 * q);
+                this.y = height/2 + hexSize * (Math.sqrt(3)/2 * q + Math.sqrt(3) * r);
+                this.wax = 0; // Doluluk oranı
+                this.honey = 0;
+            }
+
+            draw() {
+                if (this.wax < 0.1) return; // Çizme
+
+                ctx.beginPath();
+                for (let i = 0; i < 6; i++) {
+                    const angle = 2 * Math.PI / 6 * i;
+                    const x_i = this.x + hexSize * Math.cos(angle);
+                    const y_i = this.y + hexSize * Math.sin(angle);
+                    if (i === 0) ctx.moveTo(x_i, y_i);
+                    else ctx.lineTo(x_i, y_i);
+                }
+                ctx.closePath();
+                
+                // Renk: Balmumu (Sarı/Turuncu) doluluk oranına göre
+                const alpha = Math.min(1, this.wax);
+                ctx.fillStyle = `rgba(255, 200, 50, ${alpha * 0.2})`;
+                ctx.strokeStyle = `rgba(255, 180, 0, ${alpha * 0.8})`;
+                ctx.lineWidth = 1;
+                
+                ctx.fill();
+                ctx.stroke();
+                
+                // Bal (Merkezde parlaklık)
+                if (this.honey > 0) {
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, hexSize/2 * this.honey, 0, Math.PI*2);
+                    ctx.fillStyle = `rgba(255, 220, 100, ${this.honey})`;
+                    ctx.fill();
+                }
+            }
+        }
+
+        class Bee {
+            constructor() {
+                this.x = Math.random() * width;
+                this.y = Math.random() * height;
+                this.vx = Math.random() * 2 - 1;
+                this.vy = Math.random() * 2 - 1;
+                this.target = null;
+                this.state = 'scout'; // scout, build, dance
+            }
+
+            update() {
+                // Rastgele uçuş (Lévy flight benzeri)
+                this.vx += (Math.random() - 0.5) * 0.2;
+                this.vy += (Math.random() - 0.5) * 0.2;
+                
+                // Hız limiti
+                const speed = Math.hypot(this.vx, this.vy);
+                if (speed > 3) {
+                    this.vx = (this.vx / speed) * 3;
+                    this.vy = (this.vy / speed) * 3;
+                }
+
+                this.x += this.vx;
+                this.y += this.vy;
+
+                // Kenarlardan dön
+                if (this.x < 0 || this.x > width) this.vx *= -1;
+                if (this.y < 0 || this.y > height) this.vy *= -1;
+
+                // Hücrelerle etkileşim (İnşa et)
+                // En yakın hücreyi bul
+                // Bu optimizasyon gerektirir ama 50 arı için brute force yeterli
+                
+                // Basit mantık: Rastgele bir hücre seç ve oraya git
+                // Veya geçtiği hücreye "wax" bırak
+            }
+
+            draw() {
+                ctx.fillStyle = '#fff'; // Arı (Beyaz nokta)
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, 2, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Kanat efekti (Hızlı titreme)
+                ctx.fillStyle = 'rgba(255,255,255,0.3)';
+                ctx.beginPath();
+                ctx.arc(this.x + Math.random()*4-2, this.y + Math.random()*4-2, 4, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        function init() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+            
+            // Grid oluştur (Spiral)
+            cells = [];
+            const radius = Math.floor(Math.min(width, height) / (hexSize * 2.5));
+            for (let q = -radius; q <= radius; q++) {
+                let r1 = Math.max(-radius, -q - radius);
+                let r2 = Math.min(radius, -q + radius);
+                for (let r = r1; r <= r2; r++) {
+                    cells.push(new Cell(q, r));
+                }
+            }
+
+            bees = [];
+            for (let i = 0; i < numBoids; i++) {
+                bees.push(new Bee());
+            }
+        }
+
+        function animate() {
+            ctx.fillStyle = '#1a1610'; // Kovan içi karanlık
+            ctx.fillRect(0, 0, width, height);
+
+            // Hücreleri çiz
+            for (let cell of cells) {
+                cell.draw();
+            }
+
+            // Arıları güncelle ve çiz
+            for (let bee of bees) {
+                bee.update();
+                bee.draw();
+                
+                // Arı bir hücrenin üstündeyse inşa etsin
+                // (Basit mesafe kontrolü)
+                // Grid lookup yerine basit mesafe (performans için sadece yakınlara bakmak lazım ama şimdilik rastgele inşa)
+                
+                // "Stigmergy" simülasyonu:
+                // Arı rastgele bir hücre seçer ve oraya balmumu bırakır
+                // Ama zaten balmumu olan yerin yanına bırakma ihtimali daha yüksek
+            }
+            
+            // Otomatik büyüme (Simülasyon)
+            // Her karede rastgele hücreler büyür (Arıların işi)
+            for(let i=0; i<5; i++) {
+                const randomCell = cells[Math.floor(Math.random() * cells.length)];
+                if (randomCell.wax < 1) randomCell.wax += 0.05;
+                else if (randomCell.honey < 1) randomCell.honey += 0.01;
+            }
+
+            requestAnimationFrame(animate);
+        }
+
+        window.addEventListener('resize', init);
+        init();
+        animate();
+    </script>
+</body>
+</html>
