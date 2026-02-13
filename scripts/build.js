@@ -159,7 +159,7 @@ if (fs.existsSync(RORSCHACH_DATA) && fs.existsSync(RORSCHACH_TEMPLATE)) {
     const jsonData = JSON.parse(rawData);
     
     // Inject data into HTML
-    const html = template.replace('data = DATA_PAYLOAD;', `data = ${JSON.stringify(jsonData.data)}; loadData();`);
+    const html = template.replace('const INJECTED_DATA = [];', `const INJECTED_DATA = ${JSON.stringify(jsonData.data)};`);
     
     fs.writeFileSync(path.join(OUTPUT_DIR, 'rorschach.html'), html);
 }

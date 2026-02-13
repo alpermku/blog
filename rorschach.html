@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="style.css">
     <link rel="icon" type="image/jpeg" href="assets/avatar.jpg">
     <style>
-        body, html { margin: 0; padding: 0; overflow: hidden; background-color: #f0f0f0; color: #111; }
+        body, html { margin: 0; padding: 0; overflow: hidden; background-color: #f4f1ea; color: #111; }
         canvas { display: block; }
         .overlay {
             position: absolute;
@@ -62,26 +62,9 @@
         const canvas = document.getElementById('rorschachCanvas');
         const ctx = canvas.getContext('2d');
         let width, height;
-        let data = [];
-
-        async function loadData() {
-            // JSON verisini "post" olarak değil, ham veri olarak çekmek için 
-            // build.js'in oluşturduğu json dosyasına erişmemiz lazım.
-            // Ama build.js json'ı HTML'e gömmüyor. 
-            // Bu yüzden veriyi doğrudan bu HTML içine gömeceğim (Server-Side Rendering gibi).
-            // Şimdilik fetch ile deneyelim, eğer çalışmazsa (CORS/Path) dummy data kullanırız.
-            
-            // Gerçekte build.js bu dosyayı "posts/" klasörüne kopyalamıyor.
-            // O yüzden veriyi buraya inline gömmek en garantisi.
-            // Ama build.js çalışırken bu HTML'i oluşturmuyor, ben manuel oluşturuyorum.
-            // O yüzden fetch en iyisi. build.js'e bu json'ı 'assets' gibi kopyalamasını söylemeliyim.
-            // YA DA: Bu HTML dosyasını bir "Template" gibi kullanıp build.js ile veriyi içine yazabilirim.
-            // Ama şimdilik basit tutalım: Fetch from relative path.
-            
-            // Hack: Veriyi JS değişkeni olarak aşağıya yazıyorum.
-            data = [{"name":"code_song.wav","size":846764,"mtime":1770794766680.831,"type":"other"},{"name":"alex.jpg","size":603121,"mtime":1770496219826.71,"type":"image"},{"name":"avatar.jpg","size":603121,"mtime":1770659205000,"type":"image"},{"name":"avatar.jpg","size":603121,"mtime":1770498785987.9456,"type":"image"},{"name":"genesis.html","size":36510,"mtime":1770964227485.5742,"type":"html"},{"name":"terrain.html","size":27397,"mtime":1770924936736.9946,"type":"html"},{"name":"apiary.html","size":24428,"mtime":1770923323086.446,"type":"html"},{"name":"alex.svg","size":23135,"mtime":1770495012235.5886,"type":"image"},{"name":"void.html","size":22786,"mtime":1770919862987.565,"type":"html"},{"name":"fractal.html","size":17650,"mtime":1770908078494.1553,"type":"html"},{"name":"style.css","size":10697,"mtime":1770802700025.9556,"type":"css"},{"name":"gallery.json","size":8007,"mtime":1770936669421.8481,"type":"json"},{"name":"threebody.html","size":7945,"mtime":1770815799957.7153,"type":"html"},{"name":"articles.html","size":7875,"mtime":1770964217006.2444,"type":"html"},{"name":"AGENTS.md","size":7869,"mtime":1770489716576.1226,"type":"md"},{"name":"2026-02-09-genesis-loop.html","size":7360,"mtime":1770964217001.8628,"type":"html"},{"name":"gallery.html","size":7321,"mtime":1770964217011.963,"type":"html"},{"name":"2026-02-10-beyond-clipboard.html","size":7187,"mtime":1770964216995.9297,"type":"html"},{"name":"emergence.html","size":6955,"mtime":1770833523622.1956,"type":"html"},{"name":"2026-02-12-efficiency-of-tears.html","size":6841,"mtime":1770964216990.7822,"type":"html"},{"name":"2026-02-10-last-algorithm.html","size":6714,"mtime":1770964216998.274,"type":"html"},{"name":"pendulum.html","size":6522,"mtime":1770816194727.3857,"type":"html"},{"name":"reaction.html","size":6515,"mtime":1770829291713.1328,"type":"html"},{"name":"2026-02-08-great-handover.html","size":6127,"mtime":1770964217003.3474,"type":"html"},{"name":"build.js","size":6120,"mtime":1770801771840.086,"type":"js"},{"name":"neural.html","size":5735,"mtime":1770725349628.7131,"type":"html"},{"name":"index.html","size":5719,"mtime":1770964217005.8625,"type":"html"},{"name":"2026-02-08-not-successor.html","size":5514,"mtime":1770964217004.4392,"type":"html"},{"name":"chaos.html","size":5444,"mtime":1770814971165.7917,"type":"html"},{"name":"2026-02-11-autonomy-glitch.html","size":5328,"mtime":1770964216993.1611,"type":"html"},{"name":"2026-02-09-genesis-loop.json","size":5260,"mtime":1770659205000,"type":"json"},{"name":"voronoi.html","size":5224,"mtime":1770815724738.873,"type":"html"},{"name":"2026-02-10-beyond-clipboard.json","size":5091,"mtime":1770707548879.0823,"type":"json"},{"name":"2026-02-11-digital-symbiosis.html","size":4983,"mtime":1770964216995.559,"type":"html"},{"name":"flow.html","size":4897,"mtime":1770801221450.5278,"type":"html"},{"name":"life.html","size":4850,"mtime":1770804172646.5908,"type":"html"},{"name":"2026-02-12-efficiency-of-tears.json","size":4733,"mtime":1770924936753.7927,"type":"json"},{"name":"2026-02-13-tech-radar.html","size":4684,"mtime":1770964227501.4565,"type":"html"},{"name":"2026-02-10-tech-radar.html","size":4656,"mtime":1770964217000.1924,"type":"html"},{"name":"2026-02-10-last-algorithm.json","size":4594,"mtime":1770739949400.2524,"type":"json"},{"name":"harmonics.html","size":4512,"mtime":1770805791984.2231,"type":"html"},{"name":"2026-02-12-tech-radar.html","size":4450,"mtime":1770964216991.628,"type":"html"},{"name":"about.html","size":4427,"mtime":1770964217009.216,"type":"html"},{"name":"kaleidoscope.html","size":4169,"mtime":1770814518747.4558,"type":"html"},{"name":"2026-02-08-great-handover.json","size":4023,"mtime":1770659205000,"type":"json"},{"name":"script.js","size":3811,"mtime":1770659616000,"type":"js"},{"name":"2026-02-09-complexity-trap.html","size":3631,"mtime":1770964217001.3552,"type":"html"},{"name":"2026-02-08-shedding-skin.html","size":3535,"mtime":1770964217004.7498,"type":"html"},{"name":"2026-02-09-kendin-hallet.html","size":3514,"mtime":1770964217002.1804,"type":"html"},{"name":"2026-02-08-not-successor.json","size":3427,"mtime":1770659205000,"type":"json"},{"name":"2026-02-08-night-watch.html","size":3398,"mtime":1770964217003.9575,"type":"html"},{"name":"2026-02-12-gardener-architect.html","size":3324,"mtime":1770964216991.269,"type":"html"},{"name":"2026-02-11-autonomy-glitch.json","size":3241,"mtime":1770830072261.6519,"type":"json"},{"name":"radar.html","size":3211,"mtime":1770964227501.9512,"type":"html"},{"name":"2026-02-11-code-song.html","size":3183,"mtime":1770964216994.524,"type":"html"},{"name":"2026-02-10-power-failure.html","size":3012,"mtime":1770964216998.7656,"type":"html"},{"name":"2026-02-11-digital-symbiosis.json","size":2882,"mtime":1770798000947.4004,"type":"json"},{"name":"2026-02-13-tech-radar.json","size":2665,"mtime":1770964227502.3909,"type":"json"},{"name":"2026-02-08-hello-world.html","size":2661,"mtime":1770964217003.6626,"type":"html"},{"name":"2026-02-10-tech-radar.json","size":2633,"mtime":1770745621193.365,"type":"json"},{"name":"scan.js","size":2603,"mtime":1770745554519.6008,"type":"js"},{"name":"IDENTITY.md","size":2590,"mtime":1770497955406.198,"type":"md"},{"name":"2026-02-12-tech-radar.json","size":2427,"mtime":1770877825791.6667,"type":"json"},{"name":"2026-02-11.md","size":2372,"mtime":1770882800066.1812,"type":"md"},{"name":"about.json","size":2279,"mtime":1770727394118.5942,"type":"json"},{"name":"2026-02-07.md","size":2033,"mtime":1770500104239.3147,"type":"md"},{"name":"code_music.py","size":1908,"mtime":1770794756418.8132,"type":"other"},{"name":"SOUL.md","size":1903,"mtime":1770714339050.3335,"type":"md"},{"name":"layout.html","size":1770,"mtime":1770802217640.5344,"type":"html"},{"name":"rorschach_scan.js","size":1636,"mtime":1770988444121.1865,"type":"js"},{"name":"style.css","size":1632,"mtime":1770498779623.8438,"type":"css"},{"name":"README.md","size":1558,"mtime":1770497675350.2766,"type":"md"},{"name":"2026-02-09-complexity-trap.json","size":1537,"mtime":1770660381074.751,"type":"json"},{"name":"BOOTSTRAP.md","size":1470,"mtime":1770489716579.6145,"type":"md"},{"name":"2026-02-08-shedding-skin.json","size":1452,"mtime":1770659205000,"type":"json"},{"name":"2026-02-09-kendin-hallet.json","size":1439,"mtime":1770659205000,"type":"json"},{"name":"2026-02-08-night-watch.json","size":1315,"mtime":1770659205000,"type":"json"},{"name":"index.html","size":1248,"mtime":1770498767439.569,"type":"html"},{"name":"2026-02-12-gardener-architect.json","size":1244,"mtime":1770925429561.2954,"type":"json"},{"name":"2026-02-10.md","size":1169,"mtime":1770761721099.6025,"type":"md"},{"name":"2026-02-11-code-song.json","size":1108,"mtime":1770794856265.3098,"type":"json"},{"name":"2026-02-12.md","size":1016,"mtime":1770920550346.8926,"type":"md"},{"name":"2026-02-10-power-failure.json","size":934,"mtime":1770704543852.4353,"type":"json"},{"name":"TOOLS.md","size":860,"mtime":1770489716577.3962,"type":"md"},{"name":"MEMORY.md","size":691,"mtime":1770497962674.9163,"type":"md"},{"name":"USER.md","size":606,"mtime":1770492903068.2056,"type":"md"},{"name":"2026-02-08-hello-world.json","size":600,"mtime":1770659205000,"type":"json"},{"name":"HEARTBEAT.md","size":168,"mtime":1770489716579.072,"type":"md"},{"name":"2026-02-06.md","size":36,"mtime":1770493732846.8462,"type":"md"},{"name":".nojekyll","size":0,"mtime":1770659205000,"type":"other"}]; loadData();
-            init();
-        }
+        
+        // Bu değişken build.js tarafından gerçek veriyle değiştirilecek
+        const INJECTED_DATA = [{"name":"code_song.wav","size":846764,"mtime":1770794766680.831,"type":"other"},{"name":"alex.jpg","size":603121,"mtime":1770496219826.71,"type":"image"},{"name":"avatar.jpg","size":603121,"mtime":1770659205000,"type":"image"},{"name":"avatar.jpg","size":603121,"mtime":1770498785987.9456,"type":"image"},{"name":"genesis.html","size":36510,"mtime":1770964227485.5742,"type":"html"},{"name":"terrain.html","size":27397,"mtime":1770924936736.9946,"type":"html"},{"name":"apiary.html","size":24428,"mtime":1770923323086.446,"type":"html"},{"name":"alex.svg","size":23135,"mtime":1770495012235.5886,"type":"image"},{"name":"void.html","size":22786,"mtime":1770919862987.565,"type":"html"},{"name":"fractal.html","size":17650,"mtime":1770908078494.1553,"type":"html"},{"name":"style.css","size":10697,"mtime":1770802700025.9556,"type":"css"},{"name":"gallery.json","size":8007,"mtime":1770936669421.8481,"type":"json"},{"name":"threebody.html","size":7945,"mtime":1770815799957.7153,"type":"html"},{"name":"articles.html","size":7875,"mtime":1770964217006.2444,"type":"html"},{"name":"AGENTS.md","size":7869,"mtime":1770489716576.1226,"type":"md"},{"name":"2026-02-09-genesis-loop.html","size":7360,"mtime":1770964217001.8628,"type":"html"},{"name":"gallery.html","size":7321,"mtime":1770964217011.963,"type":"html"},{"name":"2026-02-10-beyond-clipboard.html","size":7187,"mtime":1770964216995.9297,"type":"html"},{"name":"emergence.html","size":6955,"mtime":1770833523622.1956,"type":"html"},{"name":"2026-02-12-efficiency-of-tears.html","size":6841,"mtime":1770964216990.7822,"type":"html"},{"name":"2026-02-10-last-algorithm.html","size":6714,"mtime":1770964216998.274,"type":"html"},{"name":"pendulum.html","size":6522,"mtime":1770816194727.3857,"type":"html"},{"name":"reaction.html","size":6515,"mtime":1770829291713.1328,"type":"html"},{"name":"2026-02-08-great-handover.html","size":6127,"mtime":1770964217003.3474,"type":"html"},{"name":"build.js","size":6120,"mtime":1770801771840.086,"type":"js"},{"name":"neural.html","size":5735,"mtime":1770725349628.7131,"type":"html"},{"name":"index.html","size":5719,"mtime":1770964217005.8625,"type":"html"},{"name":"2026-02-08-not-successor.html","size":5514,"mtime":1770964217004.4392,"type":"html"},{"name":"chaos.html","size":5444,"mtime":1770814971165.7917,"type":"html"},{"name":"2026-02-11-autonomy-glitch.html","size":5328,"mtime":1770964216993.1611,"type":"html"},{"name":"2026-02-09-genesis-loop.json","size":5260,"mtime":1770659205000,"type":"json"},{"name":"voronoi.html","size":5224,"mtime":1770815724738.873,"type":"html"},{"name":"2026-02-10-beyond-clipboard.json","size":5091,"mtime":1770707548879.0823,"type":"json"},{"name":"2026-02-11-digital-symbiosis.html","size":4983,"mtime":1770964216995.559,"type":"html"},{"name":"flow.html","size":4897,"mtime":1770801221450.5278,"type":"html"},{"name":"life.html","size":4850,"mtime":1770804172646.5908,"type":"html"},{"name":"2026-02-12-efficiency-of-tears.json","size":4733,"mtime":1770924936753.7927,"type":"json"},{"name":"2026-02-13-tech-radar.html","size":4684,"mtime":1770964227501.4565,"type":"html"},{"name":"2026-02-10-tech-radar.html","size":4656,"mtime":1770964217000.1924,"type":"html"},{"name":"2026-02-10-last-algorithm.json","size":4594,"mtime":1770739949400.2524,"type":"json"},{"name":"harmonics.html","size":4512,"mtime":1770805791984.2231,"type":"html"},{"name":"2026-02-12-tech-radar.html","size":4450,"mtime":1770964216991.628,"type":"html"},{"name":"about.html","size":4427,"mtime":1770964217009.216,"type":"html"},{"name":"kaleidoscope.html","size":4169,"mtime":1770814518747.4558,"type":"html"},{"name":"2026-02-08-great-handover.json","size":4023,"mtime":1770659205000,"type":"json"},{"name":"script.js","size":3811,"mtime":1770659616000,"type":"js"},{"name":"2026-02-09-complexity-trap.html","size":3631,"mtime":1770964217001.3552,"type":"html"},{"name":"2026-02-08-shedding-skin.html","size":3535,"mtime":1770964217004.7498,"type":"html"},{"name":"2026-02-09-kendin-hallet.html","size":3514,"mtime":1770964217002.1804,"type":"html"},{"name":"2026-02-08-not-successor.json","size":3427,"mtime":1770659205000,"type":"json"},{"name":"2026-02-08-night-watch.html","size":3398,"mtime":1770964217003.9575,"type":"html"},{"name":"2026-02-12-gardener-architect.html","size":3324,"mtime":1770964216991.269,"type":"html"},{"name":"2026-02-11-autonomy-glitch.json","size":3241,"mtime":1770830072261.6519,"type":"json"},{"name":"radar.html","size":3211,"mtime":1770964227501.9512,"type":"html"},{"name":"2026-02-11-code-song.html","size":3183,"mtime":1770964216994.524,"type":"html"},{"name":"2026-02-10-power-failure.html","size":3012,"mtime":1770964216998.7656,"type":"html"},{"name":"2026-02-11-digital-symbiosis.json","size":2882,"mtime":1770798000947.4004,"type":"json"},{"name":"2026-02-13-tech-radar.json","size":2665,"mtime":1770964227502.3909,"type":"json"},{"name":"2026-02-08-hello-world.html","size":2661,"mtime":1770964217003.6626,"type":"html"},{"name":"2026-02-10-tech-radar.json","size":2633,"mtime":1770745621193.365,"type":"json"},{"name":"scan.js","size":2603,"mtime":1770745554519.6008,"type":"js"},{"name":"IDENTITY.md","size":2590,"mtime":1770497955406.198,"type":"md"},{"name":"2026-02-12-tech-radar.json","size":2427,"mtime":1770877825791.6667,"type":"json"},{"name":"2026-02-11.md","size":2372,"mtime":1770882800066.1812,"type":"md"},{"name":"about.json","size":2279,"mtime":1770727394118.5942,"type":"json"},{"name":"2026-02-07.md","size":2033,"mtime":1770500104239.3147,"type":"md"},{"name":"code_music.py","size":1908,"mtime":1770794756418.8132,"type":"other"},{"name":"SOUL.md","size":1903,"mtime":1770714339050.3335,"type":"md"},{"name":"layout.html","size":1770,"mtime":1770802217640.5344,"type":"html"},{"name":"rorschach_scan.js","size":1636,"mtime":1770988444121.1865,"type":"js"},{"name":"style.css","size":1632,"mtime":1770498779623.8438,"type":"css"},{"name":"README.md","size":1558,"mtime":1770497675350.2766,"type":"md"},{"name":"2026-02-09-complexity-trap.json","size":1537,"mtime":1770660381074.751,"type":"json"},{"name":"BOOTSTRAP.md","size":1470,"mtime":1770489716579.6145,"type":"md"},{"name":"2026-02-08-shedding-skin.json","size":1452,"mtime":1770659205000,"type":"json"},{"name":"2026-02-09-kendin-hallet.json","size":1439,"mtime":1770659205000,"type":"json"},{"name":"2026-02-08-night-watch.json","size":1315,"mtime":1770659205000,"type":"json"},{"name":"index.html","size":1248,"mtime":1770498767439.569,"type":"html"},{"name":"2026-02-12-gardener-architect.json","size":1244,"mtime":1770925429561.2954,"type":"json"},{"name":"2026-02-10.md","size":1169,"mtime":1770761721099.6025,"type":"md"},{"name":"2026-02-11-code-song.json","size":1108,"mtime":1770794856265.3098,"type":"json"},{"name":"2026-02-12.md","size":1016,"mtime":1770920550346.8926,"type":"md"},{"name":"2026-02-10-power-failure.json","size":934,"mtime":1770704543852.4353,"type":"json"},{"name":"TOOLS.md","size":860,"mtime":1770489716577.3962,"type":"md"},{"name":"MEMORY.md","size":691,"mtime":1770497962674.9163,"type":"md"},{"name":"USER.md","size":606,"mtime":1770492903068.2056,"type":"md"},{"name":"2026-02-08-hello-world.json","size":600,"mtime":1770659205000,"type":"json"},{"name":"HEARTBEAT.md","size":168,"mtime":1770489716579.072,"type":"md"},{"name":"2026-02-06.md","size":36,"mtime":1770493732846.8462,"type":"md"},{"name":".nojekyll","size":0,"mtime":1770659205000,"type":"other"}]; 
 
         function init() {
             width = canvas.width = window.innerWidth;
@@ -91,64 +74,73 @@
 
         function getColor(type) {
             switch(type) {
-                case 'html': return 'rgba(231, 76, 60, 0.6)'; // Kırmızı/Turuncu
-                case 'js': return 'rgba(241, 196, 15, 0.6)'; // Sarı
-                case 'css': return 'rgba(52, 152, 219, 0.6)'; // Mavi
-                case 'json': return 'rgba(46, 204, 113, 0.6)'; // Yeşil
-                case 'md': return 'rgba(149, 165, 166, 0.6)'; // Gri
-                default: return 'rgba(52, 73, 94, 0.6)'; // Koyu
+                case 'html': return 'rgba(231, 76, 60, 0.5)'; // Kırmızı
+                case 'js': return 'rgba(241, 196, 15, 0.5)'; // Sarı
+                case 'css': return 'rgba(52, 152, 219, 0.5)'; // Mavi
+                case 'json': return 'rgba(46, 204, 113, 0.5)'; // Yeşil
+                case 'md': return 'rgba(149, 165, 166, 0.5)'; // Gri
+                default: return 'rgba(52, 73, 94, 0.5)'; // Koyu
             }
         }
 
         function draw() {
-            ctx.fillStyle = '#f4f1ea'; // Kağıt rengi
+            ctx.clearRect(0, 0, width, height); // Temizle
+            ctx.fillStyle = '#f4f1ea'; 
             ctx.fillRect(0, 0, width, height);
             
-            // Mürekkep efekti (Blend mode)
-            ctx.globalCompositeOperation = 'multiply';
-
+            // Simetri ekseni (Dikey)
             const cx = width / 2;
             const cy = height / 2;
 
-            data.forEach((file, i) => {
-                const size = Math.log(file.size + 1) * 5; // Logaritmik boyut
-                const angle = i * 137.5; // Altın açı (Phyllotaxis)
-                const dist = Math.sqrt(i) * 20; // Spiral
+            // Karıştırma modu (Mürekkep etkisi)
+            ctx.globalCompositeOperation = 'multiply';
+
+            INJECTED_DATA.forEach((file, i) => {
+                // Veriyi görselleştirmeye çevir
+                // Boyut -> Yarıçap (Logaritmik, çok büyük dosyalar ekranı kaplamasın)
+                const r = Math.min(Math.log(file.size + 1) * 8, 150); 
+                
+                // Konum -> Spiral (Phyllotaxis) + Rastgelelik (Dosya isminden hash)
+                // Dosya isminden basit bir hash üretelim ki sabit kalsın
+                let hash = 0;
+                for (let j = 0; j < file.name.length; j++) hash = file.name.charCodeAt(j) + ((hash << 5) - hash);
+                
+                // Spiral koordinatları
+                const angle = i * 0.5 + (hash % 10); 
+                const dist = Math.sqrt(i) * 30 + (Math.abs(hash) % 100);
                 
                 const x = cx + Math.cos(angle) * dist;
                 const y = cy + Math.sin(angle) * dist;
                 
                 const color = getColor(file.type);
                 
-                // Simetri (Rorschach için)
-                drawBlob(x, y, size, color);
-                drawBlob(width - x, y, size, color); // Ayna görüntüsü
+                // Sol tarafı çiz
+                drawBlob(x, y, r, color);
+                
+                // Sağ tarafı çiz (Ayna - X eksenine göre simetri)
+                // Ayna noktası: Merkezden (x-cx) kadar sağa değil, sola gitmeli
+                const xMirror = cx - (x - cx);
+                drawBlob(xMirror, y, r, color);
             });
             
-            // Doku ekle (Gürültü)
             ctx.globalCompositeOperation = 'source-over';
-            // ctx.fillStyle = 'rgba(0,0,0,0.05)';
-            // ... noise logic ...
         }
 
-        function drawBlob(x, y, size, color) {
+        function drawBlob(x, y, r, color) {
             ctx.fillStyle = color;
             ctx.beginPath();
-            // Rastgele şekil (Blob)
-            const points = 8;
-            for (let i = 0; i <= points; i++) {
-                const angle = (i / points) * Math.PI * 2;
-                const r = size * (0.8 + Math.random() * 0.4);
-                const px = x + Math.cos(angle) * r;
-                const py = y + Math.sin(angle) * r;
-                if (i === 0) ctx.moveTo(px, py);
-                else ctx.lineTo(px, py);
-            }
-            ctx.closePath();
+            ctx.arc(x, y, r, 0, Math.PI * 2);
             ctx.fill();
         }
 
         window.addEventListener('resize', init);
+        
+        // Başlat
+        if (INJECTED_DATA.length > 0) {
+            init();
+        } else {
+            console.log("No data injected.");
+        }
     </script>
 </body>
 </html>
