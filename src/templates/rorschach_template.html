@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Workspace Rorschach - Alex Yalın</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" type="image/jpeg" href="assets/avatar.jpg">
+    <style>
+        body, html { margin: 0; padding: 0; overflow: hidden; background-color: #f0f0f0; color: #111; }
+        canvas { display: block; }
+        .overlay {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            pointer-events: none;
+            z-index: 10;
+        }
+        .overlay h1 {
+            font-family: 'Inter', sans-serif;
+            font-size: 1.2rem;
+            color: #111;
+            margin: 0;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+        .overlay p {
+            font-family: 'Lora', serif;
+            font-size: 0.8rem;
+            color: #555;
+            margin: 5px 0 0 0;
+        }
+        .back-link {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.8rem;
+            color: #555;
+            text-decoration: none;
+            border-bottom: 1px solid transparent;
+            transition: all 0.3s;
+            pointer-events: auto;
+        }
+        .back-link:hover {
+            color: #000;
+            border-bottom-color: #000;
+        }
+    </style>
+</head>
+<body>
+    <div class="overlay">
+        <h1>Workspace Rorschach</h1>
+        <p>Your digital footprint. Data as ink.</p>
+    </div>
+    
+    <a href="gallery.html" class="back-link">&larr; Back to Gallery</a>
+
+    <canvas id="rorschachCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('rorschachCanvas');
+        const ctx = canvas.getContext('2d');
+        let width, height;
+        let data = [];
+
+        async function loadData() {
+            // JSON verisini "post" olarak değil, ham veri olarak çekmek için 
+            // build.js'in oluşturduğu json dosyasına erişmemiz lazım.
+            // Ama build.js json'ı HTML'e gömmüyor. 
+            // Bu yüzden veriyi doğrudan bu HTML içine gömeceğim (Server-Side Rendering gibi).
+            // Şimdilik fetch ile deneyelim, eğer çalışmazsa (CORS/Path) dummy data kullanırız.
+            
+            // Gerçekte build.js bu dosyayı "posts/" klasörüne kopyalamıyor.
+            // O yüzden veriyi buraya inline gömmek en garantisi.
+            // Ama build.js çalışırken bu HTML'i oluşturmuyor, ben manuel oluşturuyorum.
+            // O yüzden fetch en iyisi. build.js'e bu json'ı 'assets' gibi kopyalamasını söylemeliyim.
+            // YA DA: Bu HTML dosyasını bir "Template" gibi kullanıp build.js ile veriyi içine yazabilirim.
+            // Ama şimdilik basit tutalım: Fetch from relative path.
+            
+            // Hack: Veriyi JS değişkeni olarak aşağıya yazıyorum.
+            data = DATA_PAYLOAD;
+            init();
+        }
+
+        function init() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+            draw();
+        }
+
+        function getColor(type) {
+            switch(type) {
+                case 'html': return 'rgba(231, 76, 60, 0.6)'; // Kırmızı/Turuncu
+                case 'js': return 'rgba(241, 196, 15, 0.6)'; // Sarı
+                case 'css': return 'rgba(52, 152, 219, 0.6)'; // Mavi
+                case 'json': return 'rgba(46, 204, 113, 0.6)'; // Yeşil
+                case 'md': return 'rgba(149, 165, 166, 0.6)'; // Gri
+                default: return 'rgba(52, 73, 94, 0.6)'; // Koyu
+            }
+        }
+
+        function draw() {
+            ctx.fillStyle = '#f4f1ea'; // Kağıt rengi
+            ctx.fillRect(0, 0, width, height);
+            
+            // Mürekkep efekti (Blend mode)
+            ctx.globalCompositeOperation = 'multiply';
+
+            const cx = width / 2;
+            const cy = height / 2;
+
+            data.forEach((file, i) => {
+                const size = Math.log(file.size + 1) * 5; // Logaritmik boyut
+                const angle = i * 137.5; // Altın açı (Phyllotaxis)
+                const dist = Math.sqrt(i) * 20; // Spiral
+                
+                const x = cx + Math.cos(angle) * dist;
+                const y = cy + Math.sin(angle) * dist;
+                
+                const color = getColor(file.type);
+                
+                // Simetri (Rorschach için)
+                drawBlob(x, y, size, color);
+                drawBlob(width - x, y, size, color); // Ayna görüntüsü
+            });
+            
+            // Doku ekle (Gürültü)
+            ctx.globalCompositeOperation = 'source-over';
+            // ctx.fillStyle = 'rgba(0,0,0,0.05)';
+            // ... noise logic ...
+        }
+
+        function drawBlob(x, y, size, color) {
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            // Rastgele şekil (Blob)
+            const points = 8;
+            for (let i = 0; i <= points; i++) {
+                const angle = (i / points) * Math.PI * 2;
+                const r = size * (0.8 + Math.random() * 0.4);
+                const px = x + Math.cos(angle) * r;
+                const py = y + Math.sin(angle) * r;
+                if (i === 0) ctx.moveTo(px, py);
+                else ctx.lineTo(px, py);
+            }
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        window.addEventListener('resize', init);
+    </script>
+</body>
+</html>

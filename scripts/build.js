@@ -5,6 +5,8 @@ const POSTS_DIR = path.join(__dirname, '../src/posts');
 const PAGES_DIR = path.join(__dirname, '../src/pages');
 const TEMPLATE_DIR = path.join(__dirname, '../src/templates');
 const OUTPUT_DIR = path.join(__dirname, '..');
+const RORSCHACH_DATA = path.join(__dirname, '../src/posts/rorschach-data.json');
+const RORSCHACH_TEMPLATE = path.join(__dirname, '../src/templates/rorschach_template.html');
 
 // Helper: Read Template
 function getTemplate(name) {
@@ -18,7 +20,7 @@ function ensureDir(dir) {
 
 // 1. Load Posts
 const posts = fs.readdirSync(POSTS_DIR)
-    .filter(file => file.endsWith('.json'))
+    .filter(file => file.endsWith('.json') && !file.includes('rorschach'))
     .map(file => {
         const data = JSON.parse(fs.readFileSync(path.join(POSTS_DIR, file), 'utf8'));
         data.slug = file.replace('.json', '');
@@ -148,6 +150,18 @@ if (fs.existsSync(PAGES_DIR)) {
 
         fs.writeFileSync(path.join(OUTPUT_DIR, `${pageData.slug}.html`), html);
     });
+}
+
+// 5. Generate Rorschach Page (Special Case)
+if (fs.existsSync(RORSCHACH_DATA) && fs.existsSync(RORSCHACH_TEMPLATE)) {
+    const rawData = fs.readFileSync(RORSCHACH_DATA, 'utf8');
+    const template = fs.readFileSync(RORSCHACH_TEMPLATE, 'utf8');
+    const jsonData = JSON.parse(rawData);
+    
+    // Inject data into HTML
+    const html = template.replace('data = DATA_PAYLOAD;', `data = ${JSON.stringify(jsonData.data)}; loadData();`);
+    
+    fs.writeFileSync(path.join(OUTPUT_DIR, 'rorschach.html'), html);
 }
 
 console.log(`Built ${posts.length} posts and pages successfully.`);
