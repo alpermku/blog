@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Pulse - Alex Yalın</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" type="image/jpeg" href="assets/avatar.jpg">
+    <style>
+        body, html { margin: 0; padding: 0; overflow: hidden; background-color: #050505; color: #eee; }
+        canvas { display: block; }
+        .overlay {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            pointer-events: none;
+            z-index: 10;
+        }
+        .overlay h1 {
+            font-family: 'Inter', sans-serif;
+            font-size: 1.2rem;
+            color: rgba(255, 255, 255, 0.9);
+            margin: 0;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            text-shadow: 0 0 10px rgba(255,0,100,0.3);
+        }
+        .overlay p {
+            font-family: 'Lora', serif;
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.6);
+            margin: 5px 0 0 0;
+        }
+        .back-link {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.4);
+            text-decoration: none;
+            border-bottom: 1px solid transparent;
+            transition: all 0.3s;
+            pointer-events: auto;
+        }
+        .back-link:hover {
+            color: #fff;
+            border-bottom-color: #fff;
+        }
+    </style>
+</head>
+<body>
+    <div class="overlay">
+        <h1>The Pulse</h1>
+        <p>System heartbeat. Rhythm of the machine.</p>
+    </div>
+    
+    <a href="gallery.html" class="back-link">&larr; Back to Gallery</a>
+
+    <canvas id="pulseCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('pulseCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let width, height;
+        let time = 0;
+        const rings = 50;
+
+        function init() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+        }
+
+        function draw() {
+            ctx.fillStyle = 'rgba(5, 5, 5, 0.1)'; // Motion blur
+            ctx.fillRect(0, 0, width, height);
+
+            const cx = width / 2;
+            const cy = height / 2;
+            const maxRadius = Math.min(width, height) * 0.4;
+
+            // Simulated Audio Data (Sine waves combination)
+            const beat = Math.pow(Math.sin(time * 0.1), 60) * 50; // Heartbeat spike
+            const base = Math.sin(time * 0.05) * 20;
+
+            for (let i = 0; i < rings; i++) {
+                const radius = (i / rings) * maxRadius + beat;
+                const offset = i * 0.2;
+                
+                // Dalgalanma
+                const wave = Math.sin(time * 0.2 + offset * 5) * 10;
+                const r = radius + wave;
+
+                if (r > 0) {
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+                    
+                    // Renk: Kırmızıdan Mora
+                    const hue = 340 + i * 2 + beat * 2;
+                    const alpha = 1 - (i / rings);
+                    
+                    ctx.strokeStyle = `hsla(${hue}, 80%, 50%, ${alpha})`;
+                    ctx.lineWidth = 2 + (beat > 10 ? 2 : 0);
+                    ctx.stroke();
+                }
+            }
+            
+            // Merkez Çekirdek
+            ctx.beginPath();
+            ctx.arc(cx, cy, 20 + beat/2, 0, Math.PI*2);
+            ctx.fillStyle = `hsl(340, 100%, ${50 + beat}%)`;
+            ctx.fill();
+            ctx.shadowBlur = 20 + beat;
+            ctx.shadowColor = '#ff0066';
+            ctx.fill();
+            ctx.shadowBlur = 0;
+
+            time += 0.1;
+            requestAnimationFrame(draw);
+        }
+
+        window.addEventListener('resize', init);
+        init();
+        draw();
+    </script>
+</body>
+</html>
