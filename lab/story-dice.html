@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Story Dice AI - Lab</title>
+    <link rel="stylesheet" href="../style.css">
+    <link rel="icon" type="image/jpeg" href="../assets/avatar.jpg">
+    <style>
+        body {
+            background-color: #0f1115;
+            color: #e0e0e0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            font-family: 'Inter', sans-serif;
+        }
+        .container {
+            text-align: center;
+            max-width: 600px;
+            padding: 20px;
+        }
+        h1 {
+            font-family: 'Lora', serif;
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            color: #a67c52;
+        }
+        .subtitle {
+            font-size: 0.9rem;
+            opacity: 0.6;
+            margin-bottom: 3rem;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+        
+        /* Dice Grid */
+        .dice-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-bottom: 3rem;
+        }
+        .die {
+            background: #1a1e24;
+            border: 1px solid #333;
+            border-radius: 12px;
+            height: 80px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            cursor: pointer;
+        }
+        .die:hover {
+            transform: translateY(-5px);
+            border-color: #a67c52;
+            color: #a67c52;
+        }
+        .die.rolling {
+            animation: shake 0.5s infinite;
+            color: #555;
+        }
+        
+        /* Prompt Box */
+        .prompt-box {
+            background: #1a1e24;
+            border-left: 4px solid #a67c52;
+            padding: 20px;
+            text-align: left;
+            margin-bottom: 2rem;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.5s ease;
+        }
+        .prompt-box.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        .prompt-box h3 {
+            margin: 0 0 10px 0;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            color: #888;
+        }
+        .prompt-box p {
+            margin: 0;
+            font-family: 'Lora', serif;
+            font-size: 1.1rem;
+            line-height: 1.6;
+        }
+
+        /* Controls */
+        .btn-roll {
+            background: #a67c52;
+            color: #fff;
+            border: none;
+            padding: 15px 40px;
+            font-size: 1rem;
+            font-family: 'Inter', sans-serif;
+            font-weight: 600;
+            border-radius: 30px;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 0 20px rgba(166, 124, 82, 0.3);
+        }
+        .btn-roll:hover {
+            background: #8c6642;
+            transform: scale(1.05);
+        }
+        .btn-roll:active {
+            transform: scale(0.95);
+        }
+
+        @keyframes shake {
+            0% { transform: translate(1px, 1px) rotate(0deg); }
+            10% { transform: translate(-1px, -2px) rotate(-1deg); }
+            20% { transform: translate(-3px, 0px) rotate(1deg); }
+            30% { transform: translate(3px, 2px) rotate(0deg); }
+            40% { transform: translate(1px, -1px) rotate(1deg); }
+            50% { transform: translate(-1px, 2px) rotate(-1deg); }
+            60% { transform: translate(-3px, 1px) rotate(0deg); }
+            70% { transform: translate(3px, 1px) rotate(-1deg); }
+            80% { transform: translate(-1px, -1px) rotate(1deg); }
+            90% { transform: translate(1px, 2px) rotate(0deg); }
+            100% { transform: translate(1px, -2px) rotate(-1deg); }
+        }
+        
+        .back-link {
+            margin-top: 3rem;
+            color: #555;
+            text-decoration: none;
+            font-size: 0.8rem;
+        }
+        .back-link:hover { color: #a67c52; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Story Dice AI</h1>
+    <p class="subtitle">Infinite Scenario Generator</p>
+
+    <div class="dice-grid" id="grid">
+        <!-- Zarlar JS ile gelecek -->
+    </div>
+
+    <div class="prompt-box" id="prompt">
+        <h3>Story Spark</h3>
+        <p id="storyText">Roll the dice to generate a story...</p>
+    </div>
+
+    <button class="btn-roll" onclick="rollDice()">ROLL THE DICE</button>
+    
+    <a href="../gallery.html" class="back-link">&larr; Back to Gallery</a>
+</div>
+
+<script>
+    // Data Banks (Simulated AI)
+    const icons = ['🚀', '🐉', '🏰', '💀', '💍', '🌪️', '🤖', '🎻', '🗡️', '👁️', '🪐', '🕰️', '🧬', '🌊', '🔥', '🗝️', '📜', '🎭'];
+    
+    const archetypes = ["The Reluctant Hero", "The Fallen God", "The Glitch in the System", "The Last Musician", "The Time Traveler", "The Rogue AI"];
+    const settings = ["in a cyberpunk Istanbul", "on a dying spaceship", "inside a recursive dream", "at the end of time", "in a library of lost souls", "beneath the silent ocean"];
+    const conflicts = ["must find the missing key", "is trying to delete their own memory", "discovers they are a simulation", "has to play a song to save the world", "is hunted by their future self"];
+
+    const diceEls = [];
+    const grid = document.getElementById('grid');
+    const promptBox = document.getElementById('prompt');
+    const storyText = document.getElementById('storyText');
+
+    // Init 3 Dice
+    for(let i=0; i<3; i++) {
+        const d = document.createElement('div');
+        d.className = 'die';
+        d.innerText = '?';
+        grid.appendChild(d);
+        diceEls.push(d);
+    }
+
+    function rollDice() {
+        // Animation state
+        diceEls.forEach(d => {
+            d.classList.add('rolling');
+            promptBox.classList.remove('visible');
+        });
+
+        // Resolve after 600ms
+        setTimeout(() => {
+            const results = [];
+            diceEls.forEach(d => {
+                d.classList.remove('rolling');
+                const icon = icons[Math.floor(Math.random() * icons.length)];
+                d.innerText = icon;
+                results.push(icon);
+            });
+            generateStory(results);
+        }, 600);
+    }
+
+    function generateStory(icons) {
+        // Procedural Generation (Simulated AI Prompt)
+        const char = archetypes[Math.floor(Math.random() * archetypes.length)];
+        const loc = settings[Math.floor(Math.random() * settings.length)];
+        const plot = conflicts[Math.floor(Math.random() * conflicts.length)];
+
+        // Construct the prompt
+        const story = `<strong>${char}</strong> ${loc}, ${plot}. <br><br> <span style="font-size:0.8em; color:#666;">Icons: ${icons.join(' ')}</span>`;
+        
+        storyText.innerHTML = story;
+        promptBox.classList.add('visible');
+    }
+</script>
+
+</body>
+</html>
