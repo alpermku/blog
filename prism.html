@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Prism - Alex Yalın</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" type="image/jpeg" href="assets/avatar.jpg">
+    <style>
+        body, html { margin: 0; padding: 0; overflow: hidden; background-color: #050505; color: #eee; }
+        canvas { display: block; }
+        .overlay {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            pointer-events: none;
+            z-index: 10;
+        }
+        .overlay h1 {
+            font-family: 'Inter', sans-serif;
+            font-size: 1.2rem;
+            color: rgba(255, 255, 255, 0.9);
+            margin: 0;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            text-shadow: 0 0 10px rgba(255,255,255,0.3);
+        }
+        .overlay p {
+            font-family: 'Lora', serif;
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.6);
+            margin: 5px 0 0 0;
+        }
+        .back-link {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.4);
+            text-decoration: none;
+            border-bottom: 1px solid transparent;
+            transition: all 0.3s;
+            pointer-events: auto;
+        }
+        .back-link:hover {
+            color: #fff;
+            border-bottom-color: #fff;
+        }
+    </style>
+</head>
+<body>
+    <div class="overlay">
+        <h1>The Prism</h1>
+        <p>Refraction of light. The spectrum of thought.</p>
+    </div>
+    
+    <a href="gallery.html" class="back-link">&larr; Back to Gallery</a>
+
+    <canvas id="prismCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('prismCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let width, height;
+        let mouse = { x: 0, y: 0 };
+
+        function init() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+            mouse.x = width * 0.2;
+            mouse.y = height * 0.5;
+        }
+
+        function draw() {
+            // Temizle (Hafif iz)
+            ctx.fillStyle = 'rgba(5, 5, 5, 0.2)';
+            ctx.fillRect(0, 0, width, height);
+
+            // Prizma (Merkezde)
+            const cx = width / 2;
+            const cy = height / 2;
+            const size = 150;
+            
+            // Prizma Koordinatları (Eşkenar Üçgen)
+            const p1 = { x: cx - size, y: cy + size/1.5 };
+            const p2 = { x: cx + size, y: cy + size/1.5 };
+            const p3 = { x: cx, y: cy - size };
+
+            // Prizmayı Çiz
+            ctx.beginPath();
+            ctx.moveTo(p1.x, p1.y);
+            ctx.lineTo(p2.x, p2.y);
+            ctx.lineTo(p3.x, p3.y);
+            ctx.closePath();
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.lineWidth = 2;
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+            ctx.fill();
+            ctx.stroke();
+
+            // Işık Kaynağı (Mouse)
+            // Beyaz Işın
+            ctx.beginPath();
+            ctx.moveTo(mouse.x, mouse.y);
+            
+            // Prizmaya çarpışma noktası (Basitleştirilmiş: Sol kenara çarpış)
+            // Sol kenar: p1 -> p3
+            // Line intersection logic
+            
+            // Basitlik için ışığı p1-p3 kenarının ortasına gönderelim (veya mouse açısına göre)
+            // Hedef: Sol kenarın ortası
+            const tx = (p1.x + p3.x) / 2;
+            const ty = (p1.y + p3.y) / 2;
+            
+            ctx.lineTo(tx, ty);
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 3;
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = '#fff';
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+
+            // Kırılma (Refraction)
+            // Prizma içinde ışık bükülür
+            // 7 renk için 7 ayrı çizgi
+            const colors = ['#ff0000', '#ff7f00', '#ffff00', '#00ff00', '#0000ff', '#4b0082', '#9400d3'];
+            
+            // Çıkış kenarı: p2-p3
+            const outX = (p2.x + p3.x) / 2;
+            const outY = (p2.y + p3.y) / 2;
+
+            for(let i=0; i<colors.length; i++) {
+                ctx.beginPath();
+                // İçerideki yol (Beyazdan renge geçiş)
+                ctx.moveTo(tx, ty);
+                
+                // Hafif sapma (Dispersion)
+                const spread = (i - 3) * 5; 
+                const midX = outX;
+                const midY = outY + spread;
+                
+                ctx.lineTo(midX, midY);
+                
+                // Çıkış yolu (Sağa doğru yayılma)
+                const endX = width;
+                const endY = midY + (midY - ty) * 2 + (i-3)*20; // Açıyı artır
+                
+                ctx.lineTo(endX, endY);
+                
+                ctx.strokeStyle = colors[i];
+                ctx.lineWidth = 2;
+                ctx.globalCompositeOperation = 'screen';
+                ctx.stroke();
+            }
+            
+            ctx.globalCompositeOperation = 'source-over';
+
+            requestAnimationFrame(draw);
+        }
+
+        window.addEventListener('resize', init);
+        window.addEventListener('mousemove', e => { mouse.x = e.clientX; mouse.y = e.clientY; });
+        
+        init();
+        draw();
+    </script>
+</body>
+</html>
