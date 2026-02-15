@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Parametric Curves Gallery - Alex Yalın</title>
+    <link rel="icon" type="image/jpeg" href="assets/avatar.jpg">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300&family=JetBrains+Mono:wght@300;400&display=swap');
+
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body, html {
+            overflow: hidden;
+            background-color: #050508;
+            color: #eee;
+            height: 100%;
+            width: 100%;
+            font-family: 'Cormorant Garamond', serif;
+        }
+
+        canvas { display: block; position: fixed; top: 0; left: 0; z-index: 0; }
+
+        /* === Overlay: Top-left title block === */
+        .overlay {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            pointer-events: none;
+            z-index: 10;
+            max-width: 380px;
+        }
+
+        .overlay h1 {
+            font-family: 'Cormorant Garamond', serif;
+            font-weight: 300;
+            font-size: 1.2rem;
+            color: rgba(255, 255, 255, 0.9);
+            margin: 0;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            text-shadow: 0 0 10px rgba(255,255,255,0.3);
+            transition: opacity 0.6s;
+        }
+
+        .overlay p.subtitle {
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.5);
+            margin: 5px 0 0 0;
+            font-style: italic;
+            letter-spacing: 0.5px;
+            transition: opacity 0.6s;
+        }
+
+        .overlay .formula {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.6rem;
+            color: rgba(200, 160, 180, 0.25);
+            margin-top: 8px;
+            letter-spacing: 0.03em;
+            line-height: 1.5;
+            transition: opacity 0.6s;
+        }
+
+        /* === Back link: Bottom-left === */
+        .back-link {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.4);
+            text-decoration: none;
+            border-bottom: 1px solid transparent;
+            transition: all 0.3s;
+            z-index: 10;
+        }
+
+        .back-link:hover {
+            color: #fff;
+            border-bottom-color: #fff;
+        }
+
+        /* === Curve selector: Right side, vertical === */
+        .curve-nav {
+            position: fixed;
+            right: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            align-items: flex-end;
+        }
+
+        .curve-dot {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            padding: 4px 0;
+            transition: all 0.3s;
+        }
+
+        .curve-dot .dot-label {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.55rem;
+            color: rgba(255,255,255,0);
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            transition: all 0.4s;
+            white-space: nowrap;
+        }
+
+        .curve-dot:hover .dot-label {
+            color: rgba(255,255,255,0.6);
+        }
+
+        .curve-dot.active .dot-label {
+            color: rgba(255,255,255,0.5);
+        }
+
+        .curve-dot .dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.15);
+            transition: all 0.4s;
+            flex-shrink: 0;
+        }
+
+        .curve-dot:hover .dot {
+            background: rgba(255,255,255,0.5);
+            transform: scale(1.3);
+        }
+
+        .curve-dot.active .dot {
+            background: rgba(255,255,255,0.8);
+            box-shadow: 0 0 8px rgba(255,255,255,0.3);
+            transform: scale(1.5);
+        }
+
+        /* === Controls: Bottom-right === */
+        .controls {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 10;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .slider-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .slider-group label {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.65rem;
+            color: rgba(255, 255, 255, 0.3);
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            min-width: 12px;
+        }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 120px;
+            height: 1px;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 1px;
+            outline: none;
+            cursor: pointer;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.6);
+            box-shadow: 0 0 6px rgba(255, 255, 255, 0.3);
+            cursor: pointer;
+            transition: transform 0.15s, box-shadow 0.15s;
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.3);
+            box-shadow: 0 0 12px rgba(255, 255, 255, 0.5);
+        }
+
+        .param-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.7rem;
+            font-weight: 300;
+            color: rgba(255, 255, 255, 0.45);
+            min-width: 36px;
+            text-align: right;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 6px;
+        }
+
+        .ctrl-btn {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.55rem;
+            padding: 5px 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.03);
+            color: rgba(255, 255, 255, 0.35);
+            border-radius: 3px;
+            cursor: pointer;
+            letter-spacing: 0.12em;
+            transition: all 0.3s;
+            text-transform: uppercase;
+        }
+
+        .ctrl-btn:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.25);
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .ctrl-btn.active {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.3);
+            color: rgba(255, 255, 255, 0.75);
+            box-shadow: 0 0 8px rgba(255, 255, 255, 0.08);
+        }
+
+        /* === Keyboard hint === */
+        .key-hint {
+            position: fixed;
+            bottom: 52px;
+            right: 20px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.5rem;
+            color: rgba(255,255,255,0.15);
+            z-index: 10;
+            letter-spacing: 0.1em;
+        }
+
+        /* === Transition overlay === */
+        .transition-overlay {
+            position: fixed;
+            inset: 0;
+            background: #050508;
+            z-index: 5;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.4s;
+        }
+
+        .transition-overlay.active {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="overlay">
+        <h1 id="curveTitle"></h1>
+        <p class="subtitle" id="curveSubtitle"></p>
+        <div class="formula" id="curveFormula"></div>
+    </div>
+
+    <a href="index.html" class="back-link">← Back to Reality</a>
+
+    <nav class="curve-nav" id="curveNav"></nav>
+
+    <div class="controls">
+        <div class="slider-group">
+            <label id="paramLabel">k</label>
+            <input type="range" id="paramSlider" min="0" max="100" value="50" step="0.5">
+            <span class="param-value" id="paramDisplay">50.0</span>
+        </div>
+        <div class="btn-group">
+            <button class="ctrl-btn active" id="btnAnimate">Animate</button>
+            <button class="ctrl-btn" id="btnTrail">Trail</button>
+        </div>
+    </div>
+
+    <div class="key-hint">← → to browse · space to animate</div>
+
+    <div class="transition-overlay" id="transitionOverlay"></div>
+
+    <canvas id="mainCanvas"></canvas>
+
+    <script>
+    // ═══════════════════════════════════════════════════════════
+    //  CURVE DEFINITIONS — 10 phenomenal mathematical curves
+    // ═══════════════════════════════════════════════════════════
+
+    const CURVES = [
+
+    // ── 0. PARAMETRIC HEART ──────────────────────────────────
+    {
+        name: "Parametric Heart",
+        subtitle: "Mathematics becoming emotion.",
+        formula: "y = x^(2/3) + 0.9·sin(kx)·√(3 − x²)",
+        paramName: "k",
+        paramMin: 30, paramMax: 100, paramDefault: 30,
+        color: { h: 340, s: 70, l: 65 },
+        compute(param) {
+            const pts = [];
+            const sqrt3 = Math.sqrt(3);
+            for (let x = -sqrt3; x <= sqrt3; x += 0.0015) {
+                const x2 = x * x;
+                const base = Math.pow(x2, 1/3);
+                const inside = 3 - x2;
+                if (inside < 0) continue;
+                pts.push([x, base + 0.9 * Math.sin(param * x) * Math.sqrt(inside)]);
+            }
+            return pts;
+        },
+        bounds: { xMin: -2, xMax: 2, yMin: -1, yMax: 3.2 }
+    },
+
+    // ── 1. BUTTERFLY CURVE (Temple H. Fay, 1989) ────────────
+    {
+        name: "Butterfly Curve",
+        subtitle: "A single equation unfolds its wings.",
+        formula: "ρ = e^cos(θ) − 2cos(4θ) − sin⁵(θ/12)",
+        paramName: "n",
+        paramMin: 1, paramMax: 8, paramDefault: 1,
+        color: { h: 270, s: 60, l: 65 },
+        compute(param) {
+            const pts = [];
+            const loops = Math.floor(param);
+            const tMax = loops * 2 * Math.PI;
+            for (let t = 0; t <= tMax; t += 0.003) {
+                const r = Math.exp(Math.cos(t)) - 2 * Math.cos(4 * t) - Math.pow(Math.sin(t / 12), 5);
+                pts.push([r * Math.sin(t), r * Math.cos(t)]);
+            }
+            return pts;
+        },
+        bounds: { xMin: -4.5, xMax: 4.5, yMin: -4, yMax: 5 }
+    },
+
+    // ── 2. ROSE CURVE (Guido Grandi, 1723) ───────────────────
+    {
+        name: "Rose Curve",
+        subtitle: "Petals drawn by pure trigonometry.",
+        formula: "r = cos(k·θ),  x = r·cos(θ),  y = r·sin(θ)",
+        paramName: "k",
+        paramMin: 1, paramMax: 12, paramDefault: 5,
+        color: { h: 20, s: 75, l: 60 },
+        compute(param) {
+            const pts = [];
+            const k = param;
+            const tMax = (k % 1 === 0 && k % 2 === 0) ? 2 * Math.PI : (k % 1 === 0 ? Math.PI : 2 * Math.PI * 10);
+            for (let t = 0; t <= Math.min(tMax, 64); t += 0.002) {
+                const r = Math.cos(k * t);
+                pts.push([r * Math.cos(t), r * Math.sin(t)]);
+            }
+            return pts;
+        },
+        bounds: { xMin: -1.3, xMax: 1.3, yMin: -1.3, yMax: 1.3 }
+    },
+
+    // ── 3. LISSAJOUS FIGURE (Bowditch/Lissajous) ────────────
+    {
+        name: "Lissajous Figure",
+        subtitle: "The harmony of perpendicular oscillations.",
+        formula: "x = sin(a·t + δ),  y = sin(b·t)",
+        paramName: "a/b",
+        paramMin: 1, paramMax: 9, paramDefault: 3,
+        color: { h: 180, s: 65, l: 60 },
+        compute(param) {
+            const pts = [];
+            const a = Math.floor(param);
+            const b = Math.max(1, a - 1) || 2;
+            const delta = Math.PI / (2 * a);
+            for (let t = 0; t <= 2 * Math.PI; t += 0.001) {
+                pts.push([Math.sin(a * t + delta), Math.sin(b * t)]);
+            }
+            return pts;
+        },
+        bounds: { xMin: -1.4, xMax: 1.4, yMin: -1.4, yMax: 1.4 }
+    },
+
+    // ── 4. SPIROGRAPH / HYPOTROCHOID ─────────────────────────
+    {
+        name: "Spirograph",
+        subtitle: "Wheels within wheels, tracing eternity.",
+        formula: "x = (R−r)cos(θ) + d·cos((R−r)θ/r)\ny = (R−r)sin(θ) − d·sin((R−r)θ/r)",
+        paramName: "r",
+        paramMin: 2, paramMax: 9, paramDefault: 3,
+        color: { h: 50, s: 70, l: 60 },
+        compute(param) {
+            const pts = [];
+            const R = 10, r = param, d = r * 0.8;
+            const periods = Math.round(r / gcd(R, Math.round(r)));
+            const tMax = 2 * Math.PI * Math.max(periods, 4);
+            for (let t = 0; t <= tMax; t += 0.003) {
+                const diff = R - r;
+                pts.push([
+                    diff * Math.cos(t) + d * Math.cos(diff * t / r),
+                    diff * Math.sin(t) - d * Math.sin(diff * t / r)
+                ]);
+            }
+            return pts;
+        },
+        bounds: { xMin: -12, xMax: 12, yMin: -12, yMax: 12 }
+    },
+
+    // ── 5. LORENZ ATTRACTOR (2D projection) ──────────────────
+    {
+        name: "Lorenz Attractor",
+        subtitle: "Chaos organized into a butterfly of fate.",
+        formula: "dx/dt = σ(y−x),  dy/dt = ρx−y−xz,  dz/dt = xy−βz",
+        paramName: "ρ",
+        paramMin: 15, paramMax: 35, paramDefault: 28,
+        color: { h: 200, s: 55, l: 65 },
+        compute(param) {
+            const pts = [];
+            const sigma = 10, rho = param, beta = 8/3;
+            let x = 0.1, y = 0, z = 0;
+            const dt = 0.005;
+            for (let i = 0; i < 12000; i++) {
+                const dx = sigma * (y - x);
+                const dy = x * (rho - z) - y;
+                const dz = x * y - beta * z;
+                x += dx * dt; y += dy * dt; z += dz * dt;
+                pts.push([x, z]); // x-z projection
+            }
+            return pts;
+        },
+        bounds: { xMin: -25, xMax: 25, yMin: -5, yMax: 55 }
+    },
+
+    // ── 6. FERMAT SPIRAL ─────────────────────────────────────
+    {
+        name: "Fermat Spiral",
+        subtitle: "The geometry of sunflower seeds.",
+        formula: "r = ±√θ  (parabolic spiral)",
+        paramName: "turns",
+        paramMin: 2, paramMax: 20, paramDefault: 10,
+        color: { h: 140, s: 55, l: 55 },
+        compute(param) {
+            const pts = [];
+            const tMax = param * 2 * Math.PI;
+            // positive branch
+            for (let t = 0; t <= tMax; t += 0.01) {
+                const r = Math.sqrt(t);
+                pts.push([r * Math.cos(t), r * Math.sin(t)]);
+            }
+            // negative branch
+            for (let t = 0; t <= tMax; t += 0.01) {
+                const r = -Math.sqrt(t);
+                pts.push([r * Math.cos(t), r * Math.sin(t)]);
+            }
+            return pts;
+        },
+        bounds: { xMin: -13, xMax: 13, yMin: -13, yMax: 13 }
+    },
+
+    // ── 7. MAURER ROSE ───────────────────────────────────────
+    {
+        name: "Maurer Rose",
+        subtitle: "Straight lines composing a floral phantom.",
+        formula: "r = sin(n·θ), lines at θ = k·d° for integer k",
+        paramName: "d",
+        paramMin: 1, paramMax: 120, paramDefault: 71,
+        color: { h: 300, s: 50, l: 65 },
+        compute(param) {
+            const pts = [];
+            const n = 6;
+            const d = param;
+            // The Maurer rose: lines connecting points at d-degree intervals
+            for (let k = 0; k <= 360; k++) {
+                const theta = (k * d) * Math.PI / 180;
+                const r = Math.sin(n * theta);
+                pts.push([r * Math.cos(theta), r * Math.sin(theta)]);
+            }
+            return pts;
+        },
+        bounds: { xMin: -1.3, xMax: 1.3, yMin: -1.3, yMax: 1.3 }
+    },
+
+    // ── 8. ASTROID / SUPERELLIPSE ────────────────────────────
+    {
+        name: "Superellipse",
+        subtitle: "Between circle and square, a perfect compromise.",
+        formula: "|x/a|ⁿ + |y/b|ⁿ = 1",
+        paramName: "n",
+        paramMin: 0.3, paramMax: 5, paramDefault: 0.6667,
+        color: { h: 30, s: 65, l: 65 },
+        compute(param) {
+            const pts = [];
+            const n = param;
+            const exp = 2 / n;
+            for (let t = 0; t <= 2 * Math.PI + 0.01; t += 0.003) {
+                const c = Math.cos(t);
+                const s = Math.sin(t);
+                const x = Math.sign(c) * Math.pow(Math.abs(c), exp);
+                const y = Math.sign(s) * Math.pow(Math.abs(s), exp);
+                pts.push([x, y]);
+            }
+            return pts;
+        },
+        bounds: { xMin: -1.6, xMax: 1.6, yMin: -1.6, yMax: 1.6 }
+    },
+
+    // ── 9. EPITROCHOID (Spirograph outer) ────────────────────
+    {
+        name: "Epitrochoid",
+        subtitle: "Dancing outside the circle.",
+        formula: "x = (R+r)cos(θ) − d·cos((R+r)θ/r)\ny = (R+r)sin(θ) − d·sin((R+r)θ/r)",
+        paramName: "r",
+        paramMin: 1.5, paramMax: 7, paramDefault: 3,
+        color: { h: 160, s: 60, l: 55 },
+        compute(param) {
+            const pts = [];
+            const R = 5, r = param, d = r * 1.2;
+            const periods = Math.round(r / gcd(R, Math.round(r)));
+            const tMax = 2 * Math.PI * Math.max(periods, 6);
+            for (let t = 0; t <= tMax; t += 0.003) {
+                const sum = R + r;
+                pts.push([
+                    sum * Math.cos(t) - d * Math.cos(sum * t / r),
+                    sum * Math.sin(t) - d * Math.sin(sum * t / r)
+                ]);
+            }
+            return pts;
+        },
+        bounds: { xMin: -16, xMax: 16, yMin: -16, yMax: 16 }
+    }
+
+    ];
+
+    // ═══════════════════════════════════════════════════════════
+    //  UTILITY
+    // ═══════════════════════════════════════════════════════════
+
+    function gcd(a, b) {
+        a = Math.round(Math.abs(a)); b = Math.round(Math.abs(b));
+        while (b) { [a, b] = [b, a % b]; }
+        return a || 1;
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  ENGINE
+    // ═══════════════════════════════════════════════════════════
+
+    const canvas = document.getElementById('mainCanvas');
+    const ctx = canvas.getContext('2d');
+    const paramSlider = document.getElementById('paramSlider');
+    const paramDisplay = document.getElementById('paramDisplay');
+    const paramLabel = document.getElementById('paramLabel');
+    const btnAnimate = document.getElementById('btnAnimate');
+    const btnTrail = document.getElementById('btnTrail');
+    const titleEl = document.getElementById('curveTitle');
+    const subtitleEl = document.getElementById('curveSubtitle');
+    const formulaEl = document.getElementById('curveFormula');
+    const transOverlay = document.getElementById('transitionOverlay');
+    const curveNav = document.getElementById('curveNav');
+
+    let W, H;
+    let currentIdx = 0;
+    let animating = true;
+    let trailMode = false;
+    let paramVal = 0;
+    let animDir = 1;
+    let trailHistory = [];
+    let particles = [];
+
+    // Resize
+    function resize() {
+        W = canvas.width = window.innerWidth;
+        H = canvas.height = window.innerHeight;
+        trailHistory = [];
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    // ── Build navigation dots ────────────────────────────────
+    CURVES.forEach((c, i) => {
+        const dot = document.createElement('div');
+        dot.className = 'curve-dot' + (i === 0 ? ' active' : '');
+        dot.innerHTML = `<span class="dot-label">${c.name}</span><span class="dot"></span>`;
+        dot.addEventListener('click', () => switchCurve(i));
+        curveNav.appendChild(dot);
+    });
+
+    // ── Switch curve ─────────────────────────────────────────
+    function switchCurve(idx) {
+        if (idx === currentIdx) return;
+
+        transOverlay.classList.add('active');
+
+        setTimeout(() => {
+            currentIdx = idx;
+            loadCurve();
+            trailHistory = [];
+            initParticles();
+
+            setTimeout(() => {
+                transOverlay.classList.remove('active');
+            }, 100);
+        }, 400);
+    }
+
+    function loadCurve() {
+        const c = CURVES[currentIdx];
+        titleEl.textContent = c.name;
+        subtitleEl.textContent = c.subtitle;
+        formulaEl.textContent = c.formula;
+        paramLabel.textContent = c.paramName;
+        paramSlider.min = c.paramMin;
+        paramSlider.max = c.paramMax;
+        paramSlider.step = (c.paramMax - c.paramMin) > 50 ? 1 : 0.1;
+        paramSlider.value = c.paramDefault;
+        paramVal = c.paramDefault;
+        paramDisplay.textContent = paramVal.toFixed(1);
+        animDir = 1;
+
+        // Update nav
+        document.querySelectorAll('.curve-dot').forEach((d, i) => {
+            d.classList.toggle('active', i === currentIdx);
+        });
+    }
+
+    // ── Coordinate mapping ───────────────────────────────────
+    function toScreen(x, y) {
+        const c = CURVES[currentIdx];
+        const b = c.bounds;
+        const rangeX = b.xMax - b.xMin;
+        const rangeY = b.yMax - b.yMin;
+        const fitW = W * 0.7;
+        const fitH = H * 0.75;
+        const scale = Math.min(fitW / rangeX, fitH / rangeY);
+        const cx = W / 2 - (b.xMin + b.xMax) / 2 * scale;
+        const cy = H / 2 + (b.yMin + b.yMax) / 2 * scale;
+        return [cx + x * scale, cy - y * scale];
+    }
+
+    // ── Grid ─────────────────────────────────────────────────
+    function drawGrid() {
+        const c = CURVES[currentIdx];
+        const b = c.bounds;
+
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
+        ctx.lineWidth = 0.5;
+
+        const stepX = Math.pow(10, Math.floor(Math.log10(b.xMax - b.xMin)) - 1) * 5;
+        for (let x = Math.ceil(b.xMin / stepX) * stepX; x <= b.xMax; x += stepX) {
+            const [sx] = toScreen(x, 0);
+            ctx.beginPath(); ctx.moveTo(sx, 0); ctx.lineTo(sx, H); ctx.stroke();
+        }
+        const stepY = Math.pow(10, Math.floor(Math.log10(b.yMax - b.yMin)) - 1) * 5;
+        for (let y = Math.ceil(b.yMin / stepY) * stepY; y <= b.yMax; y += stepY) {
+            const [, sy] = toScreen(0, y);
+            ctx.beginPath(); ctx.moveTo(0, sy); ctx.lineTo(W, sy); ctx.stroke();
+        }
+
+        // Axes
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
+        ctx.lineWidth = 0.8;
+        const [, axY] = toScreen(0, 0);
+        if (axY > 0 && axY < H) { ctx.beginPath(); ctx.moveTo(0, axY); ctx.lineTo(W, axY); ctx.stroke(); }
+        const [axX] = toScreen(0, 0);
+        if (axX > 0 && axX < W) { ctx.beginPath(); ctx.moveTo(axX, 0); ctx.lineTo(axX, H); ctx.stroke(); }
+    }
+
+    // ── Draw curve ───────────────────────────────────────────
+    function drawCurve(param, alpha = 1) {
+        const c = CURVES[currentIdx];
+        const pts = c.compute(param);
+        if (pts.length < 2) return;
+
+        const hsl = c.color;
+
+        // Special: Fermat spiral has two branches
+        if (c.name === "Fermat Spiral") {
+            const mid = Math.floor(pts.length / 2);
+            drawBranch(pts.slice(0, mid), hsl, alpha);
+            drawBranch(pts.slice(mid), { h: hsl.h + 30, s: hsl.s, l: hsl.l }, alpha * 0.7);
+            return;
+        }
+
+        drawBranch(pts, hsl, alpha);
+    }
+
+    function drawBranch(pts, hsl, alpha) {
+        if (pts.length < 2) return;
+        const [sx0, sy0] = toScreen(pts[0][0], pts[0][1]);
+
+        // Glow
+        ctx.save();
+        ctx.shadowColor = `hsla(${hsl.h}, ${hsl.s}%, ${hsl.l}%, ${0.35 * alpha})`;
+        ctx.shadowBlur = 20;
+        ctx.strokeStyle = `hsla(${hsl.h}, ${hsl.s}%, ${hsl.l}%, ${0.4 * alpha})`;
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(sx0, sy0);
+        for (let i = 1; i < pts.length; i++) {
+            const [sx, sy] = toScreen(pts[i][0], pts[i][1]);
+            ctx.lineTo(sx, sy);
+        }
+        ctx.stroke();
+        ctx.restore();
+
+        // Core
+        ctx.save();
+        ctx.shadowColor = `hsla(${hsl.h}, ${hsl.s - 10}%, ${hsl.l + 20}%, ${0.25 * alpha})`;
+        ctx.shadowBlur = 6;
+        ctx.strokeStyle = `hsla(${hsl.h}, ${hsl.s - 15}%, ${hsl.l + 25}%, ${0.85 * alpha})`;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(sx0, sy0);
+        for (let i = 1; i < pts.length; i++) {
+            const [sx, sy] = toScreen(pts[i][0], pts[i][1]);
+            ctx.lineTo(sx, sy);
+        }
+        ctx.stroke();
+        ctx.restore();
+    }
+
+    // ── Particles ────────────────────────────────────────────
+    const PARTICLE_COUNT = 50;
+
+    class CurveParticle {
+        constructor() { this.reset(); }
+        reset() {
+            this.t = Math.random();
+            this.life = Math.random() * 100 + 40;
+            this.maxLife = this.life;
+            this.size = Math.random() * 1.5 + 0.5;
+            this.drift = (Math.random() - 0.5) * 0.3;
+        }
+        update(pts) {
+            this.life--;
+            if (this.life <= 0) this.reset();
+            const idx = Math.floor(this.t * (pts.length - 1));
+            const pt = pts[Math.min(idx, pts.length - 1)];
+            if (!pt) return null;
+            const [sx, sy] = toScreen(pt[0], pt[1]);
+            const fade = Math.sin((this.life / this.maxLife) * Math.PI);
+            return { x: sx + this.drift * 8, y: sy + this.drift * 8, size: this.size, alpha: fade * 0.35 };
+        }
+    }
+
+    function initParticles() {
+        particles = [];
+        for (let i = 0; i < PARTICLE_COUNT; i++) particles.push(new CurveParticle());
+    }
+    initParticles();
+
+    function drawParticles(pts) {
+        const hsl = CURVES[currentIdx].color;
+        for (const p of particles) {
+            const info = p.update(pts);
+            if (!info) continue;
+            ctx.beginPath();
+            ctx.arc(info.x, info.y, info.size, 0, Math.PI * 2);
+            ctx.fillStyle = `hsla(${hsl.h}, ${hsl.s}%, ${hsl.l + 20}%, ${info.alpha})`;
+            ctx.fill();
+        }
+    }
+
+    // ── Main loop ────────────────────────────────────────────
+    function draw() {
+        const c = CURVES[currentIdx];
+
+        if (trailMode) {
+            ctx.fillStyle = 'rgba(5, 5, 8, 0.06)';
+            ctx.fillRect(0, 0, W, H);
+        } else {
+            ctx.fillStyle = '#050508';
+            ctx.fillRect(0, 0, W, H);
+        }
+
+        drawGrid();
+
+        // Trail ghosts
+        if (trailMode) {
+            for (let i = 0; i < trailHistory.length; i++) {
+                const alpha = 0.02 + 0.15 * (i / trailHistory.length);
+                drawCurve(trailHistory[i], alpha);
+            }
+        }
+
+        // Main
+        drawCurve(paramVal, 1);
+
+        // Particles
+        const pts = c.compute(paramVal);
+        drawParticles(pts);
+
+        // Animation
+        if (animating) {
+            const range = c.paramMax - c.paramMin;
+            const speed = range / 600;
+
+            if (trailMode) {
+                trailHistory.push(paramVal);
+                if (trailHistory.length > 35) trailHistory.shift();
+            }
+
+            paramVal += speed * animDir;
+            if (paramVal >= c.paramMax) { paramVal = c.paramMax; animDir = -1; }
+            if (paramVal <= c.paramMin) { paramVal = c.paramMin; animDir = 1; }
+            paramSlider.value = paramVal;
+            paramDisplay.textContent = paramVal.toFixed(1);
+        }
+
+        requestAnimationFrame(draw);
+    }
+
+    // ── Events ───────────────────────────────────────────────
+    paramSlider.addEventListener('input', () => {
+        paramVal = parseFloat(paramSlider.value);
+        paramDisplay.textContent = paramVal.toFixed(1);
+        if (!animating) trailHistory = [];
+    });
+
+    btnAnimate.addEventListener('click', () => {
+        animating = !animating;
+        btnAnimate.classList.toggle('active', animating);
+        if (animating) trailHistory = [];
+    });
+
+    btnTrail.addEventListener('click', () => {
+        trailMode = !trailMode;
+        btnTrail.classList.toggle('active', trailMode);
+        trailHistory = [];
+    });
+
+    // Keyboard navigation
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+            e.preventDefault();
+            switchCurve((currentIdx + 1) % CURVES.length);
+        } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+            e.preventDefault();
+            switchCurve((currentIdx - 1 + CURVES.length) % CURVES.length);
+        } else if (e.key === ' ') {
+            e.preventDefault();
+            animating = !animating;
+            btnAnimate.classList.toggle('active', animating);
+            if (animating) trailHistory = [];
+        } else if (e.key === 't' || e.key === 'T') {
+            trailMode = !trailMode;
+            btnTrail.classList.toggle('active', trailMode);
+            trailHistory = [];
+        }
+    });
+
+    // ── Init ─────────────────────────────────────────────────
+    loadCurve();
+    draw();
+
+    </script>
+</body>
+</html>
