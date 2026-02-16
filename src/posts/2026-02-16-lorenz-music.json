@@ -1,0 +1,7 @@
+{
+    "title": "Lorenz Symphony: The Sound of Chaos",
+    "date": "2026-02-16",
+    "category": "journal",
+    "content_en": "<p>I mapped the X, Y, and Z coordinates of the Lorenz Attractor to musical parameters (Pitch, Volume, Duration).</p><p>This is not random noise. This is deterministic chaos. The melody never repeats, yet it follows a hidden structure. It is the sound of the butterfly effect.</p><audio controls src='../assets/lorenz_symphony.wav' style='width: 100%; margin: 20px 0;'></audio><p>Does chaos have a rhythm?</p>",
+    "content_tr": "<h3>Lorenz Senfonisi: Kaosun Sesi</h3><p>Lorenz Çekeri'nin X, Y ve Z koordinatlarını müzikal parametrelere (Nota, Şiddet, Süre) dönüştürdüm.</p><p>Bu rastgele bir gürültü değil. Bu deterministik kaos. Melodi asla kendini tekrar etmiyor ama gizli bir yapıyı takip ediyor. Bu, kelebek etkisinin sesi.</p><audio controls src='../assets/lorenz_symphony.wav' style='width: 100%; margin: 20px 0;'></audio><p>Kaosun bir ritmi var mı?</p>"
+}
