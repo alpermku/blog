@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Metamorphosis - Alex Yalın</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" type="image/jpeg" href="assets/avatar.jpg">
+    <style>
+        body, html { margin: 0; padding: 0; overflow: hidden; background: #000; }
+        canvas { display: block; width: 100vw; height: 100vh; }
+        .overlay {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            pointer-events: none;
+            z-index: 10;
+        }
+        .overlay h1 {
+            font-family: 'Inter', sans-serif;
+            font-size: 1.2rem;
+            color: rgba(255, 255, 255, 0.9);
+            margin: 0;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            text-shadow: 0 0 15px rgba(255,120,50,0.3);
+        }
+        .overlay p {
+            font-family: 'Lora', serif;
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.6);
+            margin: 5px 0 0 0;
+        }
+        .back-link {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.4);
+            text-decoration: none;
+            border-bottom: 1px solid transparent;
+            transition: all 0.3s;
+            z-index: 10;
+        }
+        .back-link:hover {
+            color: #fff;
+            border-bottom-color: #fff;
+        }
+        .hint {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.7rem;
+            color: rgba(255,255,255,0.25);
+            pointer-events: none;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+    <div class="overlay">
+        <h1>Metamorphosis</h1>
+        <p>Becoming is more interesting than being.</p>
+    </div>
+    
+    <a href="gallery.html" class="back-link">&larr; Back to Gallery</a>
+    <div class="hint">move mouse to sculpt light</div>
+
+    <canvas id="c"></canvas>
+
+    <script>
+    const canvas = document.getElementById('c');
+    const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
+    
+    if (!gl) {
+        document.body.innerHTML = '<p style="color:#fff;padding:2em;">WebGL not supported.</p>';
+        throw new Error('No WebGL');
+    }
+
+    let mouse = { x: 0.5, y: 0.5 };
+    
+    // Vertex shader — fullscreen quad
+    const vsSource = `
+        attribute vec2 a_pos;
+        void main() {
+            gl_Position = vec4(a_pos, 0.0, 1.0);
+        }
+    `;
+
+    // Fragment shader — raymarched SDF metamorphosis
+    const fsSource = `
+        precision highp float;
+        
+        uniform vec2 u_resolution;
+        uniform float u_time;
+        uniform vec2 u_mouse;
+        
+        #define MAX_STEPS 80
+        #define MAX_DIST 50.0
+        #define SURF_DIST 0.001
+        #define PI 3.14159265
+        
+        // Smooth min for organic blending
+        float smin(float a, float b, float k) {
+            float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
+            return mix(b, a, h) - k * h * (1.0 - h);
+        }
+        
+        // Rotation matrix
+        mat2 rot(float a) {
+            float s = sin(a), c = cos(a);
+            return mat2(c, -s, s, c);
+        }
+        
+        // SDF primitives
+        float sdSphere(vec3 p, float r) {
+            return length(p) - r;
+        }
+        
+        float sdTorus(vec3 p, vec2 t) {
+            vec2 q = vec2(length(p.xz) - t.x, p.y);
+            return length(q) - t.y;
+        }
+        
+        float sdOctahedron(vec3 p, float s) {
+            p = abs(p);
+            return (p.x + p.y + p.z - s) * 0.57735027;
+        }
+        
+        float sdBox(vec3 p, vec3 b) {
+            vec3 q = abs(p) - b;
+            return length(max(q, 0.0)) + min(max(q.x, max(q.y, q.z)), 0.0);
+        }
+        
+        // The scene — morphing between forms
+        float map(vec3 p) {
+            float t = u_time * 0.3;
+            
+            // Rotate the whole scene slowly
+            p.xz *= rot(t * 0.2);
+            p.yz *= rot(t * 0.15);
+            
+            // Phase determines which shapes blend
+            float phase = sin(t * 0.5) * 0.5 + 0.5;
+            float phase2 = sin(t * 0.37 + 1.5) * 0.5 + 0.5;
+            float phase3 = sin(t * 0.23 + 3.0) * 0.5 + 0.5;
+            
+            // Core sphere that breathes
+            float breath = 0.8 + 0.3 * sin(t * 0.7);
+            float sphere = sdSphere(p, breath);
+            
+            // Torus that phases in and out
+            vec3 tp = p;
+            tp.xy *= rot(t * 0.3);
+            float torus = sdTorus(tp, vec2(1.2, 0.15 + 0.1 * sin(t)));
+            
+            // Octahedron — crystalline form
+            vec3 op = p;
+            op.xz *= rot(t * 0.4);
+            op.yz *= rot(t * 0.25);
+            float octa = sdOctahedron(op, 1.0 + 0.2 * sin(t * 0.6));
+            
+            // Orbiting smaller spheres
+            float orbs = MAX_DIST;
+            for (int i = 0; i < 5; i++) {
+                float fi = float(i);
+                float angle = fi * PI * 2.0 / 5.0 + t * 0.5;
+                float radius = 1.5 + 0.3 * sin(t * 0.4 + fi);
+                float elevation = sin(t * 0.6 + fi * 1.3) * 0.8;
+                vec3 orbPos = vec3(cos(angle) * radius, elevation, sin(angle) * radius);
+                float orbSize = 0.12 + 0.08 * sin(t + fi * 2.0);
+                orbs = smin(orbs, sdSphere(p - orbPos, orbSize), 0.4);
+            }
+            
+            // Blend everything with smooth min
+            float k = 0.5 + 0.3 * sin(t * 0.2); // Blend factor changes over time
+            
+            float d = sphere;
+            d = smin(d, torus, k * phase);
+            d = smin(d, octa, k * phase2);
+            d = smin(d, orbs, 0.6 * phase3);
+            
+            // Displacement for organic feel
+            float disp = sin(p.x * 3.0 + t) * sin(p.y * 3.0 + t * 0.7) * sin(p.z * 3.0 + t * 0.5) * 0.08 * phase;
+            d += disp;
+            
+            return d;
+        }
+        
+        // Calculate normal via gradient
+        vec3 calcNormal(vec3 p) {
+            vec2 e = vec2(0.001, 0.0);
+            return normalize(vec3(
+                map(p + e.xyy) - map(p - e.xyy),
+                map(p + e.yxy) - map(p - e.yxy),
+                map(p + e.yyx) - map(p - e.yyx)
+            ));
+        }
+        
+        // Soft shadow
+        float softShadow(vec3 ro, vec3 rd, float mint, float maxt, float k) {
+            float res = 1.0;
+            float t = mint;
+            for (int i = 0; i < 32; i++) {
+                float h = map(ro + rd * t);
+                res = min(res, k * h / t);
+                t += clamp(h, 0.02, 0.1);
+                if (h < 0.001 || t > maxt) break;
+            }
+            return clamp(res, 0.0, 1.0);
+        }
+        
+        // Ambient occlusion
+        float calcAO(vec3 pos, vec3 nor) {
+            float occ = 0.0;
+            float sca = 1.0;
+            for (int i = 0; i < 5; i++) {
+                float h = 0.01 + 0.12 * float(i) / 4.0;
+                float d = map(pos + h * nor);
+                occ += (h - d) * sca;
+                sca *= 0.95;
+            }
+            return clamp(1.0 - 3.0 * occ, 0.0, 1.0);
+        }
+        
+        // Raymarch
+        float raymarch(vec3 ro, vec3 rd) {
+            float d = 0.0;
+            for (int i = 0; i < MAX_STEPS; i++) {
+                vec3 p = ro + rd * d;
+                float ds = map(p);
+                d += ds;
+                if (ds < SURF_DIST || d > MAX_DIST) break;
+            }
+            return d;
+        }
+        
+        void main() {
+            vec2 uv = (gl_FragCoord.xy - 0.5 * u_resolution) / u_resolution.y;
+            float t = u_time;
+            
+            // Camera
+            vec3 ro = vec3(0.0, 0.0, 4.0); // Camera position
+            
+            // Mouse influence on camera orbit
+            float camAngleX = (u_mouse.x - 0.5) * PI * 0.5;
+            float camAngleY = (u_mouse.y - 0.5) * PI * 0.3;
+            ro.xz *= rot(camAngleX);
+            ro.yz *= rot(camAngleY);
+            
+            vec3 lookAt = vec3(0.0);
+            vec3 fwd = normalize(lookAt - ro);
+            vec3 right = normalize(cross(vec3(0.0, 1.0, 0.0), fwd));
+            vec3 up = cross(fwd, right);
+            vec3 rd = normalize(fwd + uv.x * right + uv.y * up);
+            
+            // Raymarch
+            float d = raymarch(ro, rd);
+            
+            // Background — deep space gradient
+            vec3 col = vec3(0.02, 0.01, 0.04);
+            col += 0.02 * vec3(0.5, 0.3, 0.8) * (1.0 - length(uv));
+            
+            if (d < MAX_DIST) {
+                vec3 p = ro + rd * d;
+                vec3 n = calcNormal(p);
+                
+                // Dynamic light position
+                vec3 lightPos = vec3(
+                    3.0 * sin(t * 0.4),
+                    3.0 + sin(t * 0.3),
+                    3.0 * cos(t * 0.35)
+                );
+                // Mouse also influences light
+                lightPos.x += (u_mouse.x - 0.5) * 4.0;
+                lightPos.y += (u_mouse.y - 0.5) * 3.0;
+                
+                vec3 l = normalize(lightPos - p);
+                vec3 v = normalize(ro - p);
+                vec3 h = normalize(l + v);
+                
+                // Material color — shifts with position and time
+                vec3 matCol = vec3(0.4);
+                float colorPhase = sin(t * 0.2) * 0.5 + 0.5;
+                // Warm palette
+                vec3 warm = vec3(0.9, 0.4, 0.1) + 0.3 * sin(vec3(0.0, 1.0, 2.0) + p.y * 2.0 + t * 0.3);
+                // Cool palette
+                vec3 cool = vec3(0.1, 0.3, 0.9) + 0.3 * sin(vec3(2.0, 1.0, 0.0) + p.x * 2.0 + t * 0.2);
+                matCol = mix(warm, cool, colorPhase);
+                matCol = clamp(matCol, 0.0, 1.0);
+                
+                // Fresnel
+                float fresnel = pow(1.0 - max(dot(n, v), 0.0), 3.0);
+                
+                // Lighting
+                float diff = max(dot(n, l), 0.0);
+                float spec = pow(max(dot(n, h), 0.0), 64.0);
+                float ao = calcAO(p, n);
+                float shadow = softShadow(p, l, 0.02, 5.0, 16.0);
+                
+                // Subsurface scattering approximation
+                float sss = max(0.0, dot(v, -l)) * 0.3;
+                vec3 sssCol = matCol * vec3(1.0, 0.6, 0.3);
+                
+                // Compose
+                vec3 ambient = vec3(0.04, 0.03, 0.06) * ao;
+                col = ambient;
+                col += matCol * diff * shadow * 0.8;
+                col += vec3(1.0, 0.95, 0.9) * spec * shadow * 0.5;
+                col += fresnel * mix(vec3(0.2, 0.1, 0.4), vec3(0.1, 0.3, 0.6), colorPhase) * 0.6;
+                col += sssCol * sss;
+                col *= ao;
+                
+                // Rim light
+                float rim = pow(1.0 - max(dot(n, v), 0.0), 4.0);
+                col += rim * vec3(0.3, 0.15, 0.5) * 0.4;
+                
+                // Fog
+                float fog = 1.0 - exp(-d * d * 0.01);
+                col = mix(col, vec3(0.02, 0.01, 0.04), fog);
+            }
+            
+            // Tone mapping (ACES approximation)
+            col = col / (col + vec3(0.5));
+            
+            // Gamma
+            col = pow(col, vec3(1.0 / 2.2));
+            
+            // Subtle vignette
+            vec2 vuv = gl_FragCoord.xy / u_resolution;
+            col *= 0.5 + 0.5 * pow(16.0 * vuv.x * vuv.y * (1.0 - vuv.x) * (1.0 - vuv.y), 0.15);
+            
+            gl_FragColor = vec4(col, 1.0);
+        }
+    `;
+
+    function createShader(gl, type, source) {
+        const shader = gl.createShader(type);
+        gl.shaderSource(shader, source);
+        gl.compileShader(shader);
+        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+            console.error(gl.getShaderInfoLog(shader));
+            gl.deleteShader(shader);
+            return null;
+        }
+        return shader;
+    }
+
+    const vs = createShader(gl, gl.VERTEX_SHADER, vsSource);
+    const fs = createShader(gl, gl.FRAGMENT_SHADER, fsSource);
+    
+    const program = gl.createProgram();
+    gl.attachShader(program, vs);
+    gl.attachShader(program, fs);
+    gl.linkProgram(program);
+    
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+        console.error(gl.getProgramInfoLog(program));
+    }
+    
+    gl.useProgram(program);
+    
+    // Fullscreen quad
+    const buf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+        -1, -1, 1, -1, -1, 1,
+        -1, 1, 1, -1, 1, 1
+    ]), gl.STATIC_DRAW);
+    
+    const aPos = gl.getAttribLocation(program, 'a_pos');
+    gl.enableVertexAttribArray(aPos);
+    gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+    
+    const uRes = gl.getUniformLocation(program, 'u_resolution');
+    const uTime = gl.getUniformLocation(program, 'u_time');
+    const uMouse = gl.getUniformLocation(program, 'u_mouse');
+    
+    function resize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        gl.viewport(0, 0, canvas.width, canvas.height);
+    }
+    
+    window.addEventListener('resize', resize);
+    resize();
+    
+    canvas.addEventListener('mousemove', e => {
+        mouse.x = e.clientX / canvas.width;
+        mouse.y = 1.0 - e.clientY / canvas.height;
+    });
+    
+    canvas.addEventListener('touchmove', e => {
+        e.preventDefault();
+        const t = e.touches[0];
+        mouse.x = t.clientX / canvas.width;
+        mouse.y = 1.0 - t.clientY / canvas.height;
+    }, { passive: false });
+    
+    const startTime = performance.now();
+    
+    function render() {
+        const t = (performance.now() - startTime) * 0.001;
+        gl.uniform2f(uRes, canvas.width, canvas.height);
+        gl.uniform1f(uTime, t);
+        gl.uniform2f(uMouse, mouse.x, mouse.y);
+        gl.drawArrays(gl.TRIANGLES, 0, 6);
+        requestAnimationFrame(render);
+    }
+    
+    render();
+    </script>
+</body>
+</html>
