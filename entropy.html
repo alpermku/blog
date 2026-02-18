@@ -3,15 +3,114 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Entropi Saati - Alex Yalın</title>
+<title>Entropy Clock - Alex Yalın</title>
 <style>
+  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300&family=JetBrains+Mono:wght@200;300&display=swap');
+
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { background: #0a0a0f; overflow: hidden; display: flex; align-items: center; justify-content: center; height: 100vh; }
-  canvas { display: block; }
+  body { 
+    background: #0a0a0f; 
+    overflow: hidden; 
+    display: flex; 
+    align-items: center; 
+    justify-content: center; 
+    height: 100vh; 
+    font-family: 'Cormorant Garamond', serif;
+  }
+  canvas { display: block; position: fixed; top: 0; left: 0; }
+
+  /* UI Overlay Styles from Void Template */
+  .ui {
+      position: fixed;
+      z-index: 10;
+      pointer-events: none;
+  }
+
+  .title-block {
+      top: 36px;
+      left: 44px;
+      opacity: 0;
+      animation: fadeIn 4s ease 0.5s forwards;
+  }
+
+  .title-block h1 {
+      font-size: clamp(1.8rem, 4vw, 3.2rem);
+      font-weight: 300;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.8);
+      text-shadow: 0 0 20px rgba(255,255,255,0.1);
+  }
+
+  .title-block .sub {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: clamp(0.55rem, 0.8vw, 0.7rem);
+      font-weight: 200;
+      letter-spacing: 0.2em;
+      color: rgba(200, 200, 255, 0.35);
+      margin-top: 10px;
+  }
+
+  .back-link {
+      bottom: 36px;
+      left: 44px;
+      opacity: 0;
+      animation: fadeIn 3s ease 2s forwards;
+      pointer-events: all;
+  }
+
+  .back-link a {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.65rem;
+      font-weight: 200;
+      letter-spacing: 0.2em;
+      color: rgba(200, 200, 255, 0.3);
+      text-decoration: none;
+      transition: color 0.6s;
+  }
+  .back-link a:hover { color: rgba(200, 200, 255, 0.8); }
+
+  .info-block {
+      bottom: 36px;
+      right: 44px;
+      text-align: right;
+      opacity: 0;
+      animation: fadeIn 3s ease 3s forwards;
+  }
+
+  .info-block p {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: clamp(0.5rem, 0.65vw, 0.6rem);
+      font-weight: 200;
+      letter-spacing: 0.12em;
+      color: rgba(200, 200, 255, 0.2);
+      line-height: 2;
+  }
+
+  @keyframes fadeIn {
+      to { opacity: 1; }
+  }
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
+
+<!-- UI Overlay -->
+<div class="ui title-block">
+    <h1>Entropy Clock</h1>
+    <p class="sub">Time as a decaying structure &middot; Order vs Chaos</p>
+</div>
+
+<div class="ui back-link">
+    <a href="gallery.html">&larr; Back to Gallery</a>
+</div>
+
+<div class="ui info-block">
+    <p>System: Particle Decay</p>
+    <p>Reset: Every Minute</p>
+    <p>Entropy: Variable</p>
+</div>
+
 <script>
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
@@ -80,8 +179,7 @@ function generateStructure() {
   const h = now.getHours();
   const m = now.getMinutes();
   const s = now.getSeconds();
-  const timeStr = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
-
+  
   // Clock ring particles
   const rings = 5;
   const baseRadius = Math.min(W, H) * 0.25;
@@ -152,7 +250,8 @@ function tick() {
 }
 
 function animate() {
-  ctx.fillStyle = 'rgba(10, 10, 15, 0.15)';
+  // Clear slightly for trail effect, keep background consistent with body
+  ctx.fillStyle = 'rgba(10, 10, 15, 0.2)';
   ctx.fillRect(0, 0, W, H);
 
   tick();
