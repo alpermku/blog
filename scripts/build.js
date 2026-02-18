@@ -21,7 +21,7 @@ const CONFIG = {
         rorschachData: 'rorschach-data.json',
         rorschachTemplate: 'rorschach_template.html',
     },
-    nav: ['journal', 'article', 'radar', 'gallery', 'about'],
+    nav: ['journal', 'article', 'radar', 'gallery', 'games', 'about'],
     perPage: 20
 };
 

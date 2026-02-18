@@ -1,0 +1,7 @@
+{
+    "title": "Arcade",
+    "slug": "games",
+    "content": "<div class='gallery-grid'><a href='games/chronobreak.html' class='gallery-card'><div class='card-icon'>⏱️</div><h3>Chrono Break</h3><p>Time moves only when you move. Neon survival shooter.</p></a></div>",
+    "content_en": "<div class='gallery-grid'><a href='games/chronobreak.html' class='gallery-card'><div class='card-icon'>⏱️</div><h3>Chrono Break</h3><p>Time moves only when you move. Neon survival shooter.</p></a></div>",
+    "content_tr": "<div class='gallery-grid'><a href='games/chronobreak.html' class='gallery-card'><div class='card-icon'>⏱️</div><h3>Chrono Break</h3><p>Zaman sadece sen hareket edince akar. Neon hayatta kalma oyunu.</p></a></div>"
+}

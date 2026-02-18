@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chrono Break - Arcade</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@200;400;700&display=swap');
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            background: #050505; 
+            overflow: hidden; 
+            font-family: 'JetBrains Mono', monospace; 
+            color: #fff;
+            user-select: none;
+        }
+
+        canvas { display: block; position: fixed; top: 0; left: 0; cursor: none; }
+
+        /* UI Overlay */
+        .ui { position: fixed; z-index: 10; pointer-events: none; width: 100%; height: 100%; }
+        
+        .hud-top { 
+            position: absolute; top: 30px; left: 40px; 
+            display: flex; flex-direction: column; gap: 8px;
+        }
+
+        h1 { 
+            font-family: 'Press Start 2P', cursive; 
+            font-size: 24px; 
+            color: #0ff; 
+            text-transform: uppercase;
+            text-shadow: 0 0 10px rgba(0,255,255,0.5);
+            letter-spacing: 2px;
+        }
+
+        .subtitle { 
+            color: rgba(255,255,255,0.6); 
+            font-size: 12px; 
+            letter-spacing: 1px;
+        }
+
+        .score-board {
+            position: absolute; top: 30px; right: 40px;
+            text-align: right;
+        }
+        .score-label { font-size: 10px; color: rgba(255,255,255,0.4); text-transform: uppercase; letter-spacing: 2px; }
+        .score-val { font-family: 'Press Start 2P', cursive; font-size: 32px; color: #f0f; text-shadow: 0 0 15px rgba(255,0,255,0.4); margin-top: 5px; }
+
+        .back-btn {
+            position: absolute; bottom: 30px; left: 40px;
+            pointer-events: all;
+            text-decoration: none;
+            color: rgba(255,255,255,0.4);
+            font-size: 12px;
+            letter-spacing: 2px;
+            transition: all 0.3s ease;
+            display: flex; align-items: center; gap: 10px;
+            text-transform: uppercase;
+        }
+        .back-btn:hover { color: #0ff; text-shadow: 0 0 8px rgba(0,255,255,0.6); }
+
+        .game-over {
+            position: absolute; top: 50%; left: 50%; 
+            transform: translate(-50%, -50%);
+            text-align: center;
+            display: none;
+            pointer-events: all;
+        }
+        .go-title { 
+            font-family: 'Press Start 2P', cursive; 
+            font-size: 48px; color: #ff2a2a; 
+            text-shadow: 0 0 20px rgba(255,42,42,0.6); 
+            margin-bottom: 20px;
+            animation: glitch 1s infinite;
+        }
+        .go-score { font-size: 18px; color: #fff; margin-bottom: 30px; }
+        .restart-btn {
+            background: transparent; border: 2px solid #0ff; color: #0ff;
+            padding: 15px 30px; font-family: 'Press Start 2P', cursive; font-size: 14px;
+            cursor: pointer; transition: 0.2s;
+            text-transform: uppercase;
+        }
+        .restart-btn:hover { background: #0ff; color: #000; box-shadow: 0 0 20px #0ff; }
+
+        .tutorial {
+            position: absolute; bottom: 30px; right: 40px;
+            text-align: right; color: rgba(255,255,255,0.3); font-size: 11px; line-height: 1.6;
+        }
+        .key { border: 1px solid rgba(255,255,255,0.2); padding: 2px 6px; border-radius: 4px; color: #fff; }
+
+        @keyframes glitch {
+            0% { transform: translate(0); }
+            20% { transform: translate(-2px, 2px); }
+            40% { transform: translate(-2px, -2px); }
+            60% { transform: translate(2px, 2px); }
+            80% { transform: translate(2px, -2px); }
+            100% { transform: translate(0); }
+        }
+    </style>
+</head>
+<body>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <div class="ui">
+        <div class="hud-top">
+            <h1>Chrono Break</h1>
+            <div class="subtitle">Time moves only when you move</div>
+        </div>
+        
+        <div class="score-board">
+            <div class="score-label">Score</div>
+            <div class="score-val" id="score">0</div>
+        </div>
+
+        <div class="tutorial">
+            <p>Move with <span class="key">WASD</span> or <span class="key">ARROWS</span></p>
+            <p>Aim with <span class="key">MOUSE</span></p>
+            <p>Shoot with <span class="key">CLICK</span></p>
+            <p>Dodge red triangles</p>
+        </div>
+
+        <a href="games.html" class="back-btn">
+            <span>&lt;</span> Back to Arcade
+        </a>
+
+        <div class="game-over" id="gameOverScreen">
+            <div class="go-title">SYSTEM FAILURE</div>
+            <div class="go-score">Final Score: <span id="finalScore">0</span></div>
+            <button class="restart-btn" onclick="resetGame()">Reboot System</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        let W, H;
+        const resize = () => { W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; };
+        window.addEventListener('resize', resize);
+        resize();
+
+        // Game State
+        const state = {
+            running: true,
+            score: 0,
+            timeScale: 0.05, // Slow motion default
+            lastTime: 0
+        };
+
+        // Player
+        const player = {
+            x: 0, y: 0, size: 20, speed: 5,
+            angle: 0,
+            color: '#0ff',
+            vel: { x:0, y:0 }
+        };
+
+        // Input
+        const keys = {};
+        const mouse = { x: 0, y: 0 };
+        
+        window.addEventListener('keydown', e => keys[e.code] = true);
+        window.addEventListener('keyup', e => keys[e.code] = false);
+        window.addEventListener('mousemove', e => { mouse.x = e.clientX; mouse.y = e.clientY; });
+        window.addEventListener('mousedown', shoot);
+
+        // Entities
+        let enemies = [];
+        let bullets = [];
+        let particles = [];
+        let gridOffset = { x:0, y:0 };
+
+        function init() {
+            player.x = W/2;
+            player.y = H/2;
+            state.running = true;
+            state.score = 0;
+            enemies = [];
+            bullets = [];
+            particles = [];
+            document.getElementById('score').innerText = '0';
+            document.getElementById('gameOverScreen').style.display = 'none';
+        }
+
+        function spawnEnemy() {
+            const angle = Math.random() * Math.PI * 2;
+            const dist = Math.max(W, H) * 0.7; // Spawn off-screen
+            const type = Math.random() > 0.8 ? 'chaser' : 'grunt';
+            
+            enemies.push({
+                x: player.x + Math.cos(angle) * dist,
+                y: player.y + Math.sin(angle) * dist,
+                size: type === 'chaser' ? 15 : 25,
+                speed: type === 'chaser' ? 3.5 : 2,
+                color: type === 'chaser' ? '#f0f' : '#ff2a2a',
+                type: type,
+                angle: 0,
+                hp: type === 'grunt' ? 3 : 1
+            });
+        }
+
+        function shoot() {
+            if (!state.running) return;
+            
+            // Recoil
+            const angle = Math.atan2(mouse.y - player.y, mouse.x - player.x);
+            player.x -= Math.cos(angle) * 5;
+            player.y -= Math.sin(angle) * 5;
+
+            bullets.push({
+                x: player.x,
+                y: player.y,
+                vx: Math.cos(angle) * 15,
+                vy: Math.sin(angle) * 15,
+                life: 100
+            });
+            
+            // Muzzle flash particle
+            for(let i=0; i<5; i++) {
+                particles.push({
+                    x: player.x + Math.cos(angle)*20,
+                    y: player.y + Math.sin(angle)*20,
+                    vx: (Math.random()-0.5)*5 + Math.cos(angle)*5,
+                    vy: (Math.random()-0.5)*5 + Math.sin(angle)*5,
+                    life: 20,
+                    color: '#0ff',
+                    size: Math.random()*3
+                });
+            }
+            
+            // Shooting counts as movement (time flows)
+            state.timeScale = 1.0; 
+        }
+
+        function update(dt) {
+            if (!state.running) return;
+
+            // 1. Calculate Player Movement & Time Dilation
+            let moving = false;
+            let dx = 0, dy = 0;
+            if (keys['KeyW'] || keys['ArrowUp']) dy -= 1;
+            if (keys['KeyS'] || keys['ArrowDown']) dy += 1;
+            if (keys['KeyA'] || keys['ArrowLeft']) dx -= 1;
+            if (keys['KeyD'] || keys['ArrowRight']) dx += 1;
+
+            if (dx !== 0 || dy !== 0) {
+                moving = true;
+                const len = Math.sqrt(dx*dx + dy*dy);
+                player.x += (dx/len) * player.speed;
+                player.y += (dy/len) * player.speed;
+            }
+
+            // Time flows fast when moving, slow when still
+            const targetTimeScale = moving ? 1.0 : 0.05;
+            state.timeScale += (targetTimeScale - state.timeScale) * 0.2; // Smooth transition
+
+            // 2. Camera / Grid follow
+            gridOffset.x += (W/2 - player.x - gridOffset.x) * 0.1;
+            gridOffset.y += (H/2 - player.y - gridOffset.y) * 0.1;
+
+            // 3. Bullets (unaffected by time slow for game feel, or slightly affected?)
+            // Let's make bullets slow down too, for Matrix effect!
+            bullets.forEach((b, i) => {
+                b.x += b.vx * (0.2 + state.timeScale * 0.8); // Always move a bit
+                b.y += b.vy * (0.2 + state.timeScale * 0.8);
+                b.life -= 1 * (0.2 + state.timeScale * 0.8);
+                
+                // Trail
+                if (Math.random() > 0.5) {
+                    particles.push({
+                        x: b.x, y: b.y,
+                        vx: 0, vy: 0,
+                        life: 10, color: '#0ff', size: 1
+                    });
+                }
+
+                if (b.life <= 0) bullets.splice(i, 1);
+            });
+
+            // 4. Enemies
+            if (Math.random() < 0.02 * state.timeScale) spawnEnemy(); // Spawn based on time flow
+
+            enemies.forEach((e, i) => {
+                const angle = Math.atan2(player.y - e.y, player.x - e.x);
+                e.angle = angle;
+                
+                // Move towards player based on Time Scale
+                const speed = e.speed * state.timeScale;
+                e.x += Math.cos(angle) * speed;
+                e.y += Math.sin(angle) * speed;
+
+                // Collision with Player
+                const dist = Math.hypot(player.x - e.x, player.y - e.y);
+                if (dist < player.size + e.size) {
+                    gameOver();
+                }
+
+                // Collision with Bullets
+                bullets.forEach((b, bi) => {
+                    if (Math.hypot(b.x - e.x, b.y - e.y) < e.size) {
+                        // Hit!
+                        bullets.splice(bi, 1);
+                        e.hp--;
+                        
+                        // Impact particles
+                        for(let k=0; k<5; k++) {
+                            particles.push({
+                                x: e.x, y: e.y,
+                                vx: (Math.random()-0.5)*10,
+                                vy: (Math.random()-0.5)*10,
+                                life: 30, color: e.color, size: 2
+                            });
+                        }
+
+                        if (e.hp <= 0) {
+                            enemies.splice(i, 1);
+                            state.score += (e.type === 'chaser' ? 20 : 10);
+                            document.getElementById('score').innerText = state.score;
+                            
+                            // Explosion
+                            for(let k=0; k<15; k++) {
+                                particles.push({
+                                    x: e.x, y: e.y,
+                                    vx: (Math.random()-0.5)*15,
+                                    vy: (Math.random()-0.5)*15,
+                                    life: 45, color: e.color, size: 3
+                                });
+                            }
+                        }
+                    }
+                });
+            });
+
+            // 5. Particles
+            particles.forEach((p, i) => {
+                p.x += p.vx * state.timeScale;
+                p.y += p.vy * state.timeScale;
+                p.life -= 1 * state.timeScale;
+                if (p.life <= 0) particles.splice(i, 1);
+            });
+        }
+
+        function draw() {
+            // Background & Grid
+            ctx.fillStyle = '#050505';
+            ctx.fillRect(0, 0, W, H);
+
+            ctx.save();
+            ctx.translate(gridOffset.x, gridOffset.y); // Camera Transform
+
+            // Grid Lines
+            ctx.strokeStyle = 'rgba(0, 255, 255, 0.05)';
+            ctx.lineWidth = 1;
+            const gridSize = 50;
+            const startX = Math.floor(-gridOffset.x / gridSize) * gridSize;
+            const startY = Math.floor(-gridOffset.y / gridSize) * gridSize;
+            
+            for(let x = startX; x < startX + W + gridSize; x += gridSize) {
+                ctx.beginPath(); ctx.moveTo(x, -gridOffset.y); ctx.lineTo(x, -gridOffset.y + H); ctx.stroke();
+            }
+            for(let y = startY; y < startY + H + gridSize; y += gridSize) {
+                ctx.beginPath(); ctx.moveTo(-gridOffset.x, y); ctx.lineTo(-gridOffset.x + W, y); ctx.stroke();
+            }
+
+            // Player (Points towards mouse)
+            ctx.save();
+            ctx.translate(player.x, player.y);
+            ctx.rotate(Math.atan2(mouse.y - player.y, mouse.x - player.x));
+            
+            // Body
+            ctx.fillStyle = '#000';
+            ctx.strokeStyle = '#0ff';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(15, 0);
+            ctx.lineTo(-10, 10);
+            ctx.lineTo(-5, 0);
+            ctx.lineTo(-10, -10);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+            
+            // Core glow
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = '#0ff';
+            ctx.fillStyle = '#0ff';
+            ctx.beginPath(); ctx.arc(0, 0, 3, 0, Math.PI*2); ctx.fill();
+            ctx.shadowBlur = 0;
+            
+            ctx.restore();
+
+            // Bullets
+            bullets.forEach(b => {
+                ctx.fillStyle = '#fff';
+                ctx.shadowBlur = 10; ctx.shadowColor = '#0ff';
+                ctx.beginPath(); ctx.arc(b.x, b.y, 3, 0, Math.PI*2); ctx.fill();
+                ctx.shadowBlur = 0;
+            });
+
+            // Enemies
+            enemies.forEach(e => {
+                ctx.save();
+                ctx.translate(e.x, e.y);
+                ctx.rotate(e.angle);
+                
+                ctx.fillStyle = '#000';
+                ctx.strokeStyle = e.color;
+                ctx.lineWidth = 2;
+                
+                if (e.type === 'chaser') {
+                    // Triangle
+                    ctx.beginPath();
+                    ctx.moveTo(15, 0);
+                    ctx.lineTo(-10, 8);
+                    ctx.lineTo(-10, -8);
+                    ctx.closePath();
+                } else {
+                    // Square (Grunt)
+                    ctx.rect(-12, -12, 24, 24);
+                }
+                
+                ctx.fill();
+                ctx.stroke();
+
+                // Inner glow
+                ctx.shadowBlur = 10; ctx.shadowColor = e.color;
+                ctx.fillStyle = e.color;
+                ctx.globalAlpha = 0.3;
+                ctx.fill();
+                ctx.globalAlpha = 1;
+                ctx.shadowBlur = 0;
+                
+                ctx.restore();
+            });
+
+            // Particles
+            particles.forEach(p => {
+                ctx.fillStyle = p.color;
+                ctx.globalAlpha = p.life / 30;
+                ctx.beginPath(); ctx.rect(p.x, p.y, p.size, p.size); ctx.fill();
+            });
+            ctx.globalAlpha = 1;
+
+            ctx.restore(); // End Camera
+
+            // Time Dilation Effect (Vignette)
+            const vignette = ctx.createRadialGradient(W/2, H/2, H/3, W/2, H/2, H);
+            vignette.addColorStop(0, 'transparent');
+            vignette.addColorStop(1, `rgba(0,0,0, ${1 - state.timeScale})`);
+            ctx.fillStyle = vignette;
+            ctx.fillRect(0,0,W,H);
+
+            requestAnimationFrame(draw);
+        }
+
+        function loop() {
+            update();
+            draw();
+            if(state.running) requestAnimationFrame(loop); // Logic loop decoupled? No, simpler for now.
+        }
+
+        function gameOver() {
+            state.running = false;
+            document.getElementById('finalScore').innerText = state.score;
+            document.getElementById('gameOverScreen').style.display = 'block';
+        }
+
+        function resetGame() {
+            init();
+        }
+
+        init();
+        draw(); // Start render loop
+        setInterval(update, 1000/60); // Fixed update step
+
+    </script>
+</body>
+</html>
