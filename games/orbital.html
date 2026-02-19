@@ -6,6 +6,7 @@
     <title>Orbital Defense - Arcade</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { 
@@ -18,7 +19,6 @@
 
         canvas { display: block; }
 
-        /* CRT Effect Overlay */
         .crt::before {
             content: " ";
             display: block;
@@ -32,325 +32,943 @@
 
         .ui { position: fixed; z-index: 10; pointer-events: none; width: 100%; height: 100%; text-shadow: 0 0 5px #0f0; }
         
-        .hud-top { position: absolute; top: 20px; left: 20px; }
-        h1 { font-size: 24px; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 5px; }
-        .subtitle { font-size: 14px; opacity: 0.7; }
+        .hud-top { position: absolute; top: 15px; left: 20px; }
+        .hud-top h1 { font-size: 18px; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 2px; }
+        .subtitle { font-size: 12px; opacity: 0.7; }
 
-        .score-box { position: absolute; top: 20px; right: 20px; text-align: right; }
-        .score-val { font-size: 32px; }
-        .wave-val { font-size: 14px; opacity: 0.7; }
+        .score-box { position: absolute; top: 15px; right: 20px; text-align: right; }
+        .score-val { font-size: 28px; }
+        .level-val { font-size: 13px; opacity: 0.8; color: #0ff; }
+        .combo-val { font-size: 12px; color: #ff0; opacity: 0; transition: opacity 0.2s; }
+        .combo-val.active { opacity: 1; }
 
         .back-btn {
-            position: absolute; bottom: 20px; left: 20px;
+            position: absolute; bottom: 15px; left: 20px;
             pointer-events: all;
             text-decoration: none;
             color: #0f0;
-            font-size: 16px;
+            font-size: 14px;
             border: 1px solid #0f0;
-            padding: 8px 16px;
+            padding: 6px 14px;
             transition: all 0.3s;
             background: rgba(0, 20, 0, 0.8);
         }
         .back-btn:hover { background: #0f0; color: #000; }
 
-        .game-over {
-            position: absolute; top: 50%; left: 50%; 
-            transform: translate(-50%, -50%);
-            text-align: center;
-            display: none;
-            pointer-events: all;
-            background: rgba(0, 10, 0, 0.9);
-            padding: 40px;
-            border: 2px solid #0f0;
-            box-shadow: 0 0 20px #0f0;
-        }
-        .restart-btn {
-            background: #0f0; color: #000; border: none;
-            padding: 10px 20px; font-family: 'Share Tech Mono', monospace; font-size: 18px;
-            cursor: pointer; margin-top: 20px;
-        }
-        .restart-btn:hover { background: #fff; }
-
         .health-bar {
-            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
-            width: 300px; height: 10px; border: 1px solid #0f0;
+            position: absolute; bottom: 15px; left: 50%; transform: translateX(-50%);
+            width: 260px; height: 8px; border: 1px solid #0f0;
+            background: rgba(0,20,0,0.5);
         }
-        .health-fill { height: 100%; background: #0f0; width: 100%; transition: width 0.2s; box-shadow: 0 0 10px #0f0; }
+        .health-fill { height: 100%; background: #0f0; width: 100%; transition: width 0.3s; box-shadow: 0 0 8px #0f0; }
+        .health-label { position: absolute; top: -16px; left: 0; font-size: 10px; opacity: 0.5; }
+
+        .xp-bar {
+            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+            width: 260px; height: 4px; border: 1px solid #0ff;
+            background: rgba(0,10,20,0.5);
+        }
+        .xp-fill { height: 100%; background: #0ff; width: 0%; transition: width 0.3s; box-shadow: 0 0 6px #0ff; }
 
         .tutorial {
-            position: absolute; bottom: 50px; right: 20px; text-align: right; opacity: 0.6; font-size: 12px;
+            position: absolute; bottom: 45px; right: 20px; text-align: right; opacity: 0.5; font-size: 11px;
         }
+
+        /* Overlays */
+        .overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            display: none; flex-direction: column;
+            justify-content: center; align-items: center;
+            background: rgba(0, 5, 0, 0.92);
+            z-index: 20; pointer-events: all;
+            text-align: center;
+        }
+        .overlay.show { display: flex; }
+
+        .overlay h2 {
+            font-family: 'Press Start 2P', cursive;
+            font-size: 28px;
+            margin-bottom: 15px;
+            text-shadow: 0 0 15px currentColor;
+        }
+
+        .overlay p { margin: 4px 0; font-size: 13px; opacity: 0.7; }
+
+        .overlay .stars { font-size: 36px; margin: 15px 0; letter-spacing: 8px; }
+        .star-on { color: #ff0; text-shadow: 0 0 10px #ff0; }
+        .star-off { color: #333; }
+
+        .overlay button {
+            background: #0f0; color: #000; border: none;
+            padding: 10px 24px; font-family: 'Share Tech Mono', monospace;
+            font-size: 16px; cursor: pointer; margin-top: 15px;
+            text-transform: uppercase; letter-spacing: 1px;
+            transition: all 0.2s;
+        }
+        .overlay button:hover { background: #fff; }
+
+        .game-over h2 { color: #f00; }
+        .level-complete h2 { color: #0f0; }
+        .start-screen h2 { color: #0ff; font-size: 22px; }
+
+        .reward-text { color: #0ff; font-size: 14px; margin: 10px 0; }
+        .upgrade-options { display: flex; gap: 12px; margin: 15px 0; flex-wrap: wrap; justify-content: center; }
+        .upgrade-btn {
+            background: rgba(0,40,40,0.8); color: #0ff; border: 1px solid #0ff;
+            padding: 12px 16px; font-family: 'Share Tech Mono', monospace;
+            font-size: 12px; cursor: pointer; width: 140px; text-align: center;
+            transition: all 0.2s;
+        }
+        .upgrade-btn:hover { background: #0ff; color: #000; }
+        .upgrade-btn .icon { font-size: 22px; display: block; margin-bottom: 5px; }
+        .upgrade-btn .label { display: block; font-size: 11px; opacity: 0.7; }
+
+        .powerup-indicator {
+            position: absolute; top: 60px; right: 20px;
+            font-size: 11px; text-align: right;
+        }
+        .powerup-item { margin: 3px 0; opacity: 0.8; }
+        .powerup-item.shield-wide { color: #0ff; }
+        .powerup-item.double-shield { color: #f0f; }
+        .powerup-item.slow-field { color: #ff0; }
     </style>
 </head>
 <body class="crt">
 
-    <canvas id="gameCanvas"></canvas>
+<canvas id="gameCanvas"></canvas>
 
-    <div class="ui">
-        <div class="hud-top">
-            <h1>Orbital Defense</h1>
-            <div class="subtitle">System Status: ACTIVE</div>
-        </div>
-
-        <div class="score-box">
-            <div class="score-val" id="score">0</div>
-            <div class="wave-val">WAVE <span id="wave">1</span></div>
-        </div>
-
-        <div class="health-bar"><div class="health-fill" id="hp"></div></div>
-
-        <div class="tutorial">
-            <p>[MOUSE] to Rotate Shield</p>
-            <p>Block incoming threats</p>
-        </div>
-
-        <a href="../games.html" class="back-btn">&lt; ABORT</a>
-
-        <div class="game-over" id="gameOverScreen">
-            <h2 style="font-size: 40px; color: #f00; text-shadow: 0 0 10px #f00;">CORE BREACH</h2>
-            <p style="margin: 10px 0;">Final Score: <span id="finalScore">0</span></p>
-            <button class="restart-btn" onclick="resetGame()">REINITIALIZE</button>
-        </div>
+<div class="ui">
+    <div class="hud-top">
+        <h1>Orbital Defense</h1>
+        <div class="subtitle">System Status: <span id="statusText">STANDBY</span></div>
     </div>
 
-    <script>
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
-        let W, H, cx, cy;
+    <div class="score-box">
+        <div class="score-val" id="score">0</div>
+        <div class="level-val">LEVEL <span id="levelNum">1</span></div>
+        <div class="combo-val" id="comboDisplay">COMBO x1</div>
+    </div>
 
-        const resize = () => { 
-            W = canvas.width = window.innerWidth; 
-            H = canvas.height = window.innerHeight; 
-            cx = W/2; cy = H/2;
-        };
-        window.addEventListener('resize', resize);
-        resize();
+    <div class="powerup-indicator" id="powerupIndicator"></div>
 
-        // Game State
-        const state = {
-            running: true,
-            score: 0,
-            wave: 1,
-            hp: 100,
-            shieldAngle: 0,
-            frame: 0
-        };
+    <div class="health-bar">
+        <div class="health-label">CORE INTEGRITY</div>
+        <div class="health-fill" id="hp"></div>
+    </div>
+    <div class="xp-bar"><div class="xp-fill" id="xpBar"></div></div>
 
-        const config = {
-            coreSize: 30,
-            shieldDist: 80,
-            shieldArc: Math.PI / 2 // 90 degrees coverage
-        };
+    <div class="tutorial" id="tutorial">
+        <p>[MOUSE/TOUCH] Rotate Shield</p>
+        <p>Block threats · Collect power-ups</p>
+    </div>
 
-        // Entities
-        let threats = [];
-        let particles = [];
-        let shockwaves = [];
+    <a href="../games.html" class="back-btn">&lt; ABORT</a>
+</div>
 
-        // Input
-        window.addEventListener('mousemove', e => {
-            state.shieldAngle = Math.atan2(e.clientY - cy, e.clientX - cx);
-        });
+<!-- Start Screen -->
+<div class="overlay start-screen show" id="startScreen">
+    <h2>⚡ ORBITAL DEFENSE ⚡</h2>
+    <p>Protect the core from incoming threats</p>
+    <p>Rotate your shield to block enemies</p>
+    <p style="margin-top:10px; color:#0ff;">10 Levels · 4 Enemy Types · Power-ups · Boss Fights</p>
+    <button onclick="startGame()">INITIALIZE DEFENSE</button>
+</div>
 
-        // Touch support
-        window.addEventListener('touchmove', e => {
-            e.preventDefault();
-            const touch = e.touches[0];
-            state.shieldAngle = Math.atan2(touch.clientY - cy, touch.clientX - cx);
-        }, {passive: false});
+<!-- Level Complete -->
+<div class="overlay level-complete" id="levelComplete">
+    <h2>LEVEL CLEAR</h2>
+    <p>Level <span id="lcLevel">1</span> Complete</p>
+    <p>Score: <span id="lcScore">0</span></p>
+    <p>Accuracy: <span id="lcAccuracy">0</span>%</p>
+    <div class="stars" id="lcStars">★★★</div>
+    <div class="reward-text" id="lcReward"></div>
+    <div class="upgrade-options" id="upgradeOptions"></div>
+    <button onclick="nextLevel()">NEXT LEVEL</button>
+</div>
 
-        function init() {
-            state.running = true;
-            state.score = 0;
-            state.wave = 1;
-            state.hp = 100;
-            state.frame = 0;
-            threats = [];
-            particles = [];
-            shockwaves = [];
-            document.getElementById('gameOverScreen').style.display = 'none';
-            updateUI();
+<!-- Game Over -->
+<div class="overlay game-over" id="gameOverScreen">
+    <h2>CORE BREACH</h2>
+    <p>Final Score: <span id="finalScore">0</span></p>
+    <p>Reached Level: <span id="finalLevel">1</span></p>
+    <p>Total Blocks: <span id="finalBlocks">0</span></p>
+    <button onclick="fullReset()">REINITIALIZE</button>
+</div>
+
+<!-- Victory -->
+<div class="overlay level-complete" id="victoryScreen">
+    <h2 style="color:#ff0;">🏆 VICTORY 🏆</h2>
+    <p>All 10 levels cleared!</p>
+    <p>Final Score: <span id="victoryScore">0</span></p>
+    <p>Total Stars: <span id="victoryStars">0</span>/30</p>
+    <button onclick="fullReset()">PLAY AGAIN</button>
+</div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+let W, H, cx, cy;
+
+const resize = () => {
+    W = canvas.width = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+    cx = W / 2; cy = H / 2;
+};
+window.addEventListener('resize', resize);
+resize();
+
+// ─── GAME STATE ─────────────────────
+const G = {
+    running: false,
+    score: 0,
+    totalScore: 0,
+    level: 1,
+    hp: 100,
+    maxHp: 100,
+    shieldAngle: 0,
+    shieldArc: Math.PI / 2.5,
+    shieldCount: 1,
+    frame: 0,
+    combo: 0,
+    maxCombo: 0,
+    comboTimer: 0,
+    blockedThisLevel: 0,
+    missedThisLevel: 0,
+    totalBlocked: 0,
+    killsNeeded: 0,
+    killsGot: 0,
+    levelStars: [],
+    activePowerups: {},
+    slowField: false,
+    bossActive: false,
+    bossHp: 0,
+    bossMaxHp: 0
+};
+
+const CFG = {
+    coreSize: 28,
+    shieldDist: 75,
+};
+
+let threats = [];
+let particles = [];
+let shockwaves = [];
+let powerups = [];
+let floatingTexts = [];
+let bgStars = [];
+
+// ─── LEVEL DEFINITIONS ─────────────────
+const LEVELS = [
+    { kills: 15, spawnRate: 90, speed: [1.5, 2.5], types: ['normal'], boss: false },
+    { kills: 20, spawnRate: 80, speed: [2, 3], types: ['normal', 'fast'], boss: false },
+    { kills: 25, spawnRate: 70, speed: [2, 3.5], types: ['normal', 'fast'], boss: true, bossHp: 8 },
+    { kills: 25, spawnRate: 65, speed: [2.5, 3.5], types: ['normal', 'fast', 'armored'], boss: false },
+    { kills: 30, spawnRate: 60, speed: [2.5, 4], types: ['normal', 'fast', 'armored'], boss: true, bossHp: 12 },
+    { kills: 30, spawnRate: 55, speed: [3, 4], types: ['normal', 'fast', 'armored', 'splitter'], boss: false },
+    { kills: 35, spawnRate: 50, speed: [3, 4.5], types: ['normal', 'fast', 'armored', 'splitter'], boss: true, bossHp: 16 },
+    { kills: 40, spawnRate: 45, speed: [3, 5], types: ['all'], boss: false },
+    { kills: 45, spawnRate: 40, speed: [3.5, 5], types: ['all'], boss: true, bossHp: 22 },
+    { kills: 50, spawnRate: 35, speed: [4, 6], types: ['all'], boss: true, bossHp: 30 }
+];
+
+// ─── UPGRADES ─────────────────────
+const UPGRADES = [
+    { id: 'wider', icon: '🛡️', name: 'Wide Shield', desc: '+15° arc', apply: () => G.shieldArc += 0.26 },
+    { id: 'repair', icon: '🔧', name: 'Repair Core', desc: '+25 HP', apply: () => { G.hp = Math.min(G.maxHp, G.hp + 25); } },
+    { id: 'maxhp', icon: '💚', name: 'Reinforce', desc: '+20 Max HP', apply: () => { G.maxHp += 20; G.hp = Math.min(G.maxHp, G.hp + 20); } },
+    { id: 'dual', icon: '⚔️', name: 'Dual Shield', desc: 'Back shield', apply: () => G.shieldCount = 2 },
+];
+
+function getRandomUpgrades() {
+    const pool = UPGRADES.filter(u => {
+        if (u.id === 'dual' && G.shieldCount >= 2) return false;
+        if (u.id === 'wider' && G.shieldArc > Math.PI * 0.8) return false;
+        return true;
+    });
+    const shuffled = pool.sort(() => Math.random() - 0.5);
+    return shuffled.slice(0, Math.min(3, shuffled.length));
+}
+
+// ─── INIT ─────────────────────
+function initBgStars() {
+    bgStars = [];
+    for (let i = 0; i < 80; i++) {
+        bgStars.push({ x: Math.random() * W, y: Math.random() * H, r: Math.random() * 1.2 + 0.3, s: Math.random() * 0.5 + 0.2 });
+    }
+}
+initBgStars();
+
+function initLevel() {
+    const lvl = LEVELS[G.level - 1];
+    G.killsNeeded = lvl.kills;
+    G.killsGot = 0;
+    G.blockedThisLevel = 0;
+    G.missedThisLevel = 0;
+    G.combo = 0;
+    G.comboTimer = 0;
+    G.frame = 0;
+    G.bossActive = false;
+    G.bossHp = 0;
+    threats = [];
+    powerups = [];
+    particles = [];
+    shockwaves = [];
+    floatingTexts = [];
+    G.activePowerups = {};
+    G.score = 0;
+    G.running = true;
+    document.getElementById('statusText').textContent = 'ACTIVE';
+    document.getElementById('levelNum').textContent = G.level;
+    document.getElementById('tutorial').style.display = G.level <= 2 ? 'block' : 'none';
+    updateHUD();
+}
+
+function updateHUD() {
+    document.getElementById('score').textContent = G.totalScore + G.score;
+    document.getElementById('hp').style.width = (G.hp / G.maxHp * 100) + '%';
+    document.getElementById('hp').style.background = G.hp > 30 ? '#0f0' : '#f00';
+    document.getElementById('hp').style.boxShadow = G.hp > 30 ? '0 0 8px #0f0' : '0 0 8px #f00';
+    
+    const progress = G.killsGot / G.killsNeeded;
+    document.getElementById('xpBar').style.width = (progress * 100) + '%';
+
+    const comboEl = document.getElementById('comboDisplay');
+    if (G.combo > 1) {
+        comboEl.textContent = 'COMBO x' + G.combo;
+        comboEl.classList.add('active');
+    } else {
+        comboEl.classList.remove('active');
+    }
+
+    // Powerup indicators
+    const pi = document.getElementById('powerupIndicator');
+    let html = '';
+    for (const [key, timer] of Object.entries(G.activePowerups)) {
+        if (timer > 0) {
+            const sec = Math.ceil(timer / 60);
+            const cls = key === 'wide' ? 'shield-wide' : key === 'dual' ? 'double-shield' : 'slow-field';
+            const label = key === 'wide' ? '🛡️ Wide Shield' : key === 'dual' ? '⚔️ Dual Shield' : '🕐 Slow Field';
+            html += `<div class="powerup-item ${cls}">${label} ${sec}s</div>`;
         }
+    }
+    pi.innerHTML = html;
+}
 
-        function updateUI() {
-            document.getElementById('score').innerText = state.score;
-            document.getElementById('wave').innerText = state.wave;
-            document.getElementById('hp').style.width = state.hp + '%';
-            document.getElementById('hp').style.background = state.hp > 30 ? '#0f0' : '#f00';
-            document.getElementById('hp').style.boxShadow = state.hp > 30 ? '0 0 10px #0f0' : '0 0 10px #f00';
+// ─── SPAWNING ─────────────────────
+function spawnThreat(type, angle) {
+    const lvl = LEVELS[G.level - 1];
+    const a = angle !== undefined ? angle : Math.random() * Math.PI * 2;
+    const dist = Math.max(W, H) * 0.55;
+    const baseSpeed = lvl.speed[0] + Math.random() * (lvl.speed[1] - lvl.speed[0]);
+
+    const t = {
+        x: cx + Math.cos(a) * dist,
+        y: cy + Math.sin(a) * dist,
+        speed: baseSpeed,
+        size: 5,
+        color: '#f00',
+        type: type || 'normal',
+        hp: 1,
+        maxHp: 1,
+        trail: []
+    };
+
+    switch (t.type) {
+        case 'fast':
+            t.speed *= 1.6;
+            t.size = 4;
+            t.color = '#f0f';
+            break;
+        case 'armored':
+            t.speed *= 0.7;
+            t.size = 8;
+            t.hp = 3;
+            t.maxHp = 3;
+            t.color = '#fa0';
+            break;
+        case 'splitter':
+            t.size = 7;
+            t.color = '#0ff';
+            t.hp = 1;
+            break;
+    }
+
+    threats.push(t);
+}
+
+function spawnBoss() {
+    const lvl = LEVELS[G.level - 1];
+    G.bossActive = true;
+    G.bossHp = lvl.bossHp;
+    G.bossMaxHp = lvl.bossHp;
+    G.bossAngle = Math.random() * Math.PI * 2;
+    G.bossOrbitDist = Math.max(W, H) * 0.3;
+    floatText(cx, cy - 60, '⚠ BOSS ⚠', '#f00', 90);
+    shockwaves.push({ r: 0, maxR: W * 0.5, color: '#f00' });
+}
+
+function spawnPowerup() {
+    const types = ['heal', 'wide', 'slow'];
+    const type = types[Math.floor(Math.random() * types.length)];
+    const angle = Math.random() * Math.PI * 2;
+    const dist = CFG.shieldDist + 60 + Math.random() * 80;
+    powerups.push({
+        x: cx + Math.cos(angle) * dist,
+        y: cy + Math.sin(angle) * dist,
+        type,
+        life: 360, // 6 seconds
+        size: 10
+    });
+}
+
+// ─── COLLISION HELPERS ─────────────────
+function isShielded(tx, ty) {
+    const dist = Math.hypot(cx - tx, cy - ty);
+    if (dist > CFG.shieldDist + 12 || dist < CFG.shieldDist - 12) return false;
+
+    const angleToT = Math.atan2(ty - cy, tx - cx);
+    const arc = G.activePowerups.wide > 0 ? G.shieldArc * 1.4 : G.shieldArc;
+
+    // Primary shield
+    let diff = angleToT - G.shieldAngle;
+    while (diff > Math.PI) diff -= Math.PI * 2;
+    while (diff < -Math.PI) diff += Math.PI * 2;
+    if (Math.abs(diff) < arc / 2) return true;
+
+    // Secondary shield
+    if (G.shieldCount >= 2 || G.activePowerups.dual > 0) {
+        let diff2 = angleToT - (G.shieldAngle + Math.PI);
+        while (diff2 > Math.PI) diff2 -= Math.PI * 2;
+        while (diff2 < -Math.PI) diff2 += Math.PI * 2;
+        if (Math.abs(diff2) < arc * 0.6 / 2) return true;
+    }
+
+    return false;
+}
+
+// ─── FLOATING TEXT ─────────────────
+function floatText(x, y, text, color, duration) {
+    floatingTexts.push({ x, y, text, color, life: duration || 60, maxLife: duration || 60 });
+}
+
+// ─── UPDATE LOOP ─────────────────────
+function update() {
+    if (!G.running) return;
+    G.frame++;
+
+    const lvl = LEVELS[G.level - 1];
+
+    // Combo decay
+    if (G.comboTimer > 0) {
+        G.comboTimer--;
+        if (G.comboTimer <= 0) G.combo = 0;
+    }
+
+    // Powerup timers
+    for (const key of Object.keys(G.activePowerups)) {
+        if (G.activePowerups[key] > 0) G.activePowerups[key]--;
+        if (G.activePowerups[key] <= 0) delete G.activePowerups[key];
+    }
+
+    // Spawn threats
+    const rate = G.bossActive ? lvl.spawnRate * 1.5 : lvl.spawnRate;
+    if (G.frame % Math.floor(rate) === 0 && G.killsGot < G.killsNeeded) {
+        let pool = lvl.types.includes('all') ? ['normal', 'fast', 'armored', 'splitter'] : lvl.types;
+        const type = pool[Math.floor(Math.random() * pool.length)];
+        spawnThreat(type);
+    }
+
+    // Boss spawns at 70% kills
+    if (lvl.boss && !G.bossActive && G.killsGot >= G.killsNeeded * 0.7) {
+        spawnBoss();
+    }
+
+    // Boss logic
+    if (G.bossActive) {
+        G.bossAngle += 0.008;
+        // Boss shoots
+        if (G.frame % 40 === 0) {
+            const bx = cx + Math.cos(G.bossAngle) * G.bossOrbitDist;
+            const by = cy + Math.sin(G.bossAngle) * G.bossOrbitDist;
+            spawnThreat('fast', Math.atan2(cy - by, cx - bx));
         }
+    }
 
-        function spawnThreat() {
-            const angle = Math.random() * Math.PI * 2;
-            const dist = Math.max(W, H) * 0.6;
-            const speed = 2 + (state.wave * 0.2);
-            
-            threats.push({
-                x: cx + Math.cos(angle) * dist,
-                y: cy + Math.sin(angle) * dist,
-                angle: angle + Math.PI, // Towards center
-                speed: speed,
-                size: 5 + Math.random() * 5,
-                color: Math.random() > 0.9 ? '#f0f' : '#f00', // Pink are faster
-                type: 'normal'
-            });
-        }
+    // Spawn powerups occasionally
+    if (G.frame % 300 === 0 && Math.random() < 0.6) {
+        spawnPowerup();
+    }
 
-        function update() {
-            if (!state.running) return;
-            state.frame++;
+    // Slow field
+    const slowMult = G.activePowerups.slow > 0 ? 0.4 : 1;
 
-            // Wave Logic
-            if (state.frame % (100 - Math.min(60, state.wave * 2)) === 0) {
-                spawnThreat();
-            }
-            if (state.score > state.wave * 500) {
-                state.wave++;
-                shockwaves.push({r: 0, maxR: W, color: '#0f0'}); // Level up wave
-            }
+    // Update threats
+    for (let i = threats.length - 1; i >= 0; i--) {
+        const t = threats[i];
+        const moveAngle = Math.atan2(cy - t.y, cx - t.x);
+        t.x += Math.cos(moveAngle) * t.speed * slowMult;
+        t.y += Math.sin(moveAngle) * t.speed * slowMult;
 
-            // Update Threats
-            threats.forEach((t, i) => {
-                // Move towards center
-                const moveAngle = Math.atan2(cy - t.y, cx - t.x);
-                t.x += Math.cos(moveAngle) * t.speed;
-                t.y += Math.sin(moveAngle) * t.speed;
+        // Trail
+        t.trail.push({ x: t.x, y: t.y });
+        if (t.trail.length > 6) t.trail.shift();
 
-                const distToCenter = Math.hypot(cx - t.x, cy - t.y);
+        const distToCenter = Math.hypot(cx - t.x, cy - t.y);
 
-                // Shield Collision
-                if (distToCenter < config.shieldDist + 10 && distToCenter > config.shieldDist - 10) {
-                    // Check angle difference
-                    let angleToThreat = Math.atan2(t.y - cy, t.x - cx);
-                    let angleDiff = angleToThreat - state.shieldAngle;
-                    
-                    // Normalize -PI to PI
-                    while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
-                    while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+        // Shield collision
+        if (isShielded(t.x, t.y)) {
+            t.hp--;
+            if (t.hp <= 0) {
+                // Blocked!
+                G.combo++;
+                G.comboTimer = 90; // 1.5s
+                if (G.combo > G.maxCombo) G.maxCombo = G.combo;
+                
+                const comboMult = Math.min(G.combo, 10);
+                const pts = 50 * comboMult;
+                G.score += pts;
+                G.blockedThisLevel++;
+                G.totalBlocked++;
+                G.killsGot++;
 
-                    if (Math.abs(angleDiff) < config.shieldArc / 2) {
-                        // BLOCKED!
-                        threats.splice(i, 1);
-                        state.score += 50;
-                        
-                        // Impact effect
-                        shockwaves.push({r: config.shieldDist, maxR: config.shieldDist + 50, color: '#0ff'});
-                        for(let k=0; k<10; k++) {
-                            particles.push({
-                                x: t.x, y: t.y,
-                                vx: (Math.random()-0.5)*5, vy: (Math.random()-0.5)*5,
-                                life: 30, color: '#0ff'
-                            });
-                        }
-                        updateUI();
-                        return;
+                floatText(t.x, t.y, '+' + pts + (comboMult > 1 ? ' x' + comboMult : ''), comboMult > 3 ? '#ff0' : '#0ff');
+
+                // Splitter spawns 2 small threats
+                if (t.type === 'splitter') {
+                    for (let s = 0; s < 2; s++) {
+                        const sa = moveAngle + Math.PI + (s === 0 ? -0.5 : 0.5);
+                        const st = {
+                            x: t.x, y: t.y,
+                            speed: t.speed * 1.2,
+                            size: 3, color: '#0ff', type: 'normal', hp: 1, maxHp: 1, trail: []
+                        };
+                        const rd = Math.max(W, H) * 0.55;
+                        // push outward then come back
+                        st.x = t.x + Math.cos(sa) * 30;
+                        st.y = t.y + Math.sin(sa) * 30;
+                        threats.push(st);
                     }
                 }
 
-                // Core Collision
-                if (distToCenter < config.coreSize) {
-                    threats.splice(i, 1);
-                    state.hp -= 10;
-                    
-                    // Damage effect
-                    document.body.style.background = '#200';
-                    setTimeout(() => document.body.style.background = '#000', 50);
-                    
-                    shockwaves.push({r: 0, maxR: 100, color: '#f00'});
-                    
-                    if (state.hp <= 0) gameOver();
-                    updateUI();
+                shockwaves.push({ r: CFG.shieldDist, maxR: CFG.shieldDist + 40, color: '#0ff' });
+                for (let k = 0; k < 8; k++) {
+                    particles.push({
+                        x: t.x, y: t.y,
+                        vx: (Math.random() - 0.5) * 6, vy: (Math.random() - 0.5) * 6,
+                        life: 25, color: t.color
+                    });
                 }
-            });
-
-            // Particles
-            particles.forEach((p, i) => {
-                p.x += p.vx; p.y += p.vy; p.life--;
-                if(p.life <= 0) particles.splice(i, 1);
-            });
-
-            // Shockwaves
-            shockwaves.forEach((s, i) => {
-                s.r += 5;
-                if(s.r > s.maxR) shockwaves.splice(i, 1);
-            });
+                threats.splice(i, 1);
+            } else {
+                // Armored bounce back
+                t.x -= Math.cos(moveAngle) * 20;
+                t.y -= Math.sin(moveAngle) * 20;
+                floatText(t.x, t.y, 'HIT ' + t.hp + '/' + t.maxHp, '#fa0');
+                shockwaves.push({ r: CFG.shieldDist, maxR: CFG.shieldDist + 25, color: '#fa0' });
+            }
+            updateHUD();
+            continue;
         }
 
-        function draw() {
-            // Radar Fade Effect
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
-            ctx.fillRect(0, 0, W, H);
+        // Core collision
+        if (distToCenter < CFG.coreSize) {
+            threats.splice(i, 1);
+            const dmg = t.type === 'armored' ? 15 : 10;
+            G.hp -= dmg;
+            G.missedThisLevel++;
+            G.combo = 0;
+            G.comboTimer = 0;
 
-            // Radar Grid
-            ctx.strokeStyle = 'rgba(0, 255, 0, 0.1)';
-            ctx.lineWidth = 1;
-            ctx.beginPath(); ctx.arc(cx, cy, config.shieldDist, 0, Math.PI*2); ctx.stroke();
-            ctx.beginPath(); ctx.arc(cx, cy, config.shieldDist * 2, 0, Math.PI*2); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(cx, 0); ctx.lineTo(cx, H); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(0, cy); ctx.lineTo(W, cy); ctx.stroke();
+            document.body.style.background = '#200';
+            setTimeout(() => document.body.style.background = '#000', 80);
+            shockwaves.push({ r: 0, maxR: 80, color: '#f00' });
+            floatText(cx, cy + 40, '-' + dmg + ' HP', '#f00');
 
-            // Core
-            ctx.fillStyle = state.hp > 30 ? '#0f0' : '#f00';
-            ctx.shadowBlur = 20; ctx.shadowColor = ctx.fillStyle;
-            ctx.beginPath(); ctx.arc(cx, cy, config.coreSize * (0.8 + Math.sin(state.frame*0.1)*0.1), 0, Math.PI*2); ctx.fill();
-            ctx.shadowBlur = 0;
-
-            // Shield
-            ctx.save();
-            ctx.translate(cx, cy);
-            ctx.rotate(state.shieldAngle);
-            ctx.strokeStyle = '#0ff';
-            ctx.lineWidth = 4;
-            ctx.shadowBlur = 15; ctx.shadowColor = '#0ff';
-            ctx.beginPath();
-            ctx.arc(0, 0, config.shieldDist, -config.shieldArc/2, config.shieldArc/2);
-            ctx.stroke();
-            ctx.restore();
-
-            // Threats
-            threats.forEach(t => {
-                ctx.fillStyle = t.color;
-                ctx.shadowBlur = 10; ctx.shadowColor = t.color;
-                ctx.beginPath();
-                ctx.arc(t.x, t.y, t.size, 0, Math.PI*2);
-                ctx.fill();
-                ctx.shadowBlur = 0;
-            });
-
-            // Particles
-            particles.forEach(p => {
-                ctx.fillStyle = p.color;
-                ctx.globalAlpha = p.life / 30;
-                ctx.beginPath(); ctx.rect(p.x, p.y, 2, 2); ctx.fill();
-            });
-            ctx.globalAlpha = 1;
-
-            // Shockwaves
-            shockwaves.forEach(s => {
-                ctx.strokeStyle = s.color;
-                ctx.lineWidth = 2;
-                ctx.globalAlpha = 1 - (s.r / s.maxR);
-                ctx.beginPath(); ctx.arc(cx, cy, s.r, 0, Math.PI*2); ctx.stroke();
-            });
-            ctx.globalAlpha = 1;
-
-            requestAnimationFrame(draw);
+            if (G.hp <= 0) { G.hp = 0; gameOver(); }
+            updateHUD();
         }
+    }
 
-        function gameOver() {
-            state.running = false;
-            document.getElementById('finalScore').innerText = state.score;
-            document.getElementById('gameOverScreen').style.display = 'block';
+    // Boss damage from shield proximity
+    if (G.bossActive) {
+        const bx = cx + Math.cos(G.bossAngle) * G.bossOrbitDist;
+        const by = cy + Math.sin(G.bossAngle) * G.bossOrbitDist;
+        if (isShielded(bx, by)) {
+            // don't damage every frame, every 15 frames
+            if (G.frame % 15 === 0) {
+                G.bossHp--;
+                G.score += 100;
+                shockwaves.push({ r: CFG.shieldDist, maxR: CFG.shieldDist + 30, color: '#f0f' });
+                floatText(bx, by, 'BOSS -1', '#f0f');
+                if (G.bossHp <= 0) {
+                    G.bossActive = false;
+                    G.score += 500;
+                    floatText(bx, by, 'BOSS DOWN +500', '#ff0', 90);
+                    shockwaves.push({ r: 0, maxR: W * 0.4, color: '#ff0' });
+                    for (let k = 0; k < 30; k++) {
+                        particles.push({
+                            x: bx, y: by,
+                            vx: (Math.random() - 0.5) * 10, vy: (Math.random() - 0.5) * 10,
+                            life: 50, color: ['#ff0', '#f0f', '#0ff'][k % 3]
+                        });
+                    }
+                }
+                updateHUD();
+            }
         }
+    }
 
-        function resetGame() {
-            init();
+    // Powerup collection (via shield touch)
+    for (let i = powerups.length - 1; i >= 0; i--) {
+        const p = powerups[i];
+        p.life--;
+        if (p.life <= 0) { powerups.splice(i, 1); continue; }
+
+        const dist = Math.hypot(cx - p.x, cy - p.y);
+        if (dist < CFG.shieldDist + 20 && dist > CFG.shieldDist - 20) {
+            const angleToP = Math.atan2(p.y - cy, p.x - cx);
+            let diff = angleToP - G.shieldAngle;
+            while (diff > Math.PI) diff -= Math.PI * 2;
+            while (diff < -Math.PI) diff += Math.PI * 2;
+            if (Math.abs(diff) < G.shieldArc / 2) {
+                // Collected!
+                switch (p.type) {
+                    case 'heal':
+                        G.hp = Math.min(G.maxHp, G.hp + 15);
+                        floatText(p.x, p.y, '+15 HP', '#0f0');
+                        break;
+                    case 'wide':
+                        G.activePowerups.wide = 480;
+                        floatText(p.x, p.y, 'WIDE SHIELD 8s', '#0ff');
+                        break;
+                    case 'slow':
+                        G.activePowerups.slow = 360;
+                        floatText(p.x, p.y, 'SLOW FIELD 6s', '#ff0');
+                        break;
+                }
+                for (let k = 0; k < 8; k++) {
+                    particles.push({
+                        x: p.x, y: p.y,
+                        vx: (Math.random() - 0.5) * 4, vy: (Math.random() - 0.5) * 4,
+                        life: 20, color: '#0f0'
+                    });
+                }
+                powerups.splice(i, 1);
+                updateHUD();
+            }
         }
+    }
 
-        init();
-        setInterval(update, 1000/60);
-        draw();
+    // Particles
+    for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.x += p.vx; p.y += p.vy; p.life--;
+        p.vx *= 0.97; p.vy *= 0.97;
+        if (p.life <= 0) particles.splice(i, 1);
+    }
 
-    </script>
+    // Shockwaves
+    for (let i = shockwaves.length - 1; i >= 0; i--) {
+        shockwaves[i].r += 4;
+        if (shockwaves[i].r > shockwaves[i].maxR) shockwaves.splice(i, 1);
+    }
+
+    // Floating texts
+    for (let i = floatingTexts.length - 1; i >= 0; i--) {
+        floatingTexts[i].y -= 0.8;
+        floatingTexts[i].life--;
+        if (floatingTexts[i].life <= 0) floatingTexts.splice(i, 1);
+    }
+
+    // Level complete check
+    if (G.killsGot >= G.killsNeeded && !G.bossActive) {
+        levelComplete();
+    }
+}
+
+// ─── DRAW ─────────────────────────
+function draw() {
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+    ctx.fillRect(0, 0, W, H);
+
+    // BG Stars
+    bgStars.forEach(s => {
+        ctx.fillStyle = `rgba(0, 255, 0, ${0.15 + Math.sin(G.frame * s.s * 0.02) * 0.1})`;
+        ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2); ctx.fill();
+    });
+
+    // Radar rings
+    ctx.strokeStyle = 'rgba(0, 255, 0, 0.08)';
+    ctx.lineWidth = 1;
+    for (let r = CFG.shieldDist; r < Math.max(W, H); r += CFG.shieldDist) {
+        ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
+    }
+    // Crosshair
+    ctx.beginPath(); ctx.moveTo(cx, 0); ctx.lineTo(cx, H); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, cy); ctx.lineTo(W, cy); ctx.stroke();
+
+    // Slow field visual
+    if (G.activePowerups.slow > 0) {
+        ctx.strokeStyle = 'rgba(255, 255, 0, 0.08)';
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(cx, cy, Math.max(W, H) * 0.4, 0, Math.PI * 2); ctx.stroke();
+    }
+
+    // Core
+    const coreColor = G.hp > 30 ? '#0f0' : '#f00';
+    ctx.fillStyle = coreColor;
+    ctx.shadowBlur = 20 + Math.sin(G.frame * 0.08) * 5;
+    ctx.shadowColor = coreColor;
+    ctx.beginPath();
+    ctx.arc(cx, cy, CFG.coreSize * (0.85 + Math.sin(G.frame * 0.08) * 0.08), 0, Math.PI * 2);
+    ctx.fill();
+    // Core inner ring
+    ctx.strokeStyle = coreColor;
+    ctx.lineWidth = 1;
+    ctx.globalAlpha = 0.3;
+    ctx.beginPath(); ctx.arc(cx, cy, CFG.coreSize * 0.5, 0, Math.PI * 2); ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.shadowBlur = 0;
+
+    // Shield(s)
+    const arc = G.activePowerups.wide > 0 ? G.shieldArc * 1.4 : G.shieldArc;
+    
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(G.shieldAngle);
+    ctx.strokeStyle = '#0ff';
+    ctx.lineWidth = 5;
+    ctx.shadowBlur = 15; ctx.shadowColor = '#0ff';
+    ctx.beginPath();
+    ctx.arc(0, 0, CFG.shieldDist, -arc / 2, arc / 2);
+    ctx.stroke();
+    // Shield glow edge
+    ctx.lineWidth = 1;
+    ctx.globalAlpha = 0.3;
+    ctx.beginPath(); ctx.arc(0, 0, CFG.shieldDist - 5, -arc / 2, arc / 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(0, 0, CFG.shieldDist + 5, -arc / 2, arc / 2); ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.restore();
+
+    // Back shield
+    if (G.shieldCount >= 2 || G.activePowerups.dual > 0) {
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(G.shieldAngle + Math.PI);
+        ctx.strokeStyle = '#f0f';
+        ctx.lineWidth = 3;
+        ctx.shadowBlur = 10; ctx.shadowColor = '#f0f';
+        ctx.beginPath();
+        ctx.arc(0, 0, CFG.shieldDist, -arc * 0.3, arc * 0.3);
+        ctx.stroke();
+        ctx.restore();
+    }
+    ctx.shadowBlur = 0;
+
+    // Threats
+    threats.forEach(t => {
+        // Trail
+        t.trail.forEach((tp, ti) => {
+            ctx.globalAlpha = ti / t.trail.length * 0.3;
+            ctx.fillStyle = t.color;
+            ctx.beginPath(); ctx.arc(tp.x, tp.y, t.size * 0.5, 0, Math.PI * 2); ctx.fill();
+        });
+        ctx.globalAlpha = 1;
+
+        ctx.fillStyle = t.color;
+        ctx.shadowBlur = 8; ctx.shadowColor = t.color;
+        ctx.beginPath(); ctx.arc(t.x, t.y, t.size, 0, Math.PI * 2); ctx.fill();
+        
+        // Armored ring
+        if (t.type === 'armored' && t.hp > 1) {
+            ctx.strokeStyle = '#fa0';
+            ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.arc(t.x, t.y, t.size + 3, 0, Math.PI * 2); ctx.stroke();
+        }
+        ctx.shadowBlur = 0;
+    });
+
+    // Boss
+    if (G.bossActive) {
+        const bx = cx + Math.cos(G.bossAngle) * G.bossOrbitDist;
+        const by = cy + Math.sin(G.bossAngle) * G.bossOrbitDist;
+        const bSize = 18 + Math.sin(G.frame * 0.1) * 3;
+        
+        ctx.fillStyle = '#f0f';
+        ctx.shadowBlur = 25; ctx.shadowColor = '#f0f';
+        ctx.beginPath(); ctx.arc(bx, by, bSize, 0, Math.PI * 2); ctx.fill();
+        ctx.shadowBlur = 0;
+
+        // Boss HP bar
+        const bw = 50;
+        ctx.fillStyle = '#300';
+        ctx.fillRect(bx - bw / 2, by - bSize - 12, bw, 5);
+        ctx.fillStyle = '#f0f';
+        ctx.fillRect(bx - bw / 2, by - bSize - 12, bw * (G.bossHp / G.bossMaxHp), 5);
+    }
+
+    // Powerups
+    powerups.forEach(p => {
+        const pulse = Math.sin(G.frame * 0.1) * 0.3 + 0.7;
+        ctx.globalAlpha = Math.min(1, p.life / 60) * pulse;
+        ctx.fillStyle = p.type === 'heal' ? '#0f0' : p.type === 'wide' ? '#0ff' : '#ff0';
+        ctx.shadowBlur = 12; ctx.shadowColor = ctx.fillStyle;
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
+        // Icon
+        ctx.font = '12px Share Tech Mono';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#000';
+        ctx.fillText(p.type === 'heal' ? '+' : p.type === 'wide' ? '◇' : '◎', p.x, p.y);
+        ctx.shadowBlur = 0;
+        ctx.globalAlpha = 1;
+    });
+
+    // Particles
+    particles.forEach(p => {
+        ctx.globalAlpha = p.life / 30;
+        ctx.fillStyle = p.color;
+        ctx.fillRect(p.x - 1, p.y - 1, 2, 2);
+    });
+    ctx.globalAlpha = 1;
+
+    // Shockwaves
+    shockwaves.forEach(s => {
+        ctx.strokeStyle = s.color;
+        ctx.lineWidth = 2;
+        ctx.globalAlpha = 1 - (s.r / s.maxR);
+        ctx.beginPath(); ctx.arc(cx, cy, s.r, 0, Math.PI * 2); ctx.stroke();
+    });
+    ctx.globalAlpha = 1;
+
+    // Floating texts
+    floatingTexts.forEach(ft => {
+        ctx.globalAlpha = ft.life / ft.maxLife;
+        ctx.font = '12px "Press Start 2P", monospace';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = ft.color;
+        ctx.shadowBlur = 5; ctx.shadowColor = ft.color;
+        ctx.fillText(ft.text, ft.x, ft.y);
+        ctx.shadowBlur = 0;
+    });
+    ctx.globalAlpha = 1;
+
+    // Progress bar (mini, top center)
+    if (G.running) {
+        const pw = 100;
+        const px = cx - pw / 2;
+        const py = 8;
+        ctx.fillStyle = 'rgba(0,255,0,0.15)';
+        ctx.fillRect(px, py, pw, 3);
+        ctx.fillStyle = '#0f0';
+        ctx.fillRect(px, py, pw * Math.min(1, G.killsGot / G.killsNeeded), 3);
+    }
+
+    requestAnimationFrame(draw);
+}
+
+// ─── LEVEL COMPLETE ─────────────────
+function levelComplete() {
+    G.running = false;
+    G.totalScore += G.score;
+    document.getElementById('statusText').textContent = 'STANDBY';
+
+    const total = G.blockedThisLevel + G.missedThisLevel;
+    const accuracy = total > 0 ? Math.round(G.blockedThisLevel / total * 100) : 100;
+
+    // Stars: 1 for completing, 2 for >70% accuracy, 3 for >90%
+    let stars = accuracy >= 90 ? 3 : accuracy >= 70 ? 2 : 1;
+    G.levelStars.push(stars);
+
+    document.getElementById('lcLevel').textContent = G.level;
+    document.getElementById('lcScore').textContent = G.score;
+    document.getElementById('lcAccuracy').textContent = accuracy;
+    
+    const starsHtml = [1, 2, 3].map(i =>
+        `<span class="${i <= stars ? 'star-on' : 'star-off'}">★</span>`
+    ).join('');
+    document.getElementById('lcStars').innerHTML = starsHtml;
+
+    // Upgrade options (every level)
+    const upgrades = getRandomUpgrades();
+    const optDiv = document.getElementById('upgradeOptions');
+    optDiv.innerHTML = '';
+    upgrades.forEach(u => {
+        const btn = document.createElement('div');
+        btn.className = 'upgrade-btn';
+        btn.innerHTML = `<span class="icon">${u.icon}</span>${u.name}<span class="label">${u.desc}</span>`;
+        btn.onclick = () => {
+            u.apply();
+            optDiv.querySelectorAll('.upgrade-btn').forEach(b => b.style.opacity = '0.3');
+            btn.style.opacity = '1';
+            btn.style.border = '2px solid #0f0';
+            // Disable further clicks
+            optDiv.querySelectorAll('.upgrade-btn').forEach(b => b.onclick = null);
+        };
+        optDiv.appendChild(btn);
+    });
+
+    document.getElementById('lcReward').textContent = stars === 3 ? '⭐ PERFECT!' : stars === 2 ? 'Good job!' : 'Keep practicing!';
+    document.getElementById('levelComplete').classList.add('show');
+}
+
+function nextLevel() {
+    document.getElementById('levelComplete').classList.remove('show');
+    G.level++;
+    if (G.level > 10) {
+        victory();
+        return;
+    }
+    initLevel();
+}
+
+function gameOver() {
+    G.running = false;
+    G.totalScore += G.score;
+    document.getElementById('statusText').textContent = 'OFFLINE';
+    document.getElementById('finalScore').textContent = G.totalScore;
+    document.getElementById('finalLevel').textContent = G.level;
+    document.getElementById('finalBlocks').textContent = G.totalBlocked;
+    document.getElementById('gameOverScreen').classList.add('show');
+}
+
+function victory() {
+    const totalStars = G.levelStars.reduce((a, b) => a + b, 0);
+    document.getElementById('victoryScore').textContent = G.totalScore;
+    document.getElementById('victoryStars').textContent = totalStars;
+    document.getElementById('victoryScreen').classList.add('show');
+}
+
+function fullReset() {
+    document.querySelectorAll('.overlay').forEach(o => o.classList.remove('show'));
+    G.totalScore = 0;
+    G.level = 1;
+    G.hp = 100;
+    G.maxHp = 100;
+    G.shieldArc = Math.PI / 2.5;
+    G.shieldCount = 1;
+    G.totalBlocked = 0;
+    G.levelStars = [];
+    G.activePowerups = {};
+    initLevel();
+}
+
+function startGame() {
+    document.getElementById('startScreen').classList.remove('show');
+    initLevel();
+}
+
+// ─── INPUT ─────────────────────────
+window.addEventListener('mousemove', e => {
+    G.shieldAngle = Math.atan2(e.clientY - cy, e.clientX - cx);
+});
+window.addEventListener('touchmove', e => {
+    e.preventDefault();
+    G.shieldAngle = Math.atan2(e.touches[0].clientY - cy, e.touches[0].clientX - cx);
+}, { passive: false });
+
+// ─── START ─────────────────────────
+setInterval(update, 1000 / 60);
+draw();
+</script>
 </body>
 </html>
