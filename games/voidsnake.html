@@ -219,7 +219,7 @@ function init() {
     dir = { x: 1, y: 0 };
     nextDir = { x: 1, y: 0 };
     score = 0;
-    speed = 120;
+    speed = 1000;
     scoreHud.textContent = '0';
     placeFood();
 }
@@ -275,7 +275,7 @@ function update() {
         spawnParticles(food.x, food.y);
         placeFood();
         // speed up
-        if (speed > 60) speed -= 2;
+        if (speed > 80) speed = Math.max(80, speed - 30);
         clearInterval(gameLoop);
         gameLoop = setInterval(update, speed);
     } else {
