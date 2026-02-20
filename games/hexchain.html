@@ -280,20 +280,25 @@
         const ww = wrap.clientWidth;
         const wh = wrap.clientHeight;
         const dpr = window.devicePixelRatio || 1;
-
-        // Calculate hex size to fit grid in available space
         const sqrt3 = Math.sqrt(3);
-        const maxHexW = (ww - 40) / ((GRID_COLS) * sqrt3 + 0.5);
-        const maxHexH = (wh - 20) / (GRID_ROWS * 1.5 + 1);
+
+        // Flat-Top Hex Dimensions
+        // Width = 2 * size
+        // Height = sqrt(3) * size
+        // Horiz Spacing = 3/2 * size
+        // Vert Spacing = sqrt(3) * size
+
+        const maxHexW = (ww - 40) / (GRID_COLS * 1.5 + 0.5);
+        const maxHexH = (wh - 20) / (GRID_ROWS * sqrt3 + 0.5);
         hexSize = Math.min(maxHexW, maxHexH, 42);
 
-        const gridW = GRID_COLS * hexSize * sqrt3;
-        const gridH = GRID_ROWS * hexSize * 1.5 + hexSize * 0.75;
+        const gridW = GRID_COLS * hexSize * 1.5 + hexSize * 0.5;
+        const gridH = GRID_ROWS * hexSize * sqrt3 + hexSize * sqrt3 * 0.5;
 
-        canvas.style.width = Math.ceil(gridW + hexSize * 2) + 'px';
-        canvas.style.height = Math.ceil(gridH + hexSize * 2) + 'px';
-        canvas.width = Math.ceil(gridW + hexSize * 2) * dpr;
-        canvas.height = Math.ceil(gridH + hexSize * 2) * dpr;
+        canvas.style.width = Math.ceil(gridW + hexSize) + 'px';
+        canvas.style.height = Math.ceil(gridH + hexSize) + 'px';
+        canvas.width = Math.ceil(gridW + hexSize) * dpr;
+        canvas.height = Math.ceil(gridH + hexSize) * dpr;
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
         W = parseFloat(canvas.style.width);
@@ -305,8 +310,8 @@
     function hexToPixel(c, r) {
         const sqrt3 = Math.sqrt(3);
         return {
-            x: offsetX + c * hexSize * sqrt3,
-            y: offsetY + r * hexSize * 1.5 + (c % 2 ? hexSize * 0.75 : 0)
+            x: offsetX + c * hexSize * 1.5,
+            y: offsetY + r * hexSize * sqrt3 + (c % 2 ? hexSize * sqrt3 * 0.5 : 0)
         };
     }
 
@@ -460,7 +465,7 @@
     function hexPath(cx, cy, size) {
         ctx.beginPath();
         for (let i = 0; i < 6; i++) {
-            const a = Math.PI / 3 * i - Math.PI / 6;
+            const a = Math.PI / 3 * i;
             const x = cx + size * Math.cos(a);
             const y = cy + size * Math.sin(a);
             i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
