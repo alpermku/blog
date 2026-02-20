@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Pulsewave - Arcade</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;700&display=swap');
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body {
+            background: #050510;
+            overflow: hidden;
+            font-family: 'JetBrains Mono', monospace;
+            color: #fff;
+            user-select: none;
+            width: 100%; height: 100%;
+            touch-action: none;
+        }
+
+        canvas { display: block; width: 100%; height: 100%; }
+
+        .hud {
+            position: fixed; top: 16px; left: 0; right: 0;
+            display: flex; justify-content: center; gap: 12px;
+            z-index: 10; pointer-events: none; flex-wrap: wrap;
+            padding: 0 12px;
+        }
+
+        .hud-box {
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(100,200,255,0.2);
+            border-radius: 8px;
+            padding: 8px 14px;
+            text-align: center;
+            min-width: 80px;
+        }
+
+        .hud-box .label {
+            font-size: 9px; color: rgba(100,200,255,0.5);
+            letter-spacing: 1.5px; text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+
+        .hud-box .value {
+            font-family: 'Press Start 2P', cursive;
+            font-size: 14px; color: #6cf;
+            text-shadow: 0 0 8px rgba(100,200,255,0.4);
+        }
+
+        .hud-box.combo .value { color: #ffd93d; text-shadow: 0 0 8px rgba(255,217,61,0.4); }
+        .hud-box.lives .value { color: #ff6b8a; text-shadow: 0 0 8px rgba(255,107,138,0.4); }
+
+        .overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            background: rgba(5,5,16,0.94);
+            z-index: 20; padding: 20px;
+        }
+
+        .overlay h1 {
+            font-family: 'Press Start 2P', cursive;
+            font-size: 24px; color: #6cf;
+            text-shadow: 0 0 20px rgba(100,200,255,0.6);
+            margin-bottom: 24px; text-align: center;
+        }
+
+        .overlay .rules {
+            max-width: 380px; text-align: left;
+            line-height: 2; font-size: 13px;
+            color: rgba(200,230,255,0.8);
+        }
+
+        .overlay .rules b { color: #6cf; }
+
+        .overlay .stats { margin: 16px 0; text-align: center; }
+        .overlay .stats .big {
+            font-family: 'Press Start 2P', cursive;
+            font-size: 22px; color: #ffd93d;
+            text-shadow: 0 0 12px rgba(255,217,61,0.5);
+        }
+        .overlay .stats .sub {
+            font-size: 12px; color: rgba(255,255,255,0.4); margin-top: 6px;
+        }
+
+        .btn {
+            margin-top: 28px;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 11px; color: #050510;
+            background: #6cf; border: none; border-radius: 6px;
+            padding: 14px 28px; cursor: pointer;
+            letter-spacing: 1px; transition: all 0.2s;
+        }
+        .btn:hover { background: #9df; transform: scale(1.05); }
+        .btn:active { transform: scale(0.95); }
+
+        .hidden { display: none !important; }
+
+        .feedback {
+            position: fixed; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            font-family: 'Press Start 2P', cursive;
+            font-size: 20px; pointer-events: none;
+            z-index: 15; opacity: 0;
+            transition: all 0.3s ease-out;
+        }
+        .feedback.show { opacity: 1; }
+        .feedback.fade { opacity: 0; transform: translate(-50%, -80%); }
+    </style>
+</head>
+<body>
+    <div class="hud">
+        <div class="hud-box">
+            <div class="label">Score</div>
+            <div class="value" id="score">0</div>
+        </div>
+        <div class="hud-box combo">
+            <div class="label">Combo</div>
+            <div class="value" id="combo">0x</div>
+        </div>
+        <div class="hud-box lives">
+            <div class="label">Lives</div>
+            <div class="value" id="lives">♥♥♥♥♥</div>
+        </div>
+        <div class="hud-box">
+            <div class="label">BPM</div>
+            <div class="value" id="bpm">60</div>
+        </div>
+    </div>
+
+    <canvas id="c"></canvas>
+
+    <div class="feedback" id="feedback"></div>
+
+    <div class="overlay" id="startScreen">
+        <h1>◎ PULSEWAVE</h1>
+        <div class="rules">
+            <b>🎯 Goal:</b> Hit the rings when they align with the target circle.<br>
+            <b>👆 Tap/Click</b> anywhere when a ring reaches the white circle.<br>
+            <b>⏱️ Timing:</b> PERFECT (±small) = 100pts · GOOD = 50pts · MISS = lose a life.<br>
+            <b>🔥 Combo:</b> Consecutive hits multiply your score.<br>
+            <b>💀 Game Over:</b> When all 5 lives are gone.<br>
+            <b>⚡ Speed:</b> BPM increases as you score — stay sharp!
+        </div>
+        <button class="btn" id="startBtn">START</button>
+    </div>
+
+    <div class="overlay hidden" id="gameOverScreen">
+        <h1>GAME OVER</h1>
+        <div class="stats">
+            <div class="big"><span id="finalScore">0</span></div>
+            <div class="sub">Best combo: <span id="finalCombo">0</span>x · BPM reached: <span id="finalBPM">60</span></div>
+        </div>
+        <button class="btn" id="retryBtn">RETRY</button>
+    </div>
+
+<script>
+(() => {
+    const canvas = document.getElementById('c');
+    const ctx = canvas.getContext('2d');
+    const scoreEl = document.getElementById('score');
+    const comboEl = document.getElementById('combo');
+    const livesEl = document.getElementById('lives');
+    const bpmEl = document.getElementById('bpm');
+    const feedbackEl = document.getElementById('feedback');
+    const startScreen = document.getElementById('startScreen');
+    const gameOverScreen = document.getElementById('gameOverScreen');
+
+    let W, H, cx, cy, targetR;
+    let rings = [];
+    let score = 0, combo = 0, maxCombo = 0, lives = 5;
+    let bpm = 60, spawnTimer = 0;
+    let gameState = 'start';
+    let lastTime = 0;
+    let particles = [];
+    let bgPulse = 0;
+
+    const COLORS = ['#6cf','#ff6b8a','#ffd93d','#6bcb77','#c084fc','#f97316','#38bdf8','#fb7185'];
+
+    function resize() {
+        const dpr = window.devicePixelRatio || 1;
+        W = window.innerWidth;
+        H = window.innerHeight;
+        canvas.width = W * dpr;
+        canvas.height = H * dpr;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        cx = W / 2;
+        cy = H / 2;
+        targetR = Math.min(W, H) * 0.28;
+    }
+
+    function spawnRing() {
+        const color = COLORS[Math.floor(Math.random() * COLORS.length)];
+        rings.push({
+            r: 0,
+            speed: targetR / (60 / bpm * 60), // reach target in one beat
+            color,
+            alive: true,
+            hit: false
+        });
+    }
+
+    function showFeedback(text, color) {
+        feedbackEl.textContent = text;
+        feedbackEl.style.color = color;
+        feedbackEl.className = 'feedback show';
+        setTimeout(() => feedbackEl.className = 'feedback fade', 200);
+        setTimeout(() => feedbackEl.className = 'feedback', 500);
+    }
+
+    function spawnParticles(radius, color, count) {
+        for (let i = 0; i < count; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const sp = 1.5 + Math.random() * 3;
+            particles.push({
+                x: cx + Math.cos(angle) * radius,
+                y: cy + Math.sin(angle) * radius,
+                vx: Math.cos(angle) * sp,
+                vy: Math.sin(angle) * sp,
+                life: 1,
+                color,
+                size: 2 + Math.random() * 3
+            });
+        }
+    }
+
+    function handleTap() {
+        if (gameState !== 'playing') return;
+
+        // Find closest ring to target
+        let bestRing = null, bestDist = Infinity;
+        for (const ring of rings) {
+            if (!ring.alive || ring.hit) continue;
+            const dist = Math.abs(ring.r - targetR);
+            if (dist < bestDist) {
+                bestDist = dist;
+                bestRing = ring;
+            }
+        }
+
+        const perfectZone = targetR * 0.08;
+        const goodZone = targetR * 0.18;
+
+        if (bestRing && bestDist < goodZone) {
+            bestRing.hit = true;
+            bestRing.alive = false;
+            combo++;
+            if (combo > maxCombo) maxCombo = combo;
+
+            if (bestDist < perfectZone) {
+                const pts = 100 * Math.max(1, combo);
+                score += pts;
+                showFeedback(`PERFECT! +${pts}`, '#ffd93d');
+                spawnParticles(targetR, '#ffd93d', 20);
+                bgPulse = 0.4;
+            } else {
+                const pts = 50 * Math.max(1, combo);
+                score += pts;
+                showFeedback(`GOOD +${pts}`, '#6bcb77');
+                spawnParticles(targetR, '#6bcb77', 12);
+                bgPulse = 0.2;
+            }
+        } else {
+            // Tap with no ring nearby
+            combo = 0;
+            lives--;
+            showFeedback('MISS!', '#ff6b8a');
+            bgPulse = 0.3;
+        }
+
+        updateHUD();
+        if (lives <= 0) endGame();
+    }
+
+    function updateHUD() {
+        scoreEl.textContent = score;
+        comboEl.textContent = combo + 'x';
+        livesEl.textContent = '♥'.repeat(lives) + '♡'.repeat(Math.max(0, 5 - lives));
+        bpmEl.textContent = Math.round(bpm);
+    }
+
+    function endGame() {
+        gameState = 'gameover';
+        document.getElementById('finalScore').textContent = score;
+        document.getElementById('finalCombo').textContent = maxCombo;
+        document.getElementById('finalBPM').textContent = Math.round(bpm);
+        gameOverScreen.classList.remove('hidden');
+    }
+
+    function startGame() {
+        score = 0; combo = 0; maxCombo = 0; lives = 5;
+        bpm = 60; spawnTimer = 0;
+        rings = []; particles = [];
+        gameState = 'playing';
+        updateHUD();
+        lastTime = performance.now();
+    }
+
+    function update(dt) {
+        if (gameState !== 'playing') return;
+
+        // Spawn rings
+        const spawnInterval = 60 / bpm;
+        spawnTimer += dt;
+        if (spawnTimer >= spawnInterval) {
+            spawnTimer -= spawnInterval;
+            spawnRing();
+        }
+
+        // Update rings
+        for (let i = rings.length - 1; i >= 0; i--) {
+            const ring = rings[i];
+            if (!ring.alive) { rings.splice(i, 1); continue; }
+
+            ring.r += ring.speed * dt * 60;
+
+            // Missed — ring passed target
+            if (ring.r > targetR * 1.3) {
+                ring.alive = false;
+                combo = 0;
+                lives--;
+                showFeedback('MISS!', '#ff6b8a');
+                updateHUD();
+                if (lives <= 0) endGame();
+            }
+        }
+
+        // Update particles
+        for (let i = particles.length - 1; i >= 0; i--) {
+            const p = particles[i];
+            p.x += p.vx; p.y += p.vy;
+            p.vx *= 0.96; p.vy *= 0.96;
+            p.life -= 0.02;
+            if (p.life <= 0) particles.splice(i, 1);
+        }
+
+        // Increase BPM
+        bpm = 60 + score / 200;
+        bpmEl.textContent = Math.round(bpm);
+
+        // Bg pulse decay
+        bgPulse *= 0.94;
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, W, H);
+
+        // Background pulse
+        if (bgPulse > 0.01) {
+            const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, targetR * 2);
+            grad.addColorStop(0, `rgba(100,200,255,${bgPulse * 0.15})`);
+            grad.addColorStop(1, 'transparent');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, W, H);
+        }
+
+        // Target circle
+        ctx.beginPath();
+        ctx.arc(cx, cy, targetR, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+        ctx.lineWidth = 3;
+        ctx.stroke();
+
+        // Perfect zone hint
+        ctx.beginPath();
+        ctx.arc(cx, cy, targetR, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+        ctx.lineWidth = targetR * 0.16;
+        ctx.stroke();
+
+        // Center dot
+        ctx.beginPath();
+        ctx.arc(cx, cy, 4, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(100,200,255,0.4)';
+        ctx.fill();
+
+        // Rings
+        for (const ring of rings) {
+            if (!ring.alive) continue;
+            const progress = ring.r / targetR;
+            const alpha = Math.min(1, progress * 2);
+            const lw = 3 + (1 - Math.abs(1 - progress)) * 4;
+
+            ctx.beginPath();
+            ctx.arc(cx, cy, ring.r, 0, Math.PI * 2);
+            ctx.strokeStyle = ring.color;
+            ctx.globalAlpha = alpha;
+            ctx.lineWidth = lw;
+            ctx.shadowColor = ring.color;
+            ctx.shadowBlur = 12;
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+            ctx.globalAlpha = 1;
+        }
+
+        // Particles
+        for (const p of particles) {
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
+            ctx.fillStyle = p.color;
+            ctx.globalAlpha = p.life;
+            ctx.shadowColor = p.color;
+            ctx.shadowBlur = 6;
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.globalAlpha = 1;
+        }
+    }
+
+    function loop(now) {
+        const dt = Math.min((now - lastTime) / 1000, 0.1);
+        lastTime = now;
+        update(dt);
+        draw();
+        requestAnimationFrame(loop);
+    }
+
+    // Events
+    window.addEventListener('resize', resize);
+
+    canvas.addEventListener('click', handleTap);
+    canvas.addEventListener('touchstart', e => {
+        e.preventDefault();
+        handleTap();
+    }, { passive: false });
+
+    window.addEventListener('keydown', e => {
+        if (e.code === 'Space' || e.code === 'Enter') {
+            e.preventDefault();
+            handleTap();
+        }
+    });
+
+    document.getElementById('startBtn').addEventListener('click', () => {
+        startScreen.classList.add('hidden');
+        startGame();
+        lastTime = performance.now();
+        requestAnimationFrame(loop);
+    });
+
+    document.getElementById('retryBtn').addEventListener('click', () => {
+        gameOverScreen.classList.add('hidden');
+        startGame();
+    });
+
+    resize();
+    requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
