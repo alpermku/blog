@@ -2,529 +2,636 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Hexchain - Arcade</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
-        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@200;400;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;700&display=swap');
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
+        html, body {
             background: #050510;
             overflow: hidden;
             font-family: 'JetBrains Mono', monospace;
             color: #fff;
             user-select: none;
+            width: 100%; height: 100%;
+            touch-action: none;
+        }
+
+        #app {
+            display: flex;
+            flex-direction: column;
+            width: 100%; height: 100%;
+        }
+
+        /* === HUD TOP === */
+        .hud {
             display: flex;
             justify-content: center;
             align-items: center;
-            height: 100vh;
+            gap: 12px;
+            padding: 12px 16px;
+            flex-shrink: 0;
+            flex-wrap: wrap;
+        }
+
+        .hud-box {
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,136,170,0.25);
+            border-radius: 8px;
+            padding: 8px 14px;
+            text-align: center;
+            min-width: 80px;
+        }
+
+        .hud-box .label {
+            font-size: 9px;
+            color: rgba(255,136,170,0.5);
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+
+        .hud-box .value {
+            font-family: 'Press Start 2P', cursive;
+            font-size: 14px;
+            color: #f8a;
+            text-shadow: 0 0 8px rgba(255,136,170,0.4);
+        }
+
+        .hud-box.target .value { color: #ffd93d; text-shadow: 0 0 8px rgba(255,217,61,0.4); }
+        .hud-box.moves .value { color: #6bcb77; text-shadow: 0 0 8px rgba(107,203,119,0.4); }
+        .hud-box.moves.danger .value { color: #e74c3c; text-shadow: 0 0 8px rgba(231,76,60,0.5); }
+
+        /* === PROGRESS BAR === */
+        .progress-wrap {
+            padding: 0 20px 8px;
+            flex-shrink: 0;
+        }
+        .progress-bar {
+            height: 6px;
+            background: rgba(255,255,255,0.08);
+            border-radius: 3px;
+            overflow: hidden;
+            position: relative;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #ff6ac1, #ffd93d);
+            border-radius: 3px;
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+
+        /* === CANVAS === */
+        .canvas-wrap {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            position: relative;
         }
 
         canvas {
-            border: 2px solid rgba(255, 100, 200, 0.3);
-            border-radius: 4px;
-            box-shadow: 0 0 40px rgba(255, 100, 200, 0.1), inset 0 0 40px rgba(0, 0, 0, 0.5);
+            display: block;
         }
 
-        .ui {
+        /* === CHAIN POPUP === */
+        .chain-popup {
             position: fixed;
-            z-index: 10;
-            pointer-events: none;
-            width: 100%;
-            height: 100%;
-        }
-
-        .hud-top {
-            position: absolute; top: 20px; left: 50%;
-            transform: translateX(-50%);
-            display: flex; gap: 40px; align-items: center;
-        }
-
-        .game-title {
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%) scale(0);
             font-family: 'Press Start 2P', cursive;
-            font-size: 16px;
-            color: #f8a;
-            text-shadow: 0 0 10px rgba(255,136,170,0.5);
-            letter-spacing: 2px;
+            font-size: 28px;
+            color: #ffd93d;
+            text-shadow: 0 0 30px rgba(255,217,61,0.8);
+            pointer-events: none;
+            z-index: 30;
+            opacity: 0;
+            transition: all 0.4s ease-out;
+        }
+        .chain-popup.show {
+            transform: translate(-50%, -50%) scale(1);
+            opacity: 1;
+        }
+        .chain-popup.fade {
+            transform: translate(-50%, -80%) scale(0.8);
+            opacity: 0;
         }
 
-        .score-display {
-            font-size: 14px;
-            color: #f8a;
-            text-shadow: 0 0 8px rgba(255,136,170,0.3);
-        }
-
-        .hud-bottom {
-            position: absolute; bottom: 20px; left: 50%;
-            transform: translateX(-50%);
-            font-size: 11px; color: rgba(255,136,170,0.4);
-            text-align: center;
-        }
-
+        /* === OVERLAYS === */
         .overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             display: flex; flex-direction: column; justify-content: center; align-items: center;
-            background: rgba(5,5,16,0.92);
+            background: rgba(5,5,16,0.94);
             z-index: 20;
-            pointer-events: all;
+            padding: 20px;
         }
 
         .overlay h1 {
             font-family: 'Press Start 2P', cursive;
-            font-size: 28px; color: #f8a;
+            font-size: 24px; color: #f8a;
             text-shadow: 0 0 20px rgba(255,136,170,0.6);
-            margin-bottom: 20px;
+            margin-bottom: 24px;
+            text-align: center;
         }
 
-        .overlay p {
-            font-size: 13px; color: rgba(255,200,220,0.7);
-            max-width: 420px; text-align: center; line-height: 1.8;
-            margin-bottom: 8px;
+        .overlay .rules {
+            max-width: 360px;
+            text-align: left;
+            line-height: 2;
+            font-size: 13px;
+            color: rgba(255,220,230,0.8);
         }
 
-        .overlay .start-hint {
-            margin-top: 30px;
+        .overlay .rules b { color: #f8a; }
+        .overlay .rules .icon { font-size: 16px; margin-right: 6px; }
+
+        .overlay .stats {
+            margin: 16px 0;
+            text-align: center;
+        }
+        .overlay .stats .big {
             font-family: 'Press Start 2P', cursive;
-            font-size: 11px; color: #f8a;
-            animation: pulse 1.5s ease-in-out infinite;
+            font-size: 20px;
+            color: #ffd93d;
+            text-shadow: 0 0 12px rgba(255,217,61,0.5);
+        }
+        .overlay .stats .sub {
+            font-size: 12px;
+            color: rgba(255,255,255,0.4);
+            margin-top: 6px;
         }
 
-        @keyframes pulse {
-            0%, 100% { opacity: 0.4; }
-            50% { opacity: 1; }
+        .btn {
+            margin-top: 28px;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 11px;
+            color: #050510;
+            background: #f8a;
+            border: none;
+            border-radius: 6px;
+            padding: 14px 28px;
+            cursor: pointer;
+            letter-spacing: 1px;
+            transition: all 0.2s;
         }
+        .btn:hover { background: #ffb3d0; transform: scale(1.05); }
+        .btn:active { transform: scale(0.95); }
 
         .hidden { display: none !important; }
     </style>
 </head>
 <body>
-    <div class="ui">
-        <div class="hud-top">
-            <span class="game-title">HEXCHAIN</span>
-            <span class="score-display">SCORE: <span id="score">0</span></span>
-            <span class="score-display">LEVEL: <span id="level">1</span></span>
-            <span class="score-display">MOVES: <span id="moves">20</span></span>
+<div id="app">
+    <div class="hud">
+        <div class="hud-box">
+            <div class="label">Score</div>
+            <div class="value" id="score">0</div>
         </div>
-        <div class="hud-bottom">CLICK hex to charge · Chain reactions score big · Clear target to advance</div>
+        <div class="hud-box target">
+            <div class="label">Target</div>
+            <div class="value" id="target">100</div>
+        </div>
+        <div class="hud-box moves" id="movesBox">
+            <div class="label">Moves Left</div>
+            <div class="value" id="moves">20</div>
+        </div>
+        <div class="hud-box">
+            <div class="label">Level</div>
+            <div class="value" id="level">1</div>
+        </div>
     </div>
-
-    <div class="overlay" id="startScreen">
-        <h1>HEXCHAIN</h1>
-        <p>Click a hexagon to charge it. When a hex overflows, it explodes into its neighbors, creating chain reactions.</p>
-        <p>Score enough points before moves run out to advance. Bigger chains = bigger points.</p>
-        <p class="start-hint">[ CLICK TO START ]</p>
+    <div class="progress-wrap">
+        <div class="progress-bar">
+            <div class="progress-fill" id="progressFill"></div>
+        </div>
     </div>
-
-    <div class="overlay hidden" id="gameOverScreen">
-        <h1>GAME OVER</h1>
-        <p>Final Score: <span id="finalScore">0</span></p>
-        <p>Level Reached: <span id="finalLevel">1</span></p>
-        <p class="start-hint">[ CLICK TO RETRY ]</p>
+    <div class="canvas-wrap">
+        <canvas id="gameCanvas"></canvas>
     </div>
+    <div class="chain-popup" id="chainPopup"></div>
+</div>
 
-    <div class="overlay hidden" id="levelScreen">
-        <h1>LEVEL <span id="nextLevel">2</span></h1>
-        <p>Target: <span id="nextTarget">0</span> points</p>
-        <p class="start-hint">[ CLICK TO CONTINUE ]</p>
+<!-- START SCREEN -->
+<div class="overlay" id="startScreen">
+    <h1>⬡ HEXCHAIN</h1>
+    <div class="rules">
+        <b>🎯 Goal:</b> Reach the target score before moves run out.<br>
+        <b>👆 Tap</b> a hex to add charge (+1).<br>
+        <b>💥 Overflow:</b> When charge ≥ capacity → it explodes to neighbors.<br>
+        <b>⛓️ Chains:</b> Explosions can trigger more explosions. Longer chains = way more points!<br>
+        <b>🧠 Strategy:</b> Build up cells near each other, then trigger a big chain.
     </div>
+    <button class="btn" id="startBtn">START GAME</button>
+</div>
 
-    <canvas id="gameCanvas"></canvas>
+<!-- LEVEL UP SCREEN -->
+<div class="overlay hidden" id="levelScreen">
+    <h1>🎉 LEVEL UP!</h1>
+    <div class="stats">
+        <div class="big">Level <span id="nextLevel">2</span></div>
+        <div class="sub">New target: <span id="nextTarget">180</span> pts</div>
+    </div>
+    <button class="btn" id="levelBtn">CONTINUE</button>
+</div>
 
-    <script>
-    (() => {
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
-        const scoreEl = document.getElementById('score');
-        const levelEl = document.getElementById('level');
-        const movesEl = document.getElementById('moves');
-        const startScreen = document.getElementById('startScreen');
-        const gameOverScreen = document.getElementById('gameOverScreen');
-        const levelScreen = document.getElementById('levelScreen');
+<!-- GAME OVER SCREEN -->
+<div class="overlay hidden" id="gameOverScreen">
+    <h1>GAME OVER</h1>
+    <div class="stats">
+        <div class="big"><span id="finalScore">0</span> pts</div>
+        <div class="sub">Reached level <span id="finalLevel">1</span></div>
+    </div>
+    <button class="btn" id="retryBtn">TRY AGAIN</button>
+</div>
 
-        let W, H, hexSize, gridCols, gridRows, offsetX, offsetY;
-        let grid = [];
-        let score = 0, level = 1, moves = 20, target = 100;
-        let gameState = 'start'; // start, playing, animating, levelup, gameover
-        let explosions = [];
-        let particles = [];
-        let chainCount = 0;
+<script>
+(() => {
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const scoreEl = document.getElementById('score');
+    const targetEl = document.getElementById('target');
+    const levelEl = document.getElementById('level');
+    const movesEl = document.getElementById('moves');
+    const movesBox = document.getElementById('movesBox');
+    const progressFill = document.getElementById('progressFill');
+    const chainPopup = document.getElementById('chainPopup');
+    const startScreen = document.getElementById('startScreen');
+    const gameOverScreen = document.getElementById('gameOverScreen');
+    const levelScreen = document.getElementById('levelScreen');
 
-        const COLORS = [
-            '#ff6ac1', '#ff9a76', '#ffd93d', '#6bcb77',
-            '#4d96ff', '#9b59b6', '#e74c3c', '#1abc9c'
-        ];
+    const GRID_COLS = 7, GRID_ROWS = 7;
+    let W, H, hexSize, offsetX, offsetY;
+    let grid = [], score = 0, level = 1, moves = 0, target = 0;
+    let gameState = 'start';
+    let particles = [];
+    let chainCount = 0;
+    let hoverHex = null;
 
-        const MAX_CHARGE = 6;
+    const COLORS = ['#ff6ac1','#ff9a76','#ffd93d','#6bcb77','#4d96ff','#9b59b6','#e74c3c','#1abc9c'];
+    const MAX_CAP = 6;
 
-        function resize() {
-            W = canvas.width = window.innerWidth;
-            H = canvas.height = window.innerHeight;
-            hexSize = Math.min(W, H) / 18;
-            gridCols = 7;
-            gridRows = 7;
-            const gridW = gridCols * hexSize * 1.75;
-            const gridH = gridRows * hexSize * 1.55;
-            offsetX = (W - gridW) / 2 + hexSize;
-            offsetY = (H - gridH) / 2 + hexSize;
+    function resize() {
+        const wrap = canvas.parentElement;
+        const ww = wrap.clientWidth;
+        const wh = wrap.clientHeight;
+        const dpr = window.devicePixelRatio || 1;
+
+        // Calculate hex size to fit grid in available space
+        const maxHexW = (ww - 40) / (GRID_COLS * 1.75 + 0.5);
+        const maxHexH = (wh - 20) / (GRID_ROWS * 1.55 + 1);
+        hexSize = Math.min(maxHexW, maxHexH, 42);
+
+        const gridW = GRID_COLS * hexSize * 1.75;
+        const gridH = GRID_ROWS * hexSize * 1.55 + hexSize * 0.8;
+
+        canvas.style.width = Math.ceil(gridW + hexSize * 2) + 'px';
+        canvas.style.height = Math.ceil(gridH + hexSize * 2) + 'px';
+        canvas.width = Math.ceil(gridW + hexSize * 2) * dpr;
+        canvas.height = Math.ceil(gridH + hexSize * 2) * dpr;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+        W = parseFloat(canvas.style.width);
+        H = parseFloat(canvas.style.height);
+        offsetX = hexSize;
+        offsetY = hexSize;
+    }
+
+    function hexToPixel(c, r) {
+        return {
+            x: offsetX + c * hexSize * 1.75,
+            y: offsetY + r * hexSize * 1.55 + (c % 2 ? hexSize * 0.775 : 0)
+        };
+    }
+
+    function getNeighbors(c, r) {
+        const even = c % 2 === 0;
+        const dirs = even
+            ? [[-1,-1],[-1,0],[0,-1],[0,1],[1,-1],[1,0]]
+            : [[-1,0],[-1,1],[0,-1],[0,1],[1,0],[1,1]];
+        const out = [];
+        for (const [dc, dr] of dirs) {
+            const nc = c + dc, nr = r + dr;
+            if (nc >= 0 && nc < GRID_COLS && nr >= 0 && nr < GRID_ROWS)
+                out.push({ col: nc, row: nr });
+        }
+        return out;
+    }
+
+    function initGrid() {
+        grid = [];
+        for (let c = 0; c < GRID_COLS; c++) {
+            grid[c] = [];
+            for (let r = 0; r < GRID_ROWS; r++) {
+                const cap = Math.min(getNeighbors(c, r).length + 1, MAX_CAP);
+                grid[c][r] = {
+                    charge: Math.floor(Math.random() * 2),
+                    cap,
+                    color: COLORS[Math.floor(Math.random() * COLORS.length)],
+                    scale: 1, flash: 0
+                };
+            }
+        }
+    }
+
+    function updateHUD() {
+        scoreEl.textContent = score;
+        targetEl.textContent = target;
+        movesEl.textContent = moves;
+        levelEl.textContent = level;
+        const pct = Math.min(100, (score / target) * 100);
+        progressFill.style.width = pct + '%';
+        movesBox.classList.toggle('danger', moves <= 5);
+    }
+
+    function showChainPopup(chain) {
+        const bonus = chain * chain * 10;
+        chainPopup.textContent = `${chain}x CHAIN! +${bonus}`;
+        chainPopup.className = 'chain-popup show';
+        setTimeout(() => chainPopup.className = 'chain-popup fade', 600);
+        setTimeout(() => chainPopup.className = 'chain-popup', 1000);
+    }
+
+    function addCharge(col, row) {
+        if (gameState !== 'playing') return;
+        const cell = grid[col][row];
+        cell.charge++;
+        cell.scale = 1.25;
+        moves--;
+        updateHUD();
+
+        if (cell.charge >= cell.cap) {
+            gameState = 'animating';
+            chainCount = 0;
+            setTimeout(() => processExplosions(), 180);
+        } else {
+            checkEnd();
+        }
+    }
+
+    function processExplosions() {
+        const toExplode = [];
+        for (let c = 0; c < GRID_COLS; c++)
+            for (let r = 0; r < GRID_ROWS; r++)
+                if (grid[c][r].charge >= grid[c][r].cap)
+                    toExplode.push({ col: c, row: r });
+
+        if (!toExplode.length) {
+            gameState = 'playing';
+            checkEnd();
+            return;
         }
 
-        function hexToPixel(col, row) {
-            const x = offsetX + col * hexSize * 1.75;
-            const y = offsetY + row * hexSize * 1.55 + (col % 2 ? hexSize * 0.775 : 0);
-            return { x, y };
+        chainCount++;
+        const bonus = chainCount * chainCount * 10;
+        if (chainCount >= 2) showChainPopup(chainCount);
+
+        for (const { col, row } of toExplode) {
+            const cell = grid[col][row];
+            const pos = hexToPixel(col, row);
+
+            for (let i = 0; i < 10; i++) {
+                const a = Math.random() * Math.PI * 2;
+                const sp = 2 + Math.random() * 5;
+                particles.push({
+                    x: pos.x, y: pos.y,
+                    vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+                    life: 1, color: cell.color,
+                    size: 2 + Math.random() * 4
+                });
+            }
+
+            cell.charge = 0;
+            cell.flash = 1;
+            cell.color = COLORS[Math.floor(Math.random() * COLORS.length)];
+
+            for (const n of getNeighbors(col, row)) {
+                grid[n.col][n.row].charge++;
+                grid[n.col][n.row].scale = 1.3;
+            }
+
+            score += 10 + bonus;
         }
 
-        function drawHex(cx, cy, size, fill, stroke, lineWidth = 2, glowColor = null) {
-            ctx.beginPath();
-            for (let i = 0; i < 6; i++) {
-                const angle = Math.PI / 3 * i - Math.PI / 6;
-                const x = cx + size * Math.cos(angle);
-                const y = cy + size * Math.sin(angle);
-                if (i === 0) ctx.moveTo(x, y);
-                else ctx.lineTo(x, y);
-            }
-            ctx.closePath();
+        updateHUD();
+        setTimeout(() => processExplosions(), 280);
+    }
 
-            if (glowColor) {
-                ctx.shadowColor = glowColor;
-                ctx.shadowBlur = 20;
-            }
+    function checkEnd() {
+        if (score >= target && gameState === 'playing') {
+            gameState = 'levelup';
+            level++;
+            target = Math.floor(target * 1.8);
+            document.getElementById('nextLevel').textContent = level;
+            document.getElementById('nextTarget').textContent = target;
+            levelScreen.classList.remove('hidden');
+            return;
+        }
+        if (moves <= 0 && gameState === 'playing') {
+            gameState = 'gameover';
+            document.getElementById('finalScore').textContent = score;
+            document.getElementById('finalLevel').textContent = level;
+            gameOverScreen.classList.remove('hidden');
+        }
+    }
 
-            if (fill) {
-                ctx.fillStyle = fill;
+    function pixelToHex(mx, my) {
+        let best = null, dist = Infinity;
+        for (let c = 0; c < GRID_COLS; c++) {
+            for (let r = 0; r < GRID_ROWS; r++) {
+                const p = hexToPixel(c, r);
+                const d = Math.hypot(mx - p.x, my - p.y);
+                if (d < hexSize * 0.85 && d < dist) {
+                    dist = d;
+                    best = { col: c, row: r };
+                }
+            }
+        }
+        return best;
+    }
+
+    function hexPath(cx, cy, size) {
+        ctx.beginPath();
+        for (let i = 0; i < 6; i++) {
+            const a = Math.PI / 3 * i - Math.PI / 6;
+            const x = cx + size * Math.cos(a);
+            const y = cy + size * Math.sin(a);
+            i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+        }
+        ctx.closePath();
+    }
+
+    function toRGB(hex) {
+        return [parseInt(hex.slice(1,3),16), parseInt(hex.slice(3,5),16), parseInt(hex.slice(5,7),16)];
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, W * 2, H * 2);
+
+        for (let c = 0; c < GRID_COLS; c++) {
+            for (let r = 0; r < GRID_ROWS; r++) {
+                const cell = grid[c][r];
+                const pos = hexToPixel(c, r);
+                const s = hexSize * 0.88 * cell.scale;
+                const ratio = cell.charge / cell.cap;
+                const [cr, cg, cb] = toRGB(cell.color);
+                const isHover = hoverHex && hoverHex.col === c && hoverHex.row === r;
+
+                // Glow for near-full cells
+                if (ratio >= 0.8 || cell.flash > 0.05) {
+                    ctx.shadowColor = cell.color;
+                    ctx.shadowBlur = 15 + cell.flash * 20;
+                }
+
+                // Fill
+                hexPath(pos.x, pos.y, s);
+                const alpha = 0.12 + ratio * 0.55 + cell.flash * 0.3;
+                ctx.fillStyle = `rgba(${cr},${cg},${cb},${alpha})`;
                 ctx.fill();
-            }
-            if (stroke) {
-                ctx.strokeStyle = stroke;
-                ctx.lineWidth = lineWidth;
-                ctx.stroke();
-            }
 
+                // Stroke
+                const strokeA = isHover ? 0.9 : (0.25 + ratio * 0.5);
+                ctx.strokeStyle = `rgba(${cr},${cg},${cb},${strokeA})`;
+                ctx.lineWidth = isHover ? 2.5 : (1 + ratio * 1.5);
+                ctx.stroke();
+                ctx.shadowBlur = 0;
+
+                // Charge indicator: filled fraction arc
+                if (cell.charge > 0) {
+                    const dotR = 4 + ratio * 3;
+                    ctx.beginPath();
+                    ctx.arc(pos.x, pos.y, dotR, 0, Math.PI * 2);
+                    ctx.fillStyle = cell.color;
+                    ctx.shadowColor = cell.color;
+                    ctx.shadowBlur = 8;
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+
+                    // Number inside
+                    ctx.fillStyle = '#050510';
+                    ctx.font = `bold ${8 + ratio * 3}px 'JetBrains Mono'`;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(cell.charge, pos.x, pos.y + 0.5);
+                }
+
+                // Capacity ring
+                if (ratio >= 0.6) {
+                    const pulse = 0.4 + Math.sin(Date.now() * 0.006) * 0.25;
+                    hexPath(pos.x, pos.y, s + 5);
+                    ctx.strokeStyle = `rgba(${cr},${cg},${cb},${pulse})`;
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+                }
+
+                // Hover highlight
+                if (isHover && gameState === 'playing') {
+                    hexPath(pos.x, pos.y, s + 2);
+                    ctx.strokeStyle = `rgba(255,255,255,0.3)`;
+                    ctx.lineWidth = 1.5;
+                    ctx.stroke();
+                }
+            }
+        }
+
+        // Particles
+        for (let i = particles.length - 1; i >= 0; i--) {
+            const p = particles[i];
+            p.x += p.vx; p.y += p.vy;
+            p.vx *= 0.95; p.vy *= 0.95;
+            p.life -= 0.022;
+            if (p.life <= 0) { particles.splice(i, 1); continue; }
+            const [pr, pg, pb] = toRGB(p.color);
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(${pr},${pg},${pb},${p.life})`;
+            ctx.shadowColor = p.color;
+            ctx.shadowBlur = 6;
+            ctx.fill();
             ctx.shadowBlur = 0;
         }
 
-        function getNeighbors(col, row) {
-            const neighbors = [];
-            const even = col % 2 === 0;
-            const dirs = even
-                ? [[-1, -1], [-1, 0], [0, -1], [0, 1], [1, -1], [1, 0]]
-                : [[-1, 0], [-1, 1], [0, -1], [0, 1], [1, 0], [1, 1]];
-            for (const [dc, dr] of dirs) {
-                const nc = col + dc, nr = row + dr;
-                if (nc >= 0 && nc < gridCols && nr >= 0 && nr < gridRows) {
-                    neighbors.push({ col: nc, row: nr });
-                }
+        // Animate cells
+        for (let c = 0; c < GRID_COLS; c++)
+            for (let r = 0; r < GRID_ROWS; r++) {
+                grid[c][r].scale += (1 - grid[c][r].scale) * 0.12;
+                grid[c][r].flash *= 0.88;
             }
-            return neighbors;
-        }
+    }
 
-        function initGrid() {
-            grid = [];
-            for (let c = 0; c < gridCols; c++) {
-                grid[c] = [];
-                for (let r = 0; r < gridRows; r++) {
-                    const neighbors = getNeighbors(c, r);
-                    const maxCharge = Math.min(neighbors.length + 1, MAX_CHARGE);
-                    grid[c][r] = {
-                        charge: Math.floor(Math.random() * 3),
-                        maxCharge: maxCharge,
-                        color: COLORS[Math.floor(Math.random() * COLORS.length)],
-                        scale: 1,
-                        flash: 0
-                    };
-                }
-            }
-        }
+    function loop() {
+        draw();
+        requestAnimationFrame(loop);
+    }
 
-        function addCharge(col, row) {
-            if (gameState !== 'playing') return;
-            const cell = grid[col][row];
-            cell.charge++;
-            if (cell.charge >= cell.maxCharge) {
-                gameState = 'animating';
-                chainCount = 0;
-                setTimeout(() => processExplosions(), 150);
-            } else {
-                cell.scale = 1.2;
-                moves--;
-                movesEl.textContent = moves;
-                checkEndCondition();
-            }
-        }
+    function getCanvasPos(e) {
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = parseFloat(canvas.style.width) / rect.width;
+        const scaleY = parseFloat(canvas.style.height) / rect.height;
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        return {
+            x: (clientX - rect.left) * scaleX,
+            y: (clientY - rect.top) * scaleY
+        };
+    }
 
-        function processExplosions() {
-            let anyExploded = false;
-            const toExplode = [];
+    canvas.addEventListener('click', e => {
+        const { x, y } = getCanvasPos(e);
+        const hex = pixelToHex(x, y);
+        if (hex && gameState === 'playing') addCharge(hex.col, hex.row);
+    });
 
-            for (let c = 0; c < gridCols; c++) {
-                for (let r = 0; r < gridRows; r++) {
-                    if (grid[c][r].charge >= grid[c][r].maxCharge) {
-                        toExplode.push({ col: c, row: r });
-                    }
-                }
-            }
+    canvas.addEventListener('mousemove', e => {
+        const { x, y } = getCanvasPos(e);
+        hoverHex = pixelToHex(x, y);
+        canvas.style.cursor = hoverHex && gameState === 'playing' ? 'pointer' : 'default';
+    });
 
-            if (toExplode.length === 0) {
-                if (chainCount > 0) {
-                    moves--;
-                    movesEl.textContent = moves;
-                }
-                gameState = 'playing';
-                checkEndCondition();
-                return;
-            }
+    canvas.addEventListener('touchstart', e => {
+        e.preventDefault();
+        const { x, y } = getCanvasPos(e);
+        const hex = pixelToHex(x, y);
+        if (hex && gameState === 'playing') addCharge(hex.col, hex.row);
+    }, { passive: false });
 
-            chainCount++;
-            const chainBonus = chainCount * chainCount * 10;
+    function startGame() {
+        score = 0; level = 1; moves = 20; target = 100;
+        particles = []; chainCount = 0;
+        initGrid(); updateHUD();
+        gameState = 'playing';
+    }
 
-            for (const { col, row } of toExplode) {
-                const cell = grid[col][row];
-                const pos = hexToPixel(col, row);
+    function nextLevel() {
+        moves = 15 + level * 3;
+        particles = [];
+        initGrid(); updateHUD();
+        gameState = 'playing';
+    }
 
-                // Spawn particles
-                for (let i = 0; i < 8; i++) {
-                    const angle = Math.random() * Math.PI * 2;
-                    const speed = 2 + Math.random() * 4;
-                    particles.push({
-                        x: pos.x, y: pos.y,
-                        vx: Math.cos(angle) * speed,
-                        vy: Math.sin(angle) * speed,
-                        life: 1,
-                        color: cell.color,
-                        size: 3 + Math.random() * 3
-                    });
-                }
+    document.getElementById('startBtn').addEventListener('click', () => {
+        startScreen.classList.add('hidden');
+        startGame();
+    });
 
-                cell.charge = 0;
-                cell.flash = 1;
-                cell.color = COLORS[Math.floor(Math.random() * COLORS.length)];
+    document.getElementById('retryBtn').addEventListener('click', () => {
+        gameOverScreen.classList.add('hidden');
+        startGame();
+    });
 
-                const neighbors = getNeighbors(col, row);
-                for (const n of neighbors) {
-                    grid[n.col][n.row].charge++;
-                    grid[n.col][n.row].scale = 1.3;
-                }
+    document.getElementById('levelBtn').addEventListener('click', () => {
+        levelScreen.classList.add('hidden');
+        nextLevel();
+    });
 
-                score += 10 + chainBonus;
-                scoreEl.textContent = score;
-                anyExploded = true;
-            }
-
-            if (anyExploded) {
-                setTimeout(() => processExplosions(), 250);
-            }
-        }
-
-        function checkEndCondition() {
-            if (score >= target && gameState === 'playing') {
-                gameState = 'levelup';
-                level++;
-                levelScreen.classList.remove('hidden');
-                document.getElementById('nextLevel').textContent = level;
-                target = Math.floor(target * 1.8);
-                document.getElementById('nextTarget').textContent = target;
-                return;
-            }
-            if (moves <= 0 && gameState === 'playing') {
-                if (score < target) {
-                    gameState = 'gameover';
-                    gameOverScreen.classList.remove('hidden');
-                    document.getElementById('finalScore').textContent = score;
-                    document.getElementById('finalLevel').textContent = level;
-                }
-            }
-        }
-
-        function pixelToHex(mx, my) {
-            let closest = null, minDist = Infinity;
-            for (let c = 0; c < gridCols; c++) {
-                for (let r = 0; r < gridRows; r++) {
-                    const p = hexToPixel(c, r);
-                    const d = Math.hypot(mx - p.x, my - p.y);
-                    if (d < hexSize * 0.9 && d < minDist) {
-                        minDist = d;
-                        closest = { col: c, row: r };
-                    }
-                }
-            }
-            return closest;
-        }
-
-        function update() {
-            // Update particles
-            for (let i = particles.length - 1; i >= 0; i--) {
-                const p = particles[i];
-                p.x += p.vx;
-                p.y += p.vy;
-                p.vx *= 0.96;
-                p.vy *= 0.96;
-                p.life -= 0.025;
-                if (p.life <= 0) particles.splice(i, 1);
-            }
-
-            // Update cell animations
-            for (let c = 0; c < gridCols; c++) {
-                for (let r = 0; r < gridRows; r++) {
-                    const cell = grid[c][r];
-                    cell.scale += (1 - cell.scale) * 0.15;
-                    cell.flash *= 0.9;
-                }
-            }
-        }
-
-        function draw() {
-            ctx.clearRect(0, 0, W, H);
-
-            // Draw grid
-            for (let c = 0; c < gridCols; c++) {
-                for (let r = 0; r < gridRows; r++) {
-                    const cell = grid[c][r];
-                    const pos = hexToPixel(c, r);
-                    const s = hexSize * 0.9 * cell.scale;
-
-                    // Base hex
-                    const chargeRatio = cell.charge / cell.maxCharge;
-                    const alpha = 0.15 + chargeRatio * 0.6;
-                    const strokeAlpha = 0.3 + chargeRatio * 0.5;
-
-                    drawHex(pos.x, pos.y, s,
-                        `rgba(${hexToRgb(cell.color)},${alpha})`,
-                        `rgba(${hexToRgb(cell.color)},${strokeAlpha})`,
-                        1.5 + chargeRatio * 2,
-                        cell.flash > 0.1 ? cell.color : (chargeRatio > 0.7 ? cell.color : null)
-                    );
-
-                    // Draw charge dots
-                    if (cell.charge > 0) {
-                        const dotPositions = getChargeDotPositions(cell.charge, s * 0.5);
-                        for (const dp of dotPositions) {
-                            ctx.beginPath();
-                            ctx.arc(pos.x + dp.x, pos.y + dp.y, 3 + chargeRatio * 2, 0, Math.PI * 2);
-                            ctx.fillStyle = cell.color;
-                            ctx.shadowColor = cell.color;
-                            ctx.shadowBlur = 8;
-                            ctx.fill();
-                            ctx.shadowBlur = 0;
-                        }
-                    }
-
-                    // Critical warning
-                    if (cell.charge >= cell.maxCharge - 1 && cell.charge > 0) {
-                        const pulse = 0.5 + Math.sin(Date.now() * 0.008) * 0.3;
-                        drawHex(pos.x, pos.y, s + 4,
-                            null,
-                            `rgba(${hexToRgb(cell.color)},${pulse})`,
-                            1, cell.color
-                        );
-                    }
-                }
-            }
-
-            // Draw particles
-            for (const p of particles) {
-                ctx.beginPath();
-                ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
-                ctx.fillStyle = `rgba(${hexToRgb(p.color)},${p.life})`;
-                ctx.shadowColor = p.color;
-                ctx.shadowBlur = 10;
-                ctx.fill();
-                ctx.shadowBlur = 0;
-            }
-        }
-
-        function getChargeDotPositions(count, radius) {
-            if (count === 1) return [{ x: 0, y: 0 }];
-            const positions = [];
-            for (let i = 0; i < count; i++) {
-                const angle = (Math.PI * 2 / count) * i - Math.PI / 2;
-                const r = count <= 3 ? radius * 0.5 : radius * 0.65;
-                positions.push({
-                    x: Math.cos(angle) * r,
-                    y: Math.sin(angle) * r
-                });
-            }
-            return positions;
-        }
-
-        function hexToRgb(hex) {
-            const r = parseInt(hex.slice(1, 3), 16);
-            const g = parseInt(hex.slice(3, 5), 16);
-            const b = parseInt(hex.slice(5, 7), 16);
-            return `${r},${g},${b}`;
-        }
-
-        function startGame() {
-            score = 0; level = 1; moves = 20; target = 100;
-            chainCount = 0;
-            particles = [];
-            scoreEl.textContent = 0;
-            levelEl.textContent = 1;
-            movesEl.textContent = 20;
-            initGrid();
-            gameState = 'playing';
-        }
-
-        function nextLevel() {
-            moves = 15 + level * 3;
-            movesEl.textContent = moves;
-            levelEl.textContent = level;
-            particles = [];
-            initGrid();
-            // Keep score
-            gameState = 'playing';
-        }
-
-        function loop() {
-            update();
-            draw();
-            requestAnimationFrame(loop);
-        }
-
-        // Events
-        canvas.addEventListener('click', (e) => {
-            const rect = canvas.getBoundingClientRect();
-            const mx = e.clientX - rect.left;
-            const my = e.clientY - rect.top;
-            const hex = pixelToHex(mx, my);
-            if (hex && gameState === 'playing') {
-                addCharge(hex.col, hex.row);
-            }
-        });
-
-        startScreen.addEventListener('click', () => {
-            startScreen.classList.add('hidden');
-            startGame();
-        });
-
-        gameOverScreen.addEventListener('click', () => {
-            gameOverScreen.classList.add('hidden');
-            startGame();
-        });
-
-        levelScreen.addEventListener('click', () => {
-            levelScreen.classList.add('hidden');
-            nextLevel();
-        });
-
-        // Touch support
-        canvas.addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            const touch = e.touches[0];
-            const rect = canvas.getBoundingClientRect();
-            const mx = touch.clientX - rect.left;
-            const my = touch.clientY - rect.top;
-            const hex = pixelToHex(mx, my);
-            if (hex && gameState === 'playing') {
-                addCharge(hex.col, hex.row);
-            }
-        }, { passive: false });
-
-        window.addEventListener('resize', resize);
-        resize();
-        initGrid();
-        loop();
-    })();
-    </script>
+    window.addEventListener('resize', resize);
+    resize();
+    initGrid();
+    loop();
+})();
+</script>
 </body>
 </html>
