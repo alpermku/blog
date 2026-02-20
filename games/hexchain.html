@@ -394,7 +394,7 @@
         for (const { col, row } of toExplode) {
             const cell = grid[col][row];
             const pos = hexToPixel(col, row);
-            const explodeColor = chargeColor(cell.charge, cell.cap);
+            const explodeColor = chargeColor(cell.charge);
 
             for (let i = 0; i < 10; i++) {
                 const a = Math.random() * Math.PI * 2;
@@ -466,13 +466,9 @@
         ctx.closePath();
     }
 
-    function chargeColor(charge, cap) {
-        const idx = cap > 1 ? (charge / (cap - 1)) * (CHARGE_COLORS.length - 1) : 0;
-        const lo = Math.floor(idx), hi = Math.min(lo + 1, CHARGE_COLORS.length - 1);
-        const t = idx - lo;
-        const [r1,g1,b1] = toRGB(CHARGE_COLORS[lo]);
-        const [r2,g2,b2] = toRGB(CHARGE_COLORS[hi]);
-        return `rgb(${Math.round(r1+(r2-r1)*t)},${Math.round(g1+(g2-g1)*t)},${Math.round(b1+(b2-b1)*t)})`;
+    function chargeColor(charge) {
+        const clamped = Math.max(0, Math.min(charge, CHARGE_COLORS.length - 1));
+        return CHARGE_COLORS[clamped];
     }
 
     function toRGB(color) {
@@ -490,9 +486,12 @@
                 const pos = hexToPixel(c, r);
                 const s = hexSize * 0.88 * cell.scale;
                 const ratio = cell.charge / cell.cap;
-                const cc = chargeColor(cell.charge, cell.cap);
+                const cc = chargeColor(cell.charge);
                 const [cr, cg, cb] = toRGB(cc);
                 const isHover = hoverHex && hoverHex.col === c && hoverHex.row === r;
+
+                // Reset shadow before each cell
+                ctx.shadowBlur = 0;
 
                 // Glow for near-full cells
                 if (ratio >= 0.8 || cell.flash > 0.05) {
@@ -505,6 +504,7 @@
                 const alpha = 0.12 + ratio * 0.55 + cell.flash * 0.3;
                 ctx.fillStyle = `rgba(${cr},${cg},${cb},${alpha})`;
                 ctx.fill();
+                ctx.shadowBlur = 0;
 
                 // Stroke
                 const strokeA = isHover ? 0.9 : (0.25 + ratio * 0.5);
