@@ -327,8 +327,9 @@
             grid[c] = [];
             for (let r = 0; r < GRID_ROWS; r++) {
                 const cap = Math.min(getNeighbors(c, r).length + 1, MAX_CAP);
+                const maxInit = Math.max(1, cap - 2);
                 grid[c][r] = {
-                    charge: Math.floor(Math.random() * 2),
+                    charge: Math.floor(Math.random() * (maxInit + 1)),
                     cap,
                     color: COLORS[Math.floor(Math.random() * COLORS.length)],
                     scale: 1, flash: 0
