@@ -118,7 +118,8 @@
             background: rgba(0,40,40,0.8); color: #0ff; border: 1px solid #0ff;
             padding: 12px 16px; font-family: 'Share Tech Mono', monospace;
             font-size: 12px; cursor: pointer; width: 140px; text-align: center;
-            transition: all 0.2s;
+            transition: all 0.2s; -webkit-tap-highlight-color: transparent;
+            pointer-events: all; position: relative; z-index: 25;
         }
         .upgrade-btn:hover { background: #0ff; color: #000; }
         .upgrade-btn .icon { font-size: 22px; display: block; margin-bottom: 5px; }
@@ -950,14 +951,20 @@ function levelComplete() {
         const btn = document.createElement('div');
         btn.className = 'upgrade-btn';
         btn.innerHTML = `<span class="icon">${u.icon}</span>${u.name}<span class="label">${u.desc}</span>`;
-        btn.onclick = () => {
+        const applyUpgrade = () => {
+            if (btn.dataset.used) return;
+            btn.dataset.used = '1';
             u.apply();
-            optDiv.querySelectorAll('.upgrade-btn').forEach(b => b.style.opacity = '0.3');
+            optDiv.querySelectorAll('.upgrade-btn').forEach(b => {
+                b.style.opacity = '0.3';
+                b.onclick = null;
+                b.ontouchend = null;
+            });
             btn.style.opacity = '1';
             btn.style.border = '2px solid #0f0';
-            // Disable further clicks
-            optDiv.querySelectorAll('.upgrade-btn').forEach(b => b.onclick = null);
         };
+        btn.onclick = applyUpgrade;
+        btn.ontouchend = (e) => { e.preventDefault(); e.stopPropagation(); applyUpgrade(); };
         optDiv.appendChild(btn);
     });
 
