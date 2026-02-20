@@ -524,23 +524,17 @@
                 ctx.stroke();
                 ctx.shadowBlur = 0;
 
-                // Charge indicator: filled fraction arc
+                // Charge number — big and readable
                 if (cell.charge > 0) {
-                    const dotR = 4 + ratio * 3;
-                    ctx.beginPath();
-                    ctx.arc(pos.x, pos.y, dotR, 0, Math.PI * 2);
-                    ctx.fillStyle = cc;
-                    ctx.shadowColor = cc;
-                    ctx.shadowBlur = 8;
-                    ctx.fill();
-                    ctx.shadowBlur = 0;
-
-                    // Number inside
-                    ctx.fillStyle = '#050510';
-                    ctx.font = `bold ${8 + ratio * 3}px 'JetBrains Mono'`;
+                    const fontSize = Math.max(16, hexSize * 0.55);
+                    ctx.font = `bold ${fontSize}px 'JetBrains Mono'`;
                     ctx.textAlign = 'center';
                     ctx.textBaseline = 'middle';
-                    ctx.fillText(cell.charge, pos.x, pos.y + 0.5);
+                    ctx.fillStyle = '#fff';
+                    ctx.shadowColor = cc;
+                    ctx.shadowBlur = 10;
+                    ctx.fillText(cell.charge, pos.x, pos.y + 1);
+                    ctx.shadowBlur = 0;
                 }
 
                 // Capacity ring
