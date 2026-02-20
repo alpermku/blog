@@ -2,19 +2,20 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Orbital Defense - Arcade</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
         @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { width: 100%; height: 100%; overflow: hidden; touch-action: none; }
         body { 
             background: #000; 
-            overflow: hidden; 
             font-family: 'Share Tech Mono', monospace; 
             color: #0f0;
             user-select: none;
+            -webkit-user-select: none;
         }
 
         canvas { display: block; }
@@ -402,7 +403,7 @@ function spawnBoss() {
     G.bossHp = lvl.bossHp;
     G.bossMaxHp = lvl.bossHp;
     G.bossAngle = Math.random() * Math.PI * 2;
-    G.bossOrbitDist = Math.max(W, H) * 0.3;
+    G.bossOrbitDist = Math.min(W, H) * 0.35;
     floatText(cx, cy - 60, '⚠ BOSS ⚠', '#f00', 90);
     shockwaves.push({ r: 0, maxR: W * 0.5, color: '#f00' });
 }
@@ -411,13 +412,14 @@ function spawnPowerup() {
     const types = ['heal', 'wide', 'slow'];
     const type = types[Math.floor(Math.random() * types.length)];
     const angle = Math.random() * Math.PI * 2;
-    const dist = CFG.shieldDist + 60 + Math.random() * 80;
+    const dist = Math.max(W, H) * 0.35;
     powerups.push({
         x: cx + Math.cos(angle) * dist,
         y: cy + Math.sin(angle) * dist,
         type,
-        life: 360, // 6 seconds
-        size: 10
+        life: 600, // 10 seconds
+        size: 12,
+        speed: 0.35 // drift toward center
     });
 }
 
@@ -494,8 +496,8 @@ function update() {
         }
     }
 
-    // Spawn powerups occasionally
-    if (G.frame % 300 === 0 && Math.random() < 0.6) {
+    // Spawn powerups — guaranteed every ~4s, max 2 on screen
+    if (G.frame % 240 === 0 && powerups.length < 2) {
         spawnPowerup();
     }
 
@@ -618,24 +620,49 @@ function update() {
         }
     }
 
-    // Powerup collection (via shield touch)
+    // Powerup movement & collection
     for (let i = powerups.length - 1; i >= 0; i--) {
         const p = powerups[i];
         p.life--;
-        if (p.life <= 0) { powerups.splice(i, 1); continue; }
+
+        // Drift toward center
+        const angleToCenter = Math.atan2(cy - p.y, cx - p.x);
+        p.x += Math.cos(angleToCenter) * (p.speed || 0.35);
+        p.y += Math.sin(angleToCenter) * (p.speed || 0.35);
 
         const dist = Math.hypot(cx - p.x, cy - p.y);
-        if (dist < CFG.shieldDist + 20 && dist > CFG.shieldDist - 20) {
+
+        // Despawn if too close to core (missed) or timed out
+        if (p.life <= 0 || dist < CFG.coreSize + 5) {
+            if (dist < CFG.coreSize + 5) floatText(p.x, p.y, 'MISSED', '#555', 30);
+            powerups.splice(i, 1);
+            continue;
+        }
+
+        // Collection: shield sweeps over powerup (wider zone than threats)
+        if (dist < CFG.shieldDist + 25 && dist > CFG.shieldDist - 25) {
             const angleToP = Math.atan2(p.y - cy, p.x - cx);
+            const currentArc = G.activePowerups.wide > 0 ? G.shieldArc * 1.4 : G.shieldArc;
             let diff = angleToP - G.shieldAngle;
             while (diff > Math.PI) diff -= Math.PI * 2;
             while (diff < -Math.PI) diff += Math.PI * 2;
-            if (Math.abs(diff) < G.shieldArc / 2) {
-                // Collected!
+
+            // Check primary shield
+            let collected = Math.abs(diff) < currentArc / 2;
+
+            // Check secondary shield
+            if (!collected && (G.shieldCount >= 2 || G.activePowerups.dual > 0)) {
+                let diff2 = angleToP - (G.shieldAngle + Math.PI);
+                while (diff2 > Math.PI) diff2 -= Math.PI * 2;
+                while (diff2 < -Math.PI) diff2 += Math.PI * 2;
+                collected = Math.abs(diff2) < currentArc * 0.6 / 2;
+            }
+
+            if (collected) {
                 switch (p.type) {
                     case 'heal':
-                        G.hp = Math.min(G.maxHp, G.hp + 15);
-                        floatText(p.x, p.y, '+15 HP', '#0f0');
+                        G.hp = Math.min(G.maxHp, G.hp + 20);
+                        floatText(p.x, p.y, '+20 HP', '#0f0');
                         break;
                     case 'wide':
                         G.activePowerups.wide = 480;
@@ -646,11 +673,12 @@ function update() {
                         floatText(p.x, p.y, 'SLOW FIELD 6s', '#ff0');
                         break;
                 }
-                for (let k = 0; k < 8; k++) {
+                shockwaves.push({ r: CFG.shieldDist - 10, maxR: CFG.shieldDist + 30, color: '#0f0' });
+                for (let k = 0; k < 10; k++) {
                     particles.push({
                         x: p.x, y: p.y,
-                        vx: (Math.random() - 0.5) * 4, vy: (Math.random() - 0.5) * 4,
-                        life: 20, color: '#0f0'
+                        vx: (Math.random() - 0.5) * 5, vy: (Math.random() - 0.5) * 5,
+                        life: 25, color: p.type === 'heal' ? '#0f0' : p.type === 'wide' ? '#0ff' : '#ff0'
                     });
                 }
                 powerups.splice(i, 1);
@@ -809,16 +837,42 @@ function draw() {
 
     // Powerups
     powerups.forEach(p => {
-        const pulse = Math.sin(G.frame * 0.1) * 0.3 + 0.7;
-        ctx.globalAlpha = Math.min(1, p.life / 60) * pulse;
-        ctx.fillStyle = p.type === 'heal' ? '#0f0' : p.type === 'wide' ? '#0ff' : '#ff0';
-        ctx.shadowBlur = 12; ctx.shadowColor = ctx.fillStyle;
+        const pulse = Math.sin(G.frame * 0.12) * 0.3 + 0.7;
+        const fadeIn = Math.min(1, (600 - p.life) / 30); // fade in over 0.5s
+        const fadeOut = Math.min(1, p.life / 90); // fade out last 1.5s
+        ctx.globalAlpha = fadeIn * fadeOut * pulse;
+        const pColor = p.type === 'heal' ? '#0f0' : p.type === 'wide' ? '#0ff' : '#ff0';
+        ctx.fillStyle = pColor;
+        ctx.shadowBlur = 15; ctx.shadowColor = pColor;
         ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
+
+        // Outer ring (pulsing)
+        ctx.strokeStyle = pColor;
+        ctx.lineWidth = 1;
+        const ringR = p.size + 4 + Math.sin(G.frame * 0.08) * 3;
+        ctx.beginPath(); ctx.arc(p.x, p.y, ringR, 0, Math.PI * 2); ctx.stroke();
+
         // Icon
-        ctx.font = '12px Share Tech Mono';
+        ctx.font = 'bold 13px Share Tech Mono';
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         ctx.fillStyle = '#000';
-        ctx.fillText(p.type === 'heal' ? '+' : p.type === 'wide' ? '◇' : '◎', p.x, p.y);
+        ctx.fillText(p.type === 'heal' ? '+' : p.type === 'wide' ? '◇' : '◎', p.x, p.y + 1);
+
+        // Direction line toward shield orbit
+        const dist = Math.hypot(cx - p.x, cy - p.y);
+        if (dist > CFG.shieldDist + 30) {
+            const a = Math.atan2(cy - p.y, cx - p.x);
+            ctx.strokeStyle = pColor;
+            ctx.lineWidth = 1;
+            ctx.globalAlpha *= 0.3;
+            ctx.setLineDash([4, 4]);
+            ctx.beginPath();
+            ctx.moveTo(p.x + Math.cos(a) * (p.size + 6), p.y + Math.sin(a) * (p.size + 6));
+            ctx.lineTo(p.x + Math.cos(a) * (p.size + 20), p.y + Math.sin(a) * (p.size + 20));
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+
         ctx.shadowBlur = 0;
         ctx.globalAlpha = 1;
     });
@@ -961,10 +1015,16 @@ function startGame() {
 window.addEventListener('mousemove', e => {
     G.shieldAngle = Math.atan2(e.clientY - cy, e.clientX - cx);
 });
+window.addEventListener('touchstart', e => {
+    e.preventDefault();
+    G.shieldAngle = Math.atan2(e.touches[0].clientY - cy, e.touches[0].clientX - cx);
+}, { passive: false });
 window.addEventListener('touchmove', e => {
     e.preventDefault();
     G.shieldAngle = Math.atan2(e.touches[0].clientY - cy, e.touches[0].clientX - cx);
 }, { passive: false });
+document.body.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
+document.addEventListener('contextmenu', e => e.preventDefault());
 
 // ─── START ─────────────────────────
 setInterval(update, 1000 / 60);
