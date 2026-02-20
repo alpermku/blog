@@ -1016,10 +1016,13 @@ window.addEventListener('mousemove', e => {
     G.shieldAngle = Math.atan2(e.clientY - cy, e.clientX - cx);
 });
 window.addEventListener('touchstart', e => {
+    // Don't block overlay buttons
+    if (e.target.closest('.overlay') || e.target.closest('.back-btn')) return;
     e.preventDefault();
     G.shieldAngle = Math.atan2(e.touches[0].clientY - cy, e.touches[0].clientX - cx);
 }, { passive: false });
 window.addEventListener('touchmove', e => {
+    if (e.target.closest('.overlay')) return;
     e.preventDefault();
     G.shieldAngle = Math.atan2(e.touches[0].clientY - cy, e.touches[0].clientX - cx);
 }, { passive: false });
