@@ -112,8 +112,8 @@ let totalStarsEarned = 0;
 let achievements = {};
 let shakeTime = 0;
 let mouseX = -100, mouseY = -100;
-let chainQueue = []; // queued explosions
-let chainProcessing = false;
+let pendingExplosions = 0; // tracks in-flight async explosions
+let doneCheckScheduled = false;
 
 // Load save
 try {
@@ -206,12 +206,14 @@ function spawnParticles() {
 }
 
 // ======================== CHAIN REACTION ENGINE ========================
+// Uses a pendingExplosions counter to reliably detect when all chains finish.
+// Every scheduled async action increments it; every completion decrements it.
+// When it hits 0, the round is truly over.
+
 function detonateAt(x, y, radius, isClick) {
-    // Visual explosion ring
     rings.push({ x, y, r: 0, maxR: radius, life: 1, isClick });
     if (isClick) shakeTime = 6;
 
-    // Find particles in range
     const hit = [];
     particles.forEach(p => {
         if (!p.alive || p.exploding) return;
@@ -221,12 +223,13 @@ function detonateAt(x, y, radius, isClick) {
         }
     });
 
-    // Queue them for sequential detonation (creates visible chain)
+    // Mark them immediately so they can't be double-counted by overlapping blasts
+    hit.forEach(p => { p.exploding = true; p.explodeTimer = 0; });
+
     hit.forEach((p, i) => {
+        pendingExplosions++;
         setTimeout(() => {
-            if (!p.alive || p.exploding) return;
-            p.exploding = true;
-            p.explodeTimer = 0;
+            // Score & stats
             detonated++;
             chainCount++;
             if (chainCount > maxChain) maxChain = chainCount;
@@ -234,22 +237,21 @@ function detonateAt(x, y, radius, isClick) {
             const mul = Math.min(chainCount, 20);
             const pts = p.points * mul;
             score += pts;
-
             shakeTime = Math.min(3 + Math.floor(chainCount / 3), 12);
 
-            // Floating score
+            // Floating text
             floats.push({ x: p.x, y: p.y - 10, text: `+${pts}`, color: p.color, size: 10, life: 1, dy: -1 });
-            if (chainCount >= 3 && chainCount % 2 === 1) {
-                floats.push({ x: p.x, y: p.y - 28, text: `CHAIN x${chainCount}!`, color: '#ffd700', size: Math.min(10 + chainCount, 20), life: 1.2, dy: -0.8 });
+            if (chainCount >= 3 && (chainCount <= 6 || chainCount % 3 === 0)) {
+                floats.push({ x: p.x, y: p.y - 28, text: `CHAIN x${chainCount}!`, color: '#ffd700', size: Math.min(10 + chainCount, 22), life: 1.2, dy: -0.8 });
             }
 
-            // Burst particles visual
+            // Visual burst
             for (let j = 0; j < 6; j++) {
                 const a = (j / 6) * Math.PI * 2;
                 floats.push({ x: p.x, y: p.y, dx: Math.cos(a)*3, dy: Math.sin(a)*3, text: '', color: p.color, size: 3, life: 0.7, isPart: true });
             }
 
-            // Shy particles nearby flee
+            // Shy particles flee
             particles.forEach(other => {
                 if (!other.alive || other.exploding || other.type !== 'shy') return;
                 const d = Math.hypot(other.x - p.x, other.y - p.y);
@@ -260,36 +262,36 @@ function detonateAt(x, y, radius, isClick) {
                 }
             });
 
-            // This particle will explode after a brief visual delay, triggering neighbors
+            // After visual delay, particle dies and triggers its own blast radius
             setTimeout(() => {
-                if (p.alive) {
-                    p.alive = false;
-                    detonateAt(p.x, p.y, p.blastR, false);
-                }
+                p.alive = false;
+                detonateAt(p.x, p.y, p.blastR, false);
+                // This detonation is done — decrement
+                pendingExplosions--;
+                scheduleDoneCheck();
             }, 150);
         }, i * CHAIN_DELAY);
     });
 
-    // Check if everything settled
-    const totalDelay = (hit.length + 2) * CHAIN_DELAY + 400;
-    setTimeout(() => checkDone(), totalDelay);
+    // If nothing was hit, this detonation wave produced no children
+    if (hit.length === 0) {
+        scheduleDoneCheck();
+    }
 }
 
-function checkDone() {
-    // If any particle is still mid-explosion, wait more
-    if (particles.some(p => p.exploding && p.alive)) {
-        setTimeout(checkDone, 300);
-        return;
-    }
-    // If we have clicks left, let player continue
-    if (clicksLeft > 0) {
-        phase = 'playing';
-        return;
-    }
-    // All clicks used and chain done → end level
-    if (phase !== 'result') {
-        setTimeout(endLevel, 600);
-    }
+function scheduleDoneCheck() {
+    if (doneCheckScheduled) return;
+    doneCheckScheduled = true;
+    setTimeout(() => {
+        doneCheckScheduled = false;
+        if (pendingExplosions > 0) return; // still working
+        // Chain fully resolved
+        if (clicksLeft > 0) {
+            phase = 'playing';
+        } else if (phase !== 'result') {
+            setTimeout(endLevel, 500);
+        }
+    }, 200);
 }
 
 // ======================== GAME FLOW ========================
@@ -320,6 +322,7 @@ function showLevelSelect() {
 function selectLevel(idx) {
     level = idx;
     score = 0; chainCount = 0; maxChain = 0; detonated = 0;
+    pendingExplosions = 0; doneCheckScheduled = false;
     clicksLeft = LEVELS[level].clicks;
     spawnParticles();
     overlay.classList.add('hidden');
