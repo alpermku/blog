@@ -9,7 +9,7 @@
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;700&display=swap');
         *{margin:0;padding:0;box-sizing:border-box}
         body{background:#05050a;overflow:hidden;font-family:'JetBrains Mono',monospace;color:#fff;user-select:none;display:flex;justify-content:center;align-items:center;height:100vh}
-        canvas{display:block}
+        canvas{display:block;box-shadow:0 0 50px rgba(0,229,255,0.1)}
         .back-btn{position:fixed;top:14px;left:18px;z-index:20;font-family:'JetBrains Mono',monospace;font-size:13px;color:rgba(255,255,255,0.3);text-decoration:none;transition:color .2s;z-index:100}
         .back-btn:hover{color:#fff}
     </style>
@@ -19,9 +19,9 @@
     <canvas id="c"></canvas>
 <script>
 // ============================================================
-//  D R I F T  —  Refined
-//  Fixes: Fair path generation (no impossible walls),
-//  Reduced visual noise, Better hitboxes.
+//  D R I F T  —  Neon Edition
+//  Featuring: Fair path generation, High-fidelity car model,
+//  Particle effects, Screen shake, and maximum juice.
 // ============================================================
 
 const C = document.getElementById('c');
@@ -30,25 +30,25 @@ const W = C.width = window.innerWidth;
 const H = C.height = window.innerHeight;
 
 // ======================== TUNING ========================
-const LANE_W = Math.min(W * 0.85, 600); // Wider road for better playability
+const LANE_W = Math.min(W * 0.9, 600);
 const LANE_X = (W - LANE_W) / 2;
 const PLAYER_Y = H * 0.8;
-const PLAYER_R = 8; // Smaller player hitbox
+const CAR_W = 26; 
+const CAR_H = 44; 
+// Hitbox is slightly smaller than visual car for fairness
+const HITBOX_W = 20;
+const HITBOX_H = 38;
 
-const BASE_SPEED = 3.5;
-const SPEED_RAMP = 0.05; 
-const MAX_SPEED = 12;
+const BASE_SPEED = 4;
+const MAX_SPEED = 15;
+const SPEED_RAMP = 0.04;
 
-const NEAR_MISS_DIST = 40; // Generous near-miss zone
-const GRAZE_DIST = 22;
-
-const SPAWN_INTERVAL_BASE = 50; 
-const MIN_GAP_WIDTH = 100; // Minimum clickable space
+const NEAR_MISS_DIST = 45;
+const GRAZE_DIST = 26;
 
 // ======================== COLORS ========================
 const THEME = {
-    road: '#080810',
-    roadLine: 'rgba(255,255,255,0.03)',
+    road: '#080812',
     player: '#00e5ff',
     obstacle: '#ff2255',
     nearMiss: '#44ffaa',
@@ -59,12 +59,12 @@ const THEME = {
 };
 
 const LEVEL_THEMES = [
-    { name: 'IGNITION',    accent: '#00e5ff', obstacle: '#ff2255' },
-    { name: 'VELOCITY',    accent: '#44ffaa', obstacle: '#ff6633' },
-    { name: 'MOMENTUM',    accent: '#ffaa33', obstacle: '#ff2288' },
-    { name: 'OVERDRIVE',   accent: '#c864ff', obstacle: '#ff4444' },
-    { name: 'HYPERDRIVE',  accent: '#ff6688', obstacle: '#ff0066' },
-    { name: 'INFINITE',    accent: '#00ffcc', obstacle: '#ff1144' },
+    { name: 'IGNITION',    accent: '#00e5ff', obstacle: '#ff2255', bg: '#05050a' },
+    { name: 'VELOCITY',    accent: '#44ffaa', obstacle: '#ff6633', bg: '#050a08' },
+    { name: 'MOMENTUM',    accent: '#ffaa33', obstacle: '#ff2288', bg: '#0a0805' },
+    { name: 'OVERDRIVE',   accent: '#c864ff', obstacle: '#ff4444', bg: '#08050a' },
+    { name: 'HYPERDRIVE',  accent: '#ff6688', obstacle: '#ff0066', bg: '#0a0506' },
+    { name: 'INFINITE',    accent: '#00ffcc', obstacle: '#ff1144', bg: '#050a0a' },
 ];
 
 // ======================== STATE ========================
@@ -76,9 +76,10 @@ let targetX = W / 2;
 let shields = 3;
 let level = 0;
 let combo = 0, maxCombo = 0, totalNearMisses = 0;
-let frame = 0, spawnTimer = 0;
-let obstacles = [], orbs = [], particles = [], floats = [], trail = [], powerups = [];
-let shakeTime = 0;
+let frame = 0;
+let obstacles = [], orbs = [], particles = [], floats = [], powerups = [];
+let trail = []; // Tire tracks
+let shakeTime = 0, shakeIntensity = 0;
 let flashAlpha = 0, flashColor = '#fff';
 let levelUpTimer = 0;
 let invincible = 0;
@@ -86,8 +87,9 @@ let streakMultiplier = 1;
 let lastNearMissFrame = -999;
 let activePower = null;
 let magnetActive = false;
+let carTilt = 0; // Visual banking
 
-// Pathfinding state to ensure playability
+// Pathfinding state
 let lastGapCenter = LANE_W / 2; 
 
 const POWER_TYPES = [
@@ -136,10 +138,19 @@ function startGame() {
 
 function die() {
     state = 'dead';
-    shakeTime = 30;
-    for (let i = 0; i < 40; i++) {
-        const a = Math.random() * Math.PI * 2, s = 2 + Math.random() * 6;
-        particles.push({ x: playerX, y: PLAYER_Y, dx: Math.cos(a)*s, dy: Math.sin(a)*s, life: 1, color: THEME.player, size: 3 });
+    shakeTime = 40; shakeIntensity = 10;
+    flashAlpha = 0.6; flashColor = '#ff0033';
+    
+    // Massive Car Explosion
+    for (let i = 0; i < 60; i++) {
+        const a = Math.random() * Math.PI * 2, s = 2 + Math.random() * 8;
+        particles.push({ 
+            x: playerX, y: PLAYER_Y, 
+            dx: Math.cos(a)*s, dy: Math.sin(a)*s, 
+            life: 1.2, decay: 0.01 + Math.random()*0.02,
+            color: Math.random() < 0.5 ? THEME.player : '#ffffff', 
+            size: 3 + Math.random()*4 
+        });
     }
     if (score > highScore) { highScore = score; try { localStorage.setItem('drift_hi', highScore); } catch(e) {} }
 }
@@ -148,67 +159,48 @@ function die() {
 function spawnObstacle() {
     const cfg = LEVEL_THEMES[level % LEVEL_THEMES.length];
     
-    // Calculate max reachable distance sideways based on time between spawns
-    // Player lateral speed approx 12px/frame max (damped), safe bet is ~8px/frame
-    // Gap interval (pixels vertically) is approx 250px
-    // Time to reach = 250 / speed. At max speed 12, ~20 frames. 20 * 8 = 160px reachable.
-    // We constrain the new gap to be within reachable distance of the last gap.
+    // Reachable distance calculation
+    const reachable = 280; 
+    const minGap = 110; // Slightly wider for car
     
-    const reachable = 300; // Generous lateral reach
-    const minGap = MIN_GAP_WIDTH;
-    
-    // Determine new gap position centered around last gap, but clamped to road
     let gapCenter = lastGapCenter + (Math.random() - 0.5) * reachable * 2;
     gapCenter = Math.max(minGap/2 + 20, Math.min(LANE_W - minGap/2 - 20, gapCenter));
-    
     lastGapCenter = gapCenter;
     
-    // 70% chance to spawn a "gap" type (two walls), 30% single block
-    const isGate = Math.random() > 0.3;
+    // 60% Gate (Two walls), 40% Block
+    const isGate = Math.random() > 0.4;
     
     if (isGate) {
-        // Two walls with a gap in the middle
-        const gapW = minGap + Math.random() * 60;
+        const gapW = minGap + Math.random() * 50;
         const leftW = gapCenter - gapW / 2;
         const rightX = gapCenter + gapW / 2;
         const rightW = LANE_W - rightX;
         
-        // Left wall
-        if (leftW > 10) {
-            obstacles.push({ x: LANE_X, y: -40, w: leftW, h: 25, color: cfg.obstacle, counted: false });
-        }
-        // Right wall
-        if (rightW > 10) {
-            obstacles.push({ x: LANE_X + rightX, y: -40, w: rightW, h: 25, color: cfg.obstacle, counted: false });
-        }
+        if (leftW > 10) obstacles.push(createObstacle(LANE_X, -40, leftW, 30, cfg.obstacle));
+        if (rightW > 10) obstacles.push(createObstacle(LANE_X + rightX, -40, rightW, 30, cfg.obstacle));
         
-        // Spawn goodie in the gap
-        if (Math.random() < 0.4) {
-            orbs.push({ x: LANE_X + gapCenter, y: -40, r: 7, collected: false });
-        }
+        if (Math.random() < 0.4) orbs.push({ x: LANE_X + gapCenter, y: -40, r: 7, collected: false });
     } else {
-        // Single block, but placed AWAY from the gap center we chose (to force steering)
-        // Actually, easiest to just treat it as a gate with one missing wall
         const side = Math.random() < 0.5 ? 'left' : 'right';
-        const blockW = Math.random() * (LANE_W * 0.4) + 50;
+        const blockW = Math.random() * (LANE_W * 0.35) + 60;
         
         if (side === 'left') {
-            // Block on left, gap is on right
-            // Ensure block doesn't cover our gapCenter
             let w = Math.min(blockW, gapCenter - minGap/2);
-             obstacles.push({ x: LANE_X, y: -40, w: w, h: 25, color: cfg.obstacle, counted: false });
+            obstacles.push(createObstacle(LANE_X, -40, w, 30, cfg.obstacle));
         } else {
-            // Block on right
             let x = Math.max(LANE_X + LANE_W - blockW, LANE_X + gapCenter + minGap/2);
-            obstacles.push({ x: x, y: -40, w: LANE_X + LANE_W - x, h: 25, color: cfg.obstacle, counted: false });
+            obstacles.push(createObstacle(x, -40, LANE_X + LANE_W - x, 30, cfg.obstacle));
         }
     }
 
-    // Power-up
     if (Math.random() < 0.05) {
         const pt = POWER_TYPES[Math.floor(Math.random() * POWER_TYPES.length)];
-        powerups.push({ x: LANE_X + Math.random() * LANE_W, y: -100, r: 12, ...pt, collected: false });
+        powerups.push({ x: LANE_X + Math.random() * LANE_W, y: -100, r: 14, ...pt, collected: false });
     }
+}
+
+function createObstacle(x, y, w, h, c) {
+    return { x, y, w, h, color: c, counted: false };
 }
 
 // ======================== UPDATE ========================
@@ -216,39 +208,50 @@ function update() {
     if (state !== 'playing') return;
     frame++;
     
-    // Speed control
     const slowActive = activePower && activePower.type === 'slow';
     const effectiveSpeed = slowActive ? speed * 0.6 : speed;
     if (!slowActive) speed = Math.min(speed + SPEED_RAMP / 60, MAX_SPEED);
     distance += effectiveSpeed;
 
-    // Level up
-    const newLevel = Math.min(Math.floor(distance / 800), LEVEL_THEMES.length - 1);
+    // Level progression
+    const newLevel = Math.min(Math.floor(distance / 1000), LEVEL_THEMES.length - 1);
     if (newLevel > level) {
         level = newLevel;
-        levelUpTimer = 120;
-        flashAlpha = 0.2; flashColor = LEVEL_THEMES[level].accent;
+        levelUpTimer = 140;
+        flashAlpha = 0.25; flashColor = LEVEL_THEMES[level].accent;
+        floats.push({ x: W/2, y: H/3, text: LEVEL_THEMES[level].name, color: LEVEL_THEMES[level].accent, size: 24, life: 3, dy: -0.2 });
     }
 
     // Player Movement
     if (inputX !== null) targetX = inputX;
-    if (keys.left) targetX -= 9;
-    if (keys.right) targetX += 9;
+    if (keys.left) targetX -= 10;
+    if (keys.right) targetX += 10;
+    targetX = Math.max(LANE_X + 20, Math.min(LANE_X + LANE_W - 20, targetX));
     
-    // Clamp target to road
-    targetX = Math.max(LANE_X + PLAYER_R, Math.min(LANE_X + LANE_W - PLAYER_R, targetX));
-    
-    // Smooth follow
-    playerX += (targetX - playerX) * 0.15;
+    // Smooth physics
+    const diff = targetX - playerX;
+    playerX += diff * 0.15;
+    carTilt = diff * 0.04; // Banking effect
+    carTilt = Math.max(-0.6, Math.min(0.6, carTilt));
 
-    // Spawning
-    // Spawn based on DISTANCE, not TIME, to keep gaps consistent regardless of speed
-    // Gap ~250px vertical
-    if (distance % 250 < effectiveSpeed) {
-        spawnObstacle();
+    // Tire tracks (Trail)
+    if (frame % 3 === 0) {
+        trail.push({ x: playerX - 10, y: PLAYER_Y + 18, life: 1, type: 'tire' });
+        trail.push({ x: playerX + 10, y: PLAYER_Y + 18, life: 1, type: 'tire' });
+    }
+    // Speed lines
+    if (Math.random() < speed * 0.05) {
+        particles.push({ 
+            x: LANE_X + Math.random()*LANE_W, y: -10, 
+            dx: 0, dy: effectiveSpeed * 1.5, 
+            life: 0.6, color: 'rgba(255,255,255,0.1)', size: 1, type: 'line', h: 30 + Math.random()*50
+        });
     }
 
-    // Update entities
+    // Spawn
+    if (distance % 250 < effectiveSpeed) spawnObstacle();
+
+    // Timers
     if (activePower) {
         activePower.timer--;
         if (activePower.type === 'magnet') magnetActive = true;
@@ -259,85 +262,108 @@ function update() {
     if (flashAlpha > 0) flashAlpha -= 0.02;
     if (levelUpTimer > 0) levelUpTimer--;
 
-    // Move & Collision
-    const moveEntity = (list, isObstacle) => {
-        for (let i = list.length - 1; i >= 0; i--) {
-            const e = list[i];
-            e.y += effectiveSpeed;
-            if (e.y > H + 50) { list.splice(i, 1); continue; }
-            
-            // Collision logic
-            if (e.collected) continue;
-            
-            // Player AABB vs Rect (Obstacle) or Circle (Orb)
-            let hit = false;
-            if (isObstacle) {
-                 hit = playerX + PLAYER_R > e.x && playerX - PLAYER_R < e.x + e.w &&
-                       PLAYER_Y + PLAYER_R > e.y && PLAYER_Y - PLAYER_R < e.y + e.h;
-            } else {
-                 const d = Math.hypot(playerX - e.x, PLAYER_Y - e.y);
-                 hit = d < PLAYER_R + e.r + 5;
-            }
-
-            if (hit) {
-                if (isObstacle) {
-                    if (invincible > 0) continue;
-                    shields--;
-                    invincible = 60;
-                    shakeTime = 15;
-                    combo = 0; streakMultiplier = 1;
-                    floats.push({ x: playerX, y: PLAYER_Y - 30, text: '-SHIELD', color: '#ff2255', size: 14, life: 1, dy: -1 });
-                    if (shields < 0) { die(); return; }
-                } else {
-                    // Collectible
-                    e.collected = true;
-                    if (e.type) { // Powerup
-                        if (e.type === 'shield') shields = Math.min(shields+1, 5);
-                        else activePower = { type: e.type, timer: e.duration };
-                        floats.push({ x: e.x, y: e.y, text: e.desc, color: e.color, size: 12, life: 1, dy: -1 });
-                    } else { // Orb
-                        score += Math.round(50 * streakMultiplier);
-                    }
-                }
-            } else if (isObstacle && !e.counted && e.y > PLAYER_Y + 10) {
-                // Near miss check logic
-                e.counted = true;
-                const closestX = Math.max(e.x, Math.min(e.x + e.w, playerX));
-                const dist = Math.abs(playerX - closestX);
-                if (dist < NEAR_MISS_DIST) {
-                    combo++;
-                    streakMultiplier = Math.min(1 + combo * 0.2, 5);
-                    const pts = Math.round((dist < GRAZE_DIST ? 200 : 100) * streakMultiplier);
-                    score += pts;
-                    floats.push({ x: playerX, y: PLAYER_Y-20, text: `+${pts}`, color: '#44ffaa', size: 10, life: 0.8, dy: -1 });
-                }
-            }
+    // Collision & Logic
+    const checkHit = (e, isObs) => {
+        // Simple AABB
+        if (isObs) {
+            return playerX + HITBOX_W/2 > e.x && playerX - HITBOX_W/2 < e.x + e.w &&
+                   PLAYER_Y + HITBOX_H/2 > e.y && PLAYER_Y - HITBOX_H/2 < e.y + e.h;
+        } else {
+            return Math.hypot(playerX - e.x, PLAYER_Y - e.y) < HITBOX_W + e.r;
         }
     };
 
-    moveEntity(obstacles, true);
-    moveEntity(orbs, false);
-    moveEntity(powerups, false);
+    // Obstacles
+    for (let i = obstacles.length - 1; i >= 0; i--) {
+        const o = obstacles[i];
+        o.y += effectiveSpeed;
+        if (o.y > H + 50) { obstacles.splice(i, 1); continue; }
 
-    // Magnet
-    if (magnetActive) {
-        orbs.forEach(o => {
-            if (o.collected) return;
-            const d = Math.hypot(playerX - o.x, PLAYER_Y - o.y);
-            if (d < 200) {
-                o.x += (playerX - o.x) * 0.1;
-                o.y += (PLAYER_Y - o.y) * 0.1;
+        if (checkHit(o, true)) {
+            if (invincible > 0) continue;
+            shields--;
+            invincible = 60;
+            shakeTime = 15; shakeIntensity = 5;
+            combo = 0; streakMultiplier = 1;
+            floats.push({ x: playerX, y: PLAYER_Y - 40, text: '-SHIELD', color: '#ff2255', size: 14, life: 1, dy: -1 });
+            
+            // Shield break particles
+            for(let j=0; j<10; j++) {
+                const a=Math.random()*Math.PI*2;
+                particles.push({x:playerX, y:PLAYER_Y, dx:Math.cos(a)*4, dy:Math.sin(a)*4, life:0.6, color:'#00e5ff', size:2});
             }
-        });
+            
+            if (shields < 0) { die(); return; }
+        } else if (!o.counted && o.y > PLAYER_Y) {
+            // Near miss
+            const closestX = Math.max(o.x, Math.min(o.x + o.w, playerX));
+            const dist = Math.abs(playerX - closestX);
+            // distance from center of car to edge of block. Car half-width is ~13.
+            // So if dist < 13, collision. If dist < 13 + 30 = 43, near miss.
+            const threshold = CAR_W/2 + NEAR_MISS_DIST;
+            
+            if (dist < threshold) {
+                o.counted = true;
+                const isGraze = dist < CAR_W/2 + GRAZE_DIST;
+                
+                combo++;
+                streakMultiplier = Math.min(1 + combo * 0.2, 5);
+                const pts = Math.round((isGraze ? 200 : 100) * streakMultiplier);
+                score += pts;
+                
+                const color = isGraze ? THEME.graze : THEME.nearMiss;
+                floats.push({ x: playerX, y: PLAYER_Y-40, text: isGraze?'GRAZE!':'NEAR!', color: color, size: isGraze?12:10, life: 0.8, dy: -1.5 });
+                floats.push({ x: playerX, y: PLAYER_Y-25, text: `+${pts}`, color: '#fff', size: 10, life: 0.8, dy: -1.5 });
+                
+                // Spark particles
+                const side = playerX < closestX ? 1 : -1; // Sparks fly opposite to wall
+                for(let j=0; j<(isGraze?8:4); j++) {
+                    const a = (side>0?0:Math.PI) + (Math.random()-0.5);
+                    particles.push({
+                        x: closestX, y: PLAYER_Y,
+                        dx: Math.cos(a)*5, dy: (Math.random()-0.5)*5,
+                        life: 0.5, color: color, size: 2
+                    });
+                }
+            }
+        }
     }
 
+    // Collectibles
+    [orbs, powerups].forEach(list => {
+        for (let i = list.length - 1; i >= 0; i--) {
+            const e = list[i];
+            e.y += effectiveSpeed;
+            if (activePower?.type === 'magnet' && !e.type) { // Magnet pulls orbs
+                const d = Math.hypot(playerX - e.x, PLAYER_Y - e.y);
+                if (d < 250) {
+                    e.x += (playerX - e.x) * 0.15;
+                    e.y += (PLAYER_Y - e.y) * 0.15;
+                }
+            }
+            if (checkHit(e, false)) {
+                e.collected = true;
+                if (e.type) {
+                     if (e.type === 'shield') shields = Math.min(shields+1, 5);
+                     else activePower = { type: e.type, timer: e.duration };
+                     floats.push({ x: e.x, y: e.y, text: e.desc, color: e.color, size: 12, life: 1, dy: -1 });
+                } else {
+                     score += Math.round(50 * streakMultiplier);
+                }
+                list.splice(i, 1);
+            } else if (e.y > H + 50) list.splice(i, 1);
+        }
+    });
+
     score += Math.round(effectiveSpeed * 0.2);
-    
-    // Floats & Particles
+
+    // Update VFX
+    particles.forEach(p => { p.x += p.dx; p.y += p.dy; p.life -= 0.03; });
+    particles = particles.filter(p => p.life > 0);
+    trail.forEach(t => t.life -= 0.02);
+    trail = trail.filter(t => t.life > 0);
     floats.forEach(f => { f.y += f.dy; f.life -= 0.02; });
     floats = floats.filter(f => f.life > 0);
-    particles.forEach(p => { p.x += p.dx; p.y += p.dy; p.life -= 0.05; });
-    particles = particles.filter(p => p.life > 0);
 }
 
 // ======================== DRAW ========================
@@ -346,122 +372,212 @@ function draw() {
     
     X.save();
     if (shakeTime > 0) {
-        const s = shakeTime * 0.5;
+        const s = shakeIntensity * (shakeTime / 30);
         X.translate((Math.random()-0.5)*s, (Math.random()-0.5)*s);
     }
 
-    // Clean Background
-    X.fillStyle = '#05050a';
+    // BG
+    X.fillStyle = cfg.bg;
     X.fillRect(0, 0, W, H);
-
-    // Subtle Grid
-    X.strokeStyle = 'rgba(255,255,255,0.02)';
-    X.lineWidth = 1;
-    const offset = (distance % 50);
-    for (let y = offset; y < H; y += 50) {
-        X.beginPath(); X.moveTo(LANE_X, y); X.lineTo(LANE_X + LANE_W, y); X.stroke();
-    }
     
-    // Lane Edges
-    X.strokeStyle = cfg.accent;
-    X.lineWidth = 2;
-    X.beginPath(); X.moveTo(LANE_X, 0); X.lineTo(LANE_X, H); X.stroke();
-    X.beginPath(); X.moveTo(LANE_X+LANE_W, 0); X.lineTo(LANE_X+LANE_W, H); X.stroke();
+    // Grid
+    const off = (distance % 50);
+    X.strokeStyle = 'rgba(255,255,255,0.03)';
+    X.lineWidth = 1;
+    for(let y=off; y<H; y+=50) { X.beginPath(); X.moveTo(LANE_X, y); X.lineTo(LANE_X+LANE_W, y); X.stroke(); }
+    
+    // Lane Edges (Neon Glow)
+    X.shadowBlur = 15; X.shadowColor = cfg.accent;
+    X.strokeStyle = cfg.accent; X.lineWidth = 3;
+    X.beginPath(); X.moveTo(LANE_X,0); X.lineTo(LANE_X,H); X.stroke();
+    X.beginPath(); X.moveTo(LANE_X+LANE_W,0); X.lineTo(LANE_X+LANE_W,H); X.stroke();
+    X.shadowBlur = 0;
 
-    // Player
-    if (state !== 'dead') {
-        if (invincible % 10 < 5) {
-            X.fillStyle = THEME.player;
-            X.shadowColor = THEME.player;
-            X.shadowBlur = 15;
-            X.beginPath(); X.arc(playerX, PLAYER_Y, PLAYER_R, 0, Math.PI*2); X.fill();
-            X.shadowBlur = 0;
-            
-            // Shields ring
-            if (shields > 0) {
-                X.strokeStyle = THEME.shield;
-                X.lineWidth = 2;
-                X.beginPath(); X.arc(playerX, PLAYER_Y, PLAYER_R + 6 + shields*2, 0, Math.PI*2); X.stroke();
-            }
+    // Tire Tracks
+    trail.forEach(t => {
+        X.fillStyle = `rgba(0, 229, 255, ${t.life * 0.3})`;
+        X.fillRect(t.x - 2, t.y, 4, 4);
+    });
+
+    // Speed Lines
+    particles.forEach(p => {
+        if(p.type === 'line') {
+            X.fillStyle = p.color;
+            X.fillRect(p.x, p.y, p.size, p.h);
         }
+    });
+
+    // Player (THE CAR)
+    if (state !== 'dead') {
+        X.save();
+        X.translate(playerX, PLAYER_Y);
+        X.rotate(carTilt); 
+        if (invincible % 10 < 5) drawCar(cfg.accent);
+        X.restore();
     }
 
     // Obstacles
     obstacles.forEach(o => {
+        // Top face
         X.fillStyle = o.color;
-        X.shadowColor = o.color;
-        X.shadowBlur = 10;
+        X.shadowBlur = 10; X.shadowColor = o.color;
         X.fillRect(o.x, o.y, o.w, o.h);
         X.shadowBlur = 0;
-        // Contrast line
+        // Front face (pseudo-3D)
+        X.fillStyle = 'rgba(0,0,0,0.3)';
+        X.fillRect(o.x, o.y + o.h - 5, o.w, 5);
+        // Highlight
         X.fillStyle = '#fff';
-        X.fillRect(o.x, o.y + o.h - 2, o.w, 2);
+        X.fillRect(o.x, o.y, o.w, 2);
     });
 
     // Orbs & Powerups
     orbs.forEach(o => {
-        if (o.collected) return;
-        X.fillStyle = '#ffd700';
-        X.beginPath(); X.arc(o.x, o.y, o.r, 0, Math.PI*2); X.fill();
+        X.shadowBlur = 10; X.shadowColor = '#ffd700';
+        X.fillStyle = '#ffd700'; X.beginPath(); X.arc(o.x, o.y, o.r, 0, Math.PI*2); X.fill();
+        X.shadowBlur = 0;
     });
     powerups.forEach(p => {
-        if (p.collected) return;
-        X.fillStyle = p.color;
-        X.beginPath(); X.arc(p.x, p.y, p.r, 0, Math.PI*2); X.fill();
-        X.fillStyle = '#000';
-        X.font = '12px sans-serif'; X.textAlign='center';
-        X.fillText(p.icon, p.x, p.y+4);
+        X.shadowBlur = 15; X.shadowColor = p.color;
+        X.fillStyle = p.color; X.beginPath(); X.arc(p.x, p.y, p.r, 0, Math.PI*2); X.fill();
+        X.shadowBlur = 0;
+        X.fillStyle = '#000'; X.font = '14px serif'; X.textAlign='center'; X.fillText(p.icon, p.x, p.y+5);
     });
+
+    // Particles (Sparks/Debris)
+    particles.forEach(p => {
+        if (p.type === 'line') return;
+        X.globalAlpha = p.life;
+        X.fillStyle = p.color;
+        X.fillRect(p.x - p.size/2, p.y - p.size/2, p.size, p.size);
+    });
+    X.globalAlpha = 1;
+
+    // Flash
+    if (flashAlpha > 0) {
+        X.globalAlpha = flashAlpha;
+        X.fillStyle = flashColor;
+        X.fillRect(0,0,W,H);
+        X.globalAlpha = 1;
+    }
 
     // Floats
     floats.forEach(f => {
         X.globalAlpha = f.life;
         X.fillStyle = f.color;
+        X.shadowBlur = 5; X.shadowColor = f.color;
         X.font = `${f.size}px "Press Start 2P"`;
         X.textAlign = 'center';
         X.fillText(f.text, f.x, f.y);
+        X.shadowBlur = 0;
     });
     X.globalAlpha = 1;
 
     // HUD
-    X.fillStyle = '#fff';
-    X.font = '14px "Press Start 2P"';
-    X.textAlign = 'left';
-    X.fillText(`SCORE ${score}`, 20, 30);
-    X.textAlign = 'right';
-    X.fillText(`LVL ${level+1}`, W-20, 30);
+    drawHUD();
     
-    if (state === 'menu') {
-        X.fillStyle = 'rgba(0,0,0,0.7)';
-        X.fillRect(0,0,W,H);
-        X.fillStyle = '#fff';
-        X.textAlign = 'center';
-        X.font = '24px "Press Start 2P"';
-        X.fillText('DRIFT', W/2, H/2 - 20);
-        X.font = '10px "Press Start 2P"';
-        X.fillText('Tap / Click to Start', W/2, H/2 + 20);
-    }
-    
-    if (state === 'dead') {
-        X.fillStyle = 'rgba(50,0,0,0.6)';
-        X.fillRect(0,0,W,H);
-        X.fillStyle = '#fff';
-        X.textAlign = 'center';
-        X.font = '20px "Press Start 2P"';
-        X.fillText('CRASHED', W/2, H/2 - 20);
-        X.font = '10px "Press Start 2P"';
-        X.fillText(`Score: ${score}`, W/2, H/2 + 10);
-        X.fillText('Tap to Retry', W/2, H/2 + 40);
-    }
+    if (state === 'menu') drawMenu();
+    if (state === 'dead') drawDeath();
 
     X.restore();
 }
 
-function loop() {
-    update();
-    draw();
-    requestAnimationFrame(loop);
+function drawCar(accent) {
+    // Glow
+    X.shadowBlur = 20; X.shadowColor = accent;
+    
+    // Body
+    X.fillStyle = '#000';
+    X.beginPath();
+    X.roundRect(-CAR_W/2, -CAR_H/2, CAR_W, CAR_H, 4);
+    X.fill();
+    
+    X.fillStyle = accent;
+    // Hood lines
+    X.fillRect(-CAR_W/2 + 2, -CAR_H/2 + 2, 2, CAR_H - 4);
+    X.fillRect(CAR_W/2 - 4, -CAR_H/2 + 2, 2, CAR_H - 4);
+    
+    // Windshield
+    X.fillStyle = '#000';
+    X.beginPath();
+    X.moveTo(-CAR_W/2 + 4, -5);
+    X.lineTo(CAR_W/2 - 4, -5);
+    X.lineTo(CAR_W/2 - 2, 5);
+    X.lineTo(-CAR_W/2 + 2, 5);
+    X.fill();
+    
+    // Headlights (Beams)
+    X.globalAlpha = 0.3;
+    X.fillStyle = '#fff';
+    X.beginPath(); X.moveTo(-8, -CAR_H/2); X.lineTo(-20, -150); X.lineTo(0, -150); X.fill();
+    X.beginPath(); X.moveTo(8, -CAR_H/2); X.lineTo(20, -150); X.lineTo(0, -150); X.fill();
+    X.globalAlpha = 1;
+    
+    // Rear Lights (Red Trails)
+    X.fillStyle = '#ff0000';
+    X.shadowColor = '#ff0000';
+    X.fillRect(-10, CAR_H/2 - 2, 6, 3);
+    X.fillRect(4, CAR_H/2 - 2, 6, 3);
+    
+    X.shadowBlur = 0;
+    
+    // Shields
+    if (shields > 0) {
+        X.strokeStyle = THEME.shield;
+        X.lineWidth = 2;
+        X.globalAlpha = 0.6;
+        X.beginPath(); X.arc(0, 0, CAR_H/2 + 8, 0, Math.PI*2); X.stroke();
+        X.globalAlpha = 1;
+    }
 }
+
+function drawHUD() {
+    X.fillStyle = '#fff';
+    X.font = '14px "Press Start 2P"';
+    X.textAlign = 'left';
+    X.fillText(`SCORE ${score.toLocaleString()}`, 20, 30);
+    X.textAlign = 'right';
+    X.fillText(`LV ${level+1}`, W-20, 30);
+    
+    // Speed Bar
+    const barH = 100;
+    const fillH = (speed / MAX_SPEED) * barH;
+    X.fillStyle = 'rgba(255,255,255,0.1)';
+    X.fillRect(W - 25, H/2 - barH/2, 6, barH);
+    X.fillStyle = '#00e5ff';
+    X.fillRect(W - 25, H/2 + barH/2 - fillH, 6, fillH);
+}
+
+function drawMenu() {
+    X.fillStyle = 'rgba(0,0,0,0.85)';
+    X.fillRect(0,0,W,H);
+    X.fillStyle = THEME.accent;
+    X.textAlign = 'center';
+    X.font = '32px "Press Start 2P"';
+    X.shadowColor = THEME.accent; X.shadowBlur = 40;
+    X.fillText('DRIFT', W/2, H*0.4);
+    X.shadowBlur = 0;
+    X.fillStyle = '#fff';
+    X.font = '10px "Press Start 2P"';
+    X.fillText('CLICK / TAP TO START', W/2, H*0.6);
+}
+
+function drawDeath() {
+    X.fillStyle = 'rgba(20,0,0,0.8)';
+    X.fillRect(0,0,W,H);
+    X.fillStyle = '#ff2255';
+    X.textAlign = 'center';
+    X.font = '24px "Press Start 2P"';
+    X.fillText('CRASHED', W/2, H*0.4);
+    X.fillStyle = '#fff';
+    X.font = '12px "Press Start 2P"';
+    X.fillText(`SCORE: ${score.toLocaleString()}`, W/2, H*0.5);
+    X.fillStyle = 'rgba(255,255,255,0.5)';
+    X.font = '10px "Press Start 2P"';
+    X.fillText('TAP TO RETRY', W/2, H*0.7);
+}
+
+function loop() { update(); draw(); requestAnimationFrame(loop); }
 loop();
 </script>
 </body>
