@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fracture - Arcade</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;700&display=swap');
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #0a0a1a;
+            overflow: hidden;
+            font-family: 'JetBrains Mono', monospace;
+            color: #fff;
+            user-select: none;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        canvas {
+            border: 2px solid rgba(0, 200, 255, 0.25);
+            border-radius: 4px;
+            box-shadow: 0 0 50px rgba(0, 200, 255, 0.08);
+        }
+        .ui { position: fixed; z-index: 10; pointer-events: none; width: 100%; height: 100%; }
+        .hud {
+            position: absolute; top: 18px; left: 50%;
+            transform: translateX(-50%);
+            display: flex; gap: 30px; align-items: center;
+        }
+        .game-title {
+            font-family: 'Press Start 2P', cursive;
+            font-size: 14px; color: #00c8ff;
+            text-shadow: 0 0 10px rgba(0,200,255,0.5);
+        }
+        .hud-score {
+            font-family: 'Press Start 2P', cursive;
+            font-size: 13px; color: #fff;
+        }
+        .hud-lives {
+            font-family: 'Press Start 2P', cursive;
+            font-size: 12px; color: #ff6688;
+        }
+        .back-btn {
+            position: fixed; top: 14px; left: 18px; z-index: 20;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px; color: rgba(255,255,255,0.35);
+            text-decoration: none; transition: color 0.2s;
+        }
+        .back-btn:hover { color: #fff; }
+    </style>
+</head>
+<body>
+    <a href="../games.html" class="back-btn">← Arcade</a>
+    <div class="ui">
+        <div class="hud">
+            <span class="game-title">FRACTURE</span>
+            <span class="hud-score" id="score">0</span>
+            <span class="hud-lives" id="lives">♥♥♥</span>
+        </div>
+    </div>
+    <canvas id="c"></canvas>
+
+    <script>
+    const canvas = document.getElementById('c');
+    const ctx = canvas.getContext('2d');
+    const scoreEl = document.getElementById('score');
+    const livesEl = document.getElementById('lives');
+
+    // --- Sizing ---
+    const W = Math.min(window.innerWidth - 40, 800);
+    const H = Math.min(window.innerHeight - 40, 600);
+    canvas.width = W; canvas.height = H;
+
+    // --- Colors ---
+    const COLORS = ['#00c8ff','#ff6688','#44ffaa','#ffaa33','#c864ff','#ff4466','#33ddff','#88ff44'];
+
+    // --- Game State ---
+    let score = 0, lives = 3, level = 1;
+    let gameOver = false, gameWon = false, paused = true;
+    let particles = [];
+    let shakeTime = 0;
+
+    // --- Paddle ---
+    const paddle = { w: 100, h: 12, x: W/2 - 50, y: H - 40, speed: 8, color: '#00c8ff' };
+
+    // --- Ball ---
+    const ball = { x: W/2, y: H - 60, r: 6, dx: 4, dy: -4, speed: 5, color: '#fff', trail: [] };
+
+    // --- Bricks ---
+    const BRICK = { rows: 6, cols: 10, w: 0, h: 20, pad: 4, top: 60 };
+    BRICK.w = (W - BRICK.pad * (BRICK.cols + 1)) / BRICK.cols;
+    let bricks = [];
+
+    function initBricks() {
+        bricks = [];
+        for (let r = 0; r < BRICK.rows; r++) {
+            for (let c = 0; c < BRICK.cols; c++) {
+                const hp = r < 2 ? 2 + Math.floor(level/3) : 1;
+                bricks.push({
+                    x: BRICK.pad + c * (BRICK.w + BRICK.pad),
+                    y: BRICK.top + r * (BRICK.h + BRICK.pad),
+                    w: BRICK.w, h: BRICK.h,
+                    color: COLORS[(r + level) % COLORS.length],
+                    hp: hp, maxHp: hp, alive: true
+                });
+            }
+        }
+    }
+
+    function resetBall() {
+        ball.x = W/2; ball.y = H - 60;
+        const angle = -Math.PI/2 + (Math.random() - 0.5) * 0.8;
+        const spd = ball.speed + level * 0.3;
+        ball.dx = Math.cos(angle) * spd;
+        ball.dy = Math.sin(angle) * spd;
+        ball.trail = [];
+        paused = true;
+    }
+
+    // --- Input ---
+    let mouseX = W/2;
+    let keys = {};
+    canvas.addEventListener('mousemove', e => {
+        const rect = canvas.getBoundingClientRect();
+        mouseX = e.clientX - rect.left;
+    });
+    document.addEventListener('keydown', e => { keys[e.key] = true; });
+    document.addEventListener('keyup', e => { keys[e.key] = false; });
+    canvas.addEventListener('click', () => {
+        if (paused && !gameOver && !gameWon) paused = false;
+        if (gameOver || gameWon) restart();
+    });
+    canvas.addEventListener('touchmove', e => {
+        e.preventDefault();
+        const rect = canvas.getBoundingClientRect();
+        mouseX = e.touches[0].clientX - rect.left;
+        if (paused && !gameOver && !gameWon) paused = false;
+    }, { passive: false });
+    canvas.addEventListener('touchstart', e => {
+        if (gameOver || gameWon) restart();
+        if (paused) paused = false;
+    });
+
+    // --- Particles ---
+    function spawnParticles(x, y, color, count = 8) {
+        for (let i = 0; i < count; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const spd = 1 + Math.random() * 3;
+            particles.push({
+                x, y, dx: Math.cos(angle)*spd, dy: Math.sin(angle)*spd,
+                life: 1, decay: 0.02 + Math.random()*0.03,
+                size: 2 + Math.random()*3, color
+            });
+        }
+    }
+
+    // --- Update ---
+    function update() {
+        if (paused || gameOver || gameWon) return;
+
+        // Paddle
+        const targetX = mouseX - paddle.w/2;
+        paddle.x += (targetX - paddle.x) * 0.3;
+        if (keys['ArrowLeft'] || keys['a']) paddle.x -= paddle.speed;
+        if (keys['ArrowRight'] || keys['d']) paddle.x += paddle.speed;
+        paddle.x = Math.max(0, Math.min(W - paddle.w, paddle.x));
+
+        // Ball trail
+        ball.trail.push({x: ball.x, y: ball.y});
+        if (ball.trail.length > 12) ball.trail.shift();
+
+        // Ball movement
+        ball.x += ball.dx;
+        ball.y += ball.dy;
+
+        // Wall collisions
+        if (ball.x - ball.r < 0) { ball.x = ball.r; ball.dx = Math.abs(ball.dx); }
+        if (ball.x + ball.r > W) { ball.x = W - ball.r; ball.dx = -Math.abs(ball.dx); }
+        if (ball.y - ball.r < 0) { ball.y = ball.r; ball.dy = Math.abs(ball.dy); }
+
+        // Paddle collision
+        if (ball.dy > 0 && ball.y + ball.r >= paddle.y && ball.y + ball.r <= paddle.y + paddle.h + 4 &&
+            ball.x >= paddle.x - ball.r && ball.x <= paddle.x + paddle.w + ball.r) {
+            const hit = (ball.x - (paddle.x + paddle.w/2)) / (paddle.w/2);
+            const angle = hit * Math.PI/3 - Math.PI/2;
+            const spd = Math.sqrt(ball.dx*ball.dx + ball.dy*ball.dy);
+            ball.dx = Math.cos(angle) * spd;
+            ball.dy = Math.sin(angle) * spd;
+            if (ball.dy > -1) ball.dy = -1;
+            ball.y = paddle.y - ball.r;
+            spawnParticles(ball.x, ball.y, paddle.color, 4);
+        }
+
+        // Ball lost
+        if (ball.y > H + 20) {
+            lives--;
+            shakeTime = 15;
+            if (lives <= 0) { gameOver = true; return; }
+            resetBall();
+        }
+
+        // Brick collision
+        for (let b of bricks) {
+            if (!b.alive) continue;
+            if (ball.x + ball.r > b.x && ball.x - ball.r < b.x + b.w &&
+                ball.y + ball.r > b.y && ball.y - ball.r < b.y + b.h) {
+                
+                // Determine bounce direction
+                const overlapLeft = (ball.x + ball.r) - b.x;
+                const overlapRight = (b.x + b.w) - (ball.x - ball.r);
+                const overlapTop = (ball.y + ball.r) - b.y;
+                const overlapBottom = (b.y + b.h) - (ball.y - ball.r);
+                const minOverlap = Math.min(overlapLeft, overlapRight, overlapTop, overlapBottom);
+                
+                if (minOverlap === overlapTop || minOverlap === overlapBottom) ball.dy = -ball.dy;
+                else ball.dx = -ball.dx;
+
+                b.hp--;
+                if (b.hp <= 0) {
+                    b.alive = false;
+                    score += 10 * level;
+                    spawnParticles(b.x + b.w/2, b.y + b.h/2, b.color, 12);
+                } else {
+                    spawnParticles(b.x + b.w/2, b.y + b.h/2, b.color, 4);
+                }
+                shakeTime = 3;
+                break;
+            }
+        }
+
+        // Check level clear
+        if (bricks.every(b => !b.alive)) {
+            level++;
+            if (level > 5) { gameWon = true; return; }
+            ball.speed += 0.5;
+            initBricks();
+            resetBall();
+        }
+
+        // Particles
+        particles = particles.filter(p => {
+            p.x += p.dx; p.y += p.dy;
+            p.dy += 0.05;
+            p.life -= p.decay;
+            return p.life > 0;
+        });
+
+        // Shake decay
+        if (shakeTime > 0) shakeTime--;
+    }
+
+    // --- Draw ---
+    function draw() {
+        ctx.save();
+        
+        // Screen shake
+        if (shakeTime > 0) {
+            const intensity = shakeTime * 0.5;
+            ctx.translate(
+                (Math.random() - 0.5) * intensity,
+                (Math.random() - 0.5) * intensity
+            );
+        }
+
+        // Background
+        ctx.fillStyle = '#0a0a1a';
+        ctx.fillRect(0, 0, W, H);
+
+        // Grid
+        ctx.strokeStyle = 'rgba(0,200,255,0.03)';
+        ctx.lineWidth = 1;
+        for (let x = 0; x < W; x += 40) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+        for (let y = 0; y < H; y += 40) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+
+        // Bricks
+        for (let b of bricks) {
+            if (!b.alive) continue;
+            const alpha = b.hp / b.maxHp;
+            ctx.fillStyle = b.color;
+            ctx.globalAlpha = 0.3 + alpha * 0.7;
+            ctx.fillRect(b.x, b.y, b.w, b.h);
+            
+            // Glow
+            ctx.shadowColor = b.color;
+            ctx.shadowBlur = 8 + alpha * 8;
+            ctx.fillRect(b.x, b.y, b.w, b.h);
+            ctx.shadowBlur = 0;
+            ctx.globalAlpha = 1;
+
+            // Crack lines for damaged bricks
+            if (b.hp < b.maxHp) {
+                ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(b.x + b.w*0.3, b.y);
+                ctx.lineTo(b.x + b.w*0.5, b.y + b.h*0.6);
+                ctx.lineTo(b.x + b.w*0.7, b.y + b.h);
+                ctx.stroke();
+            }
+        }
+
+        // Paddle
+        ctx.fillStyle = paddle.color;
+        ctx.shadowColor = paddle.color;
+        ctx.shadowBlur = 15;
+        const pr = 6;
+        ctx.beginPath();
+        ctx.roundRect(paddle.x, paddle.y, paddle.w, paddle.h, pr);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
+        // Ball trail
+        for (let i = 0; i < ball.trail.length; i++) {
+            const t = ball.trail[i];
+            const alpha = (i / ball.trail.length) * 0.3;
+            ctx.fillStyle = `rgba(255,255,255,${alpha})`;
+            ctx.beginPath();
+            ctx.arc(t.x, t.y, ball.r * (i/ball.trail.length), 0, Math.PI*2);
+            ctx.fill();
+        }
+
+        // Ball
+        ctx.fillStyle = ball.color;
+        ctx.shadowColor = '#fff';
+        ctx.shadowBlur = 12;
+        ctx.beginPath();
+        ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI*2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
+        // Particles
+        for (let p of particles) {
+            ctx.globalAlpha = p.life;
+            ctx.fillStyle = p.color;
+            ctx.fillRect(p.x - p.size/2, p.y - p.size/2, p.size, p.size);
+        }
+        ctx.globalAlpha = 1;
+
+        // HUD
+        scoreEl.textContent = score;
+        livesEl.textContent = '♥'.repeat(Math.max(0, lives));
+
+        // Overlay text
+        if (paused && !gameOver && !gameWon) {
+            drawOverlay('CLICK TO LAUNCH', `Level ${level}`);
+        }
+        if (gameOver) {
+            drawOverlay('GAME OVER', `Score: ${score}  •  Click to restart`);
+        }
+        if (gameWon) {
+            drawOverlay('YOU WIN', `Score: ${score}  •  All levels cleared!`);
+        }
+
+        ctx.restore();
+    }
+
+    function drawOverlay(title, sub) {
+        ctx.fillStyle = 'rgba(10,10,26,0.7)';
+        ctx.fillRect(0, 0, W, H);
+        ctx.fillStyle = '#00c8ff';
+        ctx.font = '28px "Press Start 2P"';
+        ctx.textAlign = 'center';
+        ctx.shadowColor = '#00c8ff';
+        ctx.shadowBlur = 20;
+        ctx.fillText(title, W/2, H/2 - 10);
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = 'rgba(255,255,255,0.5)';
+        ctx.font = '12px "Press Start 2P"';
+        ctx.fillText(sub, W/2, H/2 + 30);
+    }
+
+    function restart() {
+        score = 0; lives = 3; level = 1;
+        gameOver = false; gameWon = false;
+        ball.speed = 5; particles = [];
+        initBricks(); resetBall();
+    }
+
+    // --- Loop ---
+    function loop() {
+        update(); draw();
+        requestAnimationFrame(loop);
+    }
+
+    initBricks(); resetBall(); loop();
+    </script>
+</body>
+</html>
