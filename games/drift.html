@@ -8,7 +8,7 @@
         @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;700&display=swap');
         *{margin:0;padding:0;box-sizing:border-box}
-        body{background:#07070f;overflow:hidden;font-family:'JetBrains Mono',monospace;color:#fff;user-select:none;display:flex;justify-content:center;align-items:center;height:100vh}
+        body{background:#05050a;overflow:hidden;font-family:'JetBrains Mono',monospace;color:#fff;user-select:none;display:flex;justify-content:center;align-items:center;height:100vh}
         canvas{display:block}
         .back-btn{position:fixed;top:14px;left:18px;z-index:20;font-family:'JetBrains Mono',monospace;font-size:13px;color:rgba(255,255,255,0.3);text-decoration:none;transition:color .2s;z-index:100}
         .back-btn:hover{color:#fff}
@@ -19,10 +19,9 @@
     <canvas id="c"></canvas>
 <script>
 // ============================================================
-//  D R I F T  —  Neon Near-Miss Runner
-//  Core hook: The closer you graze past danger, the more you score.
-//  Design based on Flow theory, variable reward schedules,
-//  and the risk/reward tension that creates "one more try" loops.
+//  D R I F T  —  Refined
+//  Fixes: Fair path generation (no impossible walls),
+//  Reduced visual noise, Better hitboxes.
 // ============================================================
 
 const C = document.getElementById('c');
@@ -31,57 +30,45 @@ const W = C.width = window.innerWidth;
 const H = C.height = window.innerHeight;
 
 // ======================== TUNING ========================
-const LANE_W = Math.min(W * 0.7, 500);  // road width
-const LANE_X = (W - LANE_W) / 2;        // road left edge
-const PLAYER_Y = H * 0.78;              // fixed Y position
-const PLAYER_R = 10;                     // player radius
+const LANE_W = Math.min(W * 0.85, 600); // Wider road for better playability
+const LANE_X = (W - LANE_W) / 2;
+const PLAYER_Y = H * 0.8;
+const PLAYER_R = 8; // Smaller player hitbox
 
-const BASE_SPEED = 2.5;                  // starting scroll speed
-const SPEED_RAMP = 0.08;                 // speed increase per second
-const MAX_SPEED = 14;
+const BASE_SPEED = 3.5;
+const SPEED_RAMP = 0.05; 
+const MAX_SPEED = 12;
 
-const NEAR_MISS_DIST = 28;              // px threshold for near-miss bonus
-const GRAZE_DIST = 18;                   // ultra-close = bigger bonus
+const NEAR_MISS_DIST = 40; // Generous near-miss zone
+const GRAZE_DIST = 22;
 
-const SPAWN_INTERVAL_BASE = 55;          // frames between obstacles (decreases)
-const SPAWN_INTERVAL_MIN = 18;
-
-const ORB_SPAWN_CHANCE = 0.35;           // chance per spawn cycle
+const SPAWN_INTERVAL_BASE = 50; 
+const MIN_GAP_WIDTH = 100; // Minimum clickable space
 
 // ======================== COLORS ========================
 const THEME = {
-    road: '#0c0c1a',
-    roadLine: 'rgba(255,255,255,0.04)',
-    roadEdge: '#1a1a3a',
+    road: '#080810',
+    roadLine: 'rgba(255,255,255,0.03)',
     player: '#00e5ff',
-    playerGlow: '#00e5ff',
-    orb: '#ffd700',
-    orbGlow: '#ffa500',
     obstacle: '#ff2255',
-    obstacleGlow: '#ff0044',
     nearMiss: '#44ffaa',
     graze: '#ffd700',
     shield: '#00e5ff',
-    trail: '#00e5ff',
-    bg: '#07070f',
     text: '#ffffff',
     accent: '#00e5ff',
 };
 
-// Level themes — visual progression
 const LEVEL_THEMES = [
-    { name: 'IGNITION',    accent: '#00e5ff', obstacle: '#ff2255', bg1: '#07070f', bg2: '#0a0a18' },
-    { name: 'VELOCITY',    accent: '#44ffaa', obstacle: '#ff6633', bg1: '#060f0a', bg2: '#0a180e' },
-    { name: 'MOMENTUM',    accent: '#ffaa33', obstacle: '#ff2288', bg1: '#0f0a06', bg2: '#180e0a' },
-    { name: 'OVERDRIVE',   accent: '#c864ff', obstacle: '#ff4444', bg1: '#0a060f', bg2: '#120a18' },
-    { name: 'HYPERDRIVE',  accent: '#ff6688', obstacle: '#ff0066', bg1: '#0f0608', bg2: '#180a0e' },
-    { name: 'LIGHTSPEED',  accent: '#ffffff', obstacle: '#ff0044', bg1: '#08080f', bg2: '#101018' },
-    { name: 'BEYOND',      accent: '#ffd700', obstacle: '#ff0033', bg1: '#0f0f06', bg2: '#18180a' },
-    { name: 'INFINITE',    accent: '#00ffcc', obstacle: '#ff1144', bg1: '#060f0c', bg2: '#0a1812' },
+    { name: 'IGNITION',    accent: '#00e5ff', obstacle: '#ff2255' },
+    { name: 'VELOCITY',    accent: '#44ffaa', obstacle: '#ff6633' },
+    { name: 'MOMENTUM',    accent: '#ffaa33', obstacle: '#ff2288' },
+    { name: 'OVERDRIVE',   accent: '#c864ff', obstacle: '#ff4444' },
+    { name: 'HYPERDRIVE',  accent: '#ff6688', obstacle: '#ff0066' },
+    { name: 'INFINITE',    accent: '#00ffcc', obstacle: '#ff1144' },
 ];
 
 // ======================== STATE ========================
-let state = 'menu'; // menu | playing | dead
+let state = 'menu';
 let score = 0, highScore = 0, distance = 0;
 let speed = BASE_SPEED;
 let playerX = W / 2;
@@ -90,65 +77,46 @@ let shields = 3;
 let level = 0;
 let combo = 0, maxCombo = 0, totalNearMisses = 0;
 let frame = 0, spawnTimer = 0;
-let obstacles = [], orbs = [], particles = [], floats = [], trail = [];
-let shakeTime = 0, shakeIntensity = 0;
+let obstacles = [], orbs = [], particles = [], floats = [], trail = [], powerups = [];
+let shakeTime = 0;
 let flashAlpha = 0, flashColor = '#fff';
-let levelUpTimer = 0, levelUpText = '';
-let invincible = 0; // frames of invincibility after hit
-let streakMultiplier = 1; // increases with consecutive near-misses
+let levelUpTimer = 0;
+let invincible = 0;
+let streakMultiplier = 1;
 let lastNearMissFrame = -999;
-let powerups = [];
-let activePower = null; // { type, timer }
-let magnetActive = false, ghostActive = false;
+let activePower = null;
+let magnetActive = false;
 
-// Power-up types
+// Pathfinding state to ensure playability
+let lastGapCenter = LANE_W / 2; 
+
 const POWER_TYPES = [
     { type: 'magnet', icon: '🧲', color: '#ffd700', desc: 'MAGNET', duration: 300 },
-    { type: 'ghost',  icon: '👻', color: '#c864ff', desc: 'GHOST',  duration: 240 },
     { type: 'shield', icon: '🛡️', color: '#00e5ff', desc: '+SHIELD', duration: 0 },
     { type: 'slow',   icon: '⏳', color: '#44ffaa', desc: 'SLOW',   duration: 360 },
 ];
 
-// Load high score
 try { highScore = parseInt(localStorage.getItem('drift_hi')) || 0; } catch(e) {}
 
 // ======================== INPUT ========================
-let inputX = null; // null = no input, number = target X
-let touchId = null;
+let inputX = null;
 let keys = { left: false, right: false };
 
-// Mouse
-C.addEventListener('mousemove', e => {
-    if (state === 'playing') inputX = e.clientX;
-});
-C.addEventListener('click', e => {
-    if (state === 'menu') startGame();
-    else if (state === 'dead') startGame();
-});
-
-// Touch
-C.addEventListener('touchstart', e => {
-    e.preventDefault();
-    if (state === 'menu' || state === 'dead') { startGame(); return; }
-    const t = e.touches[0];
-    touchId = t.identifier;
-    inputX = t.clientX;
+C.addEventListener('mousemove', e => { if (state === 'playing') inputX = e.clientX; });
+C.addEventListener('click', () => { if (state !== 'playing') startGame(); });
+C.addEventListener('touchstart', e => { 
+    if (state !== 'playing') { startGame(); return; }
+    inputX = e.touches[0].clientX; 
 }, { passive: false });
-C.addEventListener('touchmove', e => {
-    e.preventDefault();
-    for (const t of e.touches) {
-        if (t.identifier === touchId) { inputX = t.clientX; break; }
-    }
+C.addEventListener('touchmove', e => { 
+    e.preventDefault(); 
+    inputX = e.touches[0].clientX; 
 }, { passive: false });
-C.addEventListener('touchend', e => { touchId = null; });
 
-// Keyboard
 document.addEventListener('keydown', e => {
     if (e.key === 'ArrowLeft' || e.key === 'a') keys.left = true;
     if (e.key === 'ArrowRight' || e.key === 'd') keys.right = true;
-    if (e.key === ' ' || e.key === 'Enter') {
-        if (state === 'menu' || state === 'dead') startGame();
-    }
+    if (e.key === ' ' || e.key === 'Enter') { if (state !== 'playing') startGame(); }
 });
 document.addEventListener('keyup', e => {
     if (e.key === 'ArrowLeft' || e.key === 'a') keys.left = false;
@@ -159,110 +127,87 @@ document.addEventListener('keyup', e => {
 function startGame() {
     state = 'playing';
     score = 0; distance = 0; speed = BASE_SPEED;
-    playerX = W / 2; targetX = W / 2;
+    playerX = W / 2; targetX = W / 2; lastGapCenter = LANE_W / 2;
     shields = 3; level = 0; combo = 0; maxCombo = 0;
-    totalNearMisses = 0; frame = 0; spawnTimer = 0;
-    streakMultiplier = 1; lastNearMissFrame = -999;
-    obstacles = []; orbs = []; particles = []; floats = [];
-    trail = []; powerups = [];
-    activePower = null; magnetActive = false; ghostActive = false;
-    invincible = 0; shakeTime = 0; flashAlpha = 0;
-    levelUpTimer = 0;
+    obstacles = []; orbs = []; particles = []; floats = []; trail = []; powerups = [];
+    activePower = null; invincible = 0;
+    streakMultiplier = 1;
 }
 
 function die() {
     state = 'dead';
-    shakeTime = 30; shakeIntensity = 8;
-    flashAlpha = 0.5; flashColor = '#ff0033';
-    // Explosion
+    shakeTime = 30;
     for (let i = 0; i < 40; i++) {
-        const a = Math.random() * Math.PI * 2;
-        const sp = 2 + Math.random() * 6;
-        particles.push({
-            x: playerX, y: PLAYER_Y,
-            dx: Math.cos(a)*sp, dy: Math.sin(a)*sp,
-            life: 1, decay: 0.015 + Math.random()*0.01,
-            size: 2 + Math.random()*4,
-            color: THEME.player
-        });
+        const a = Math.random() * Math.PI * 2, s = 2 + Math.random() * 6;
+        particles.push({ x: playerX, y: PLAYER_Y, dx: Math.cos(a)*s, dy: Math.sin(a)*s, life: 1, color: THEME.player, size: 3 });
     }
-    if (score > highScore) {
-        highScore = score;
-        try { localStorage.setItem('drift_hi', highScore); } catch(e) {}
-    }
+    if (score > highScore) { highScore = score; try { localStorage.setItem('drift_hi', highScore); } catch(e) {} }
 }
 
-// ======================== SPAWNING ========================
+// ======================== SPAWNING (FAIR) ========================
 function spawnObstacle() {
     const cfg = LEVEL_THEMES[level % LEVEL_THEMES.length];
     
-    // Obstacle patterns based on level
-    const patterns = ['single', 'single', 'double'];
-    if (level >= 2) patterns.push('gap');
-    if (level >= 4) patterns.push('zigzag');
-    if (level >= 5) patterns.push('narrow');
+    // Calculate max reachable distance sideways based on time between spawns
+    // Player lateral speed approx 12px/frame max (damped), safe bet is ~8px/frame
+    // Gap interval (pixels vertically) is approx 250px
+    // Time to reach = 250 / speed. At max speed 12, ~20 frames. 20 * 8 = 160px reachable.
+    // We constrain the new gap to be within reachable distance of the last gap.
     
-    const pattern = patterns[Math.floor(Math.random() * patterns.length)];
-    const lx = LANE_X;
+    const reachable = 300; // Generous lateral reach
+    const minGap = MIN_GAP_WIDTH;
     
-    switch (pattern) {
-        case 'single': {
-            const w = 30 + Math.random() * 40;
-            const ox = lx + Math.random() * (LANE_W - w);
-            obstacles.push({ x: ox, y: -30, w, h: 20 + Math.random()*15, color: cfg.obstacle, counted: false });
-            break;
+    // Determine new gap position centered around last gap, but clamped to road
+    let gapCenter = lastGapCenter + (Math.random() - 0.5) * reachable * 2;
+    gapCenter = Math.max(minGap/2 + 20, Math.min(LANE_W - minGap/2 - 20, gapCenter));
+    
+    lastGapCenter = gapCenter;
+    
+    // 70% chance to spawn a "gap" type (two walls), 30% single block
+    const isGate = Math.random() > 0.3;
+    
+    if (isGate) {
+        // Two walls with a gap in the middle
+        const gapW = minGap + Math.random() * 60;
+        const leftW = gapCenter - gapW / 2;
+        const rightX = gapCenter + gapW / 2;
+        const rightW = LANE_W - rightX;
+        
+        // Left wall
+        if (leftW > 10) {
+            obstacles.push({ x: LANE_X, y: -40, w: leftW, h: 25, color: cfg.obstacle, counted: false });
         }
-        case 'double': {
-            const w = 25 + Math.random() * 30;
-            const gap = 80 + Math.random() * 60;
-            const ox1 = lx + Math.random() * (LANE_W - gap - w*2);
-            obstacles.push({ x: ox1, y: -30, w, h: 20, color: cfg.obstacle, counted: false });
-            obstacles.push({ x: ox1 + w + gap, y: -30, w, h: 20, color: cfg.obstacle, counted: false });
-            break;
+        // Right wall
+        if (rightW > 10) {
+            obstacles.push({ x: LANE_X + rightX, y: -40, w: rightW, h: 25, color: cfg.obstacle, counted: false });
         }
-        case 'gap': {
-            const gapW = 55 + Math.random() * 30;
-            const gapX = lx + 30 + Math.random() * (LANE_W - gapW - 60);
-            // Left wall
-            obstacles.push({ x: lx, y: -25, w: gapX - lx, h: 18, color: cfg.obstacle, counted: false });
-            // Right wall
-            obstacles.push({ x: gapX + gapW, y: -25, w: (lx + LANE_W) - (gapX + gapW), h: 18, color: cfg.obstacle, counted: false });
-            break;
+        
+        // Spawn goodie in the gap
+        if (Math.random() < 0.4) {
+            orbs.push({ x: LANE_X + gapCenter, y: -40, r: 7, collected: false });
         }
-        case 'zigzag': {
-            const w = 35;
-            const side = Math.random() < 0.5;
-            const ox = side ? lx + 10 : lx + LANE_W - w - 10;
-            obstacles.push({ x: ox, y: -30, w, h: 15, color: cfg.obstacle, counted: false });
-            const ox2 = side ? lx + LANE_W - w - 10 : lx + 10;
-            obstacles.push({ x: ox2, y: -80, w, h: 15, color: cfg.obstacle, counted: false });
-            break;
-        }
-        case 'narrow': {
-            const gapW = 40 + Math.random() * 20;
-            const gapX = lx + 20 + Math.random() * (LANE_W - gapW - 40);
-            obstacles.push({ x: lx, y: -25, w: gapX - lx, h: 22, color: cfg.obstacle, counted: false });
-            obstacles.push({ x: gapX + gapW, y: -25, w: (lx + LANE_W) - (gapX + gapW), h: 22, color: cfg.obstacle, counted: false });
-            break;
+    } else {
+        // Single block, but placed AWAY from the gap center we chose (to force steering)
+        // Actually, easiest to just treat it as a gate with one missing wall
+        const side = Math.random() < 0.5 ? 'left' : 'right';
+        const blockW = Math.random() * (LANE_W * 0.4) + 50;
+        
+        if (side === 'left') {
+            // Block on left, gap is on right
+            // Ensure block doesn't cover our gapCenter
+            let w = Math.min(blockW, gapCenter - minGap/2);
+             obstacles.push({ x: LANE_X, y: -40, w: w, h: 25, color: cfg.obstacle, counted: false });
+        } else {
+            // Block on right
+            let x = Math.max(LANE_X + LANE_W - blockW, LANE_X + gapCenter + minGap/2);
+            obstacles.push({ x: x, y: -40, w: LANE_X + LANE_W - x, h: 25, color: cfg.obstacle, counted: false });
         }
     }
 
-    // Orb spawning
-    if (Math.random() < ORB_SPAWN_CHANCE) {
-        orbs.push({
-            x: lx + 20 + Math.random() * (LANE_W - 40),
-            y: -20 - Math.random() * 60,
-            r: 6, collected: false
-        });
-    }
-
-    // Rare power-up
-    if (Math.random() < 0.04 + level * 0.005) {
+    // Power-up
+    if (Math.random() < 0.05) {
         const pt = POWER_TYPES[Math.floor(Math.random() * POWER_TYPES.length)];
-        powerups.push({
-            x: lx + 30 + Math.random() * (LANE_W - 60),
-            y: -40, r: 12, ...pt, collected: false
-        });
+        powerups.push({ x: LANE_X + Math.random() * LANE_W, y: -100, r: 12, ...pt, collected: false });
     }
 }
 
@@ -271,223 +216,128 @@ function update() {
     if (state !== 'playing') return;
     frame++;
     
-    // Speed ramp
+    // Speed control
     const slowActive = activePower && activePower.type === 'slow';
-    const effectiveSpeed = slowActive ? speed * 0.55 : speed;
+    const effectiveSpeed = slowActive ? speed * 0.6 : speed;
     if (!slowActive) speed = Math.min(speed + SPEED_RAMP / 60, MAX_SPEED);
     distance += effectiveSpeed;
 
-    // Level progression (every ~600 distance)
-    const newLevel = Math.min(Math.floor(distance / 600), LEVEL_THEMES.length - 1);
+    // Level up
+    const newLevel = Math.min(Math.floor(distance / 800), LEVEL_THEMES.length - 1);
     if (newLevel > level) {
         level = newLevel;
         levelUpTimer = 120;
-        levelUpText = LEVEL_THEMES[level].name;
-        flashAlpha = 0.15;
-        flashColor = LEVEL_THEMES[level].accent;
-        // Bonus points
-        const bonus = level * 200;
-        score += bonus;
-        floats.push({ x: W/2, y: H/2, text: `LEVEL ${level+1}: ${levelUpText}`, color: LEVEL_THEMES[level].accent, size: 18, life: 2, dy: -0.5 });
-        floats.push({ x: W/2, y: H/2 + 30, text: `+${bonus}`, color: '#ffd700', size: 12, life: 1.5, dy: -0.3 });
+        flashAlpha = 0.2; flashColor = LEVEL_THEMES[level].accent;
     }
 
-    // Player movement — smooth追従
+    // Player Movement
     if (inputX !== null) targetX = inputX;
-    if (keys.left) targetX -= 6;
-    if (keys.right) targetX += 6;
-    targetX = Math.max(LANE_X + PLAYER_R + 3, Math.min(LANE_X + LANE_W - PLAYER_R - 3, targetX));
-    playerX += (targetX - playerX) * 0.12; // smooth but responsive
-    playerX = Math.max(LANE_X + PLAYER_R + 3, Math.min(LANE_X + LANE_W - PLAYER_R - 3, playerX));
+    if (keys.left) targetX -= 9;
+    if (keys.right) targetX += 9;
+    
+    // Clamp target to road
+    targetX = Math.max(LANE_X + PLAYER_R, Math.min(LANE_X + LANE_W - PLAYER_R, targetX));
+    
+    // Smooth follow
+    playerX += (targetX - playerX) * 0.15;
 
-    // Trail
-    trail.push({ x: playerX, y: PLAYER_Y, life: 1 });
-    if (trail.length > 25) trail.shift();
-
-    // Spawn
-    const spawnInterval = Math.max(SPAWN_INTERVAL_MIN, SPAWN_INTERVAL_BASE - level * 4);
-    spawnTimer++;
-    if (spawnTimer >= spawnInterval) {
-        spawnTimer = 0;
+    // Spawning
+    // Spawn based on DISTANCE, not TIME, to keep gaps consistent regardless of speed
+    // Gap ~250px vertical
+    if (distance % 250 < effectiveSpeed) {
         spawnObstacle();
     }
 
-    // Active power timer
-    magnetActive = false; ghostActive = false;
+    // Update entities
     if (activePower) {
         activePower.timer--;
         if (activePower.type === 'magnet') magnetActive = true;
-        if (activePower.type === 'ghost') ghostActive = true;
         if (activePower.timer <= 0) activePower = null;
     }
-
-    // Invincibility timer
     if (invincible > 0) invincible--;
+    if (shakeTime > 0) shakeTime--;
+    if (flashAlpha > 0) flashAlpha -= 0.02;
+    if (levelUpTimer > 0) levelUpTimer--;
 
-    // Move obstacles
-    obstacles.forEach(o => { o.y += effectiveSpeed; });
-    obstacles = obstacles.filter(o => o.y < H + 50);
-
-    // Move orbs
-    orbs.forEach(o => {
-        o.y += effectiveSpeed;
-        // Magnet pull
-        if (magnetActive && !o.collected) {
-            const dx = playerX - o.x, dy = PLAYER_Y - o.y;
-            const d = Math.hypot(dx, dy);
-            if (d < 150) {
-                o.x += (dx / d) * 4;
-                o.y += (dy / d) * 4;
-            }
-        }
-    });
-    orbs = orbs.filter(o => o.y < H + 50);
-
-    // Move powerups
-    powerups.forEach(p => { p.y += effectiveSpeed; });
-    powerups = powerups.filter(p => p.y < H + 50);
-
-    // Collision: obstacles
-    for (const o of obstacles) {
-        // Bounding box check
-        const hit = playerX + PLAYER_R > o.x && playerX - PLAYER_R < o.x + o.w &&
-                    PLAYER_Y + PLAYER_R > o.y && PLAYER_Y - PLAYER_R < o.y + o.h;
-        
-        if (hit && !ghostActive) {
-            if (invincible > 0) continue;
-            shields--;
-            invincible = 90; // 1.5 seconds invincibility
-            shakeTime = 15; shakeIntensity = 5;
-            flashAlpha = 0.3; flashColor = '#ff0033';
-            combo = 0; streakMultiplier = 1;
-            floats.push({ x: playerX, y: PLAYER_Y - 30, text: shields >= 0 ? `SHIELD LOST (${shields})` : 'DESTROYED', color: '#ff4466', size: 12, life: 1.2, dy: -1 });
-            // Hit particles
-            for (let i = 0; i < 15; i++) {
-                const a = Math.random() * Math.PI * 2;
-                particles.push({ x: playerX, y: PLAYER_Y, dx: Math.cos(a)*3, dy: Math.sin(a)*3, life: 0.8, decay: 0.025, size: 3, color: '#ff4466' });
-            }
-            if (shields < 0) { die(); return; }
-        }
-
-        // Near-miss detection (only for obstacles passing the player zone)
-        if (!o.counted && !hit && o.y + o.h > PLAYER_Y - 5 && o.y < PLAYER_Y + 15) {
-            const closestX = Math.max(o.x, Math.min(o.x + o.w, playerX));
-            const dist = Math.abs(playerX - closestX);
+    // Move & Collision
+    const moveEntity = (list, isObstacle) => {
+        for (let i = list.length - 1; i >= 0; i--) {
+            const e = list[i];
+            e.y += effectiveSpeed;
+            if (e.y > H + 50) { list.splice(i, 1); continue; }
             
-            if (dist < NEAR_MISS_DIST) {
-                o.counted = true;
-                totalNearMisses++;
-                
-                // Streak tracking
-                if (frame - lastNearMissFrame < 120) {
-                    combo++;
-                    streakMultiplier = Math.min(1 + combo * 0.5, 8);
+            // Collision logic
+            if (e.collected) continue;
+            
+            // Player AABB vs Rect (Obstacle) or Circle (Orb)
+            let hit = false;
+            if (isObstacle) {
+                 hit = playerX + PLAYER_R > e.x && playerX - PLAYER_R < e.x + e.w &&
+                       PLAYER_Y + PLAYER_R > e.y && PLAYER_Y - PLAYER_R < e.y + e.h;
+            } else {
+                 const d = Math.hypot(playerX - e.x, PLAYER_Y - e.y);
+                 hit = d < PLAYER_R + e.r + 5;
+            }
+
+            if (hit) {
+                if (isObstacle) {
+                    if (invincible > 0) continue;
+                    shields--;
+                    invincible = 60;
+                    shakeTime = 15;
+                    combo = 0; streakMultiplier = 1;
+                    floats.push({ x: playerX, y: PLAYER_Y - 30, text: '-SHIELD', color: '#ff2255', size: 14, life: 1, dy: -1 });
+                    if (shields < 0) { die(); return; }
                 } else {
-                    combo = 1;
-                    streakMultiplier = 1.5;
+                    // Collectible
+                    e.collected = true;
+                    if (e.type) { // Powerup
+                        if (e.type === 'shield') shields = Math.min(shields+1, 5);
+                        else activePower = { type: e.type, timer: e.duration };
+                        floats.push({ x: e.x, y: e.y, text: e.desc, color: e.color, size: 12, life: 1, dy: -1 });
+                    } else { // Orb
+                        score += Math.round(50 * streakMultiplier);
+                    }
                 }
-                lastNearMissFrame = frame;
-                if (combo > maxCombo) maxCombo = combo;
-
-                const isGraze = dist < GRAZE_DIST;
-                const basePoints = isGraze ? 100 : 50;
-                const pts = Math.round(basePoints * streakMultiplier);
-                score += pts;
-
-                // Visual feedback — THE JUICE
-                const feedColor = isGraze ? THEME.graze : THEME.nearMiss;
-                floats.push({ x: playerX, y: PLAYER_Y - 25, text: isGraze ? `GRAZE! +${pts}` : `NEAR! +${pts}`, color: feedColor, size: isGraze ? 14 : 11, life: 1, dy: -1.2 });
-                
-                if (combo >= 3) {
-                    floats.push({ x: playerX, y: PLAYER_Y - 45, text: `x${streakMultiplier.toFixed(1)} STREAK!`, color: '#ffd700', size: Math.min(10 + combo, 18), life: 1.2, dy: -0.8 });
+            } else if (isObstacle && !e.counted && e.y > PLAYER_Y + 10) {
+                // Near miss check logic
+                e.counted = true;
+                const closestX = Math.max(e.x, Math.min(e.x + e.w, playerX));
+                const dist = Math.abs(playerX - closestX);
+                if (dist < NEAR_MISS_DIST) {
+                    combo++;
+                    streakMultiplier = Math.min(1 + combo * 0.2, 5);
+                    const pts = Math.round((dist < GRAZE_DIST ? 200 : 100) * streakMultiplier);
+                    score += pts;
+                    floats.push({ x: playerX, y: PLAYER_Y-20, text: `+${pts}`, color: '#44ffaa', size: 10, life: 0.8, dy: -1 });
                 }
-
-                // Near-miss particles
-                const side = playerX < closestX ? -1 : 1;
-                for (let i = 0; i < (isGraze ? 12 : 6); i++) {
-                    const a = (side === -1 ? Math.PI : 0) + (Math.random() - 0.5) * 1.5;
-                    particles.push({
-                        x: playerX + side * PLAYER_R,
-                        y: PLAYER_Y,
-                        dx: Math.cos(a) * (1 + Math.random()*3),
-                        dy: -1 + Math.random() * 2,
-                        life: 0.7, decay: 0.02,
-                        size: 2 + Math.random()*2,
-                        color: feedColor
-                    });
-                }
-
-                shakeTime = isGraze ? 5 : 2;
-                shakeIntensity = isGraze ? 3 : 1.5;
-                flashAlpha = isGraze ? 0.08 : 0.03;
-                flashColor = feedColor;
             }
         }
+    };
+
+    moveEntity(obstacles, true);
+    moveEntity(orbs, false);
+    moveEntity(powerups, false);
+
+    // Magnet
+    if (magnetActive) {
+        orbs.forEach(o => {
+            if (o.collected) return;
+            const d = Math.hypot(playerX - o.x, PLAYER_Y - o.y);
+            if (d < 200) {
+                o.x += (playerX - o.x) * 0.1;
+                o.y += (PLAYER_Y - o.y) * 0.1;
+            }
+        });
     }
 
-    // Collect orbs
-    orbs.forEach(o => {
-        if (o.collected) return;
-        const d = Math.hypot(playerX - o.x, PLAYER_Y - o.y);
-        if (d < PLAYER_R + o.r + 5) {
-            o.collected = true;
-            const pts = Math.round(25 * streakMultiplier);
-            score += pts;
-            floats.push({ x: o.x, y: o.y - 15, text: `+${pts}`, color: THEME.orb, size: 10, life: 0.8, dy: -1 });
-            for (let i = 0; i < 6; i++) {
-                const a = (i/6)*Math.PI*2;
-                particles.push({ x: o.x, y: o.y, dx: Math.cos(a)*2, dy: Math.sin(a)*2, life: 0.6, decay: 0.025, size: 2, color: THEME.orb });
-            }
-        }
-    });
-    orbs = orbs.filter(o => !o.collected);
-
-    // Collect power-ups
-    powerups.forEach(p => {
-        if (p.collected) return;
-        const d = Math.hypot(playerX - p.x, PLAYER_Y - p.y);
-        if (d < PLAYER_R + p.r + 5) {
-            p.collected = true;
-            if (p.type === 'shield') {
-                shields = Math.min(shields + 1, 5);
-                floats.push({ x: p.x, y: p.y - 20, text: '+SHIELD', color: p.color, size: 12, life: 1.2, dy: -1 });
-            } else {
-                activePower = { type: p.type, timer: p.duration };
-                floats.push({ x: p.x, y: p.y - 20, text: p.desc, color: p.color, size: 14, life: 1.5, dy: -0.8 });
-            }
-            flashAlpha = 0.1; flashColor = p.color;
-            for (let i = 0; i < 10; i++) {
-                const a = (i/10)*Math.PI*2;
-                particles.push({ x: p.x, y: p.y, dx: Math.cos(a)*3, dy: Math.sin(a)*3, life: 0.8, decay: 0.02, size: 3, color: p.color });
-            }
-        }
-    });
-    powerups = powerups.filter(p => !p.collected);
-
-    // Base score (distance)
-    score += Math.round(effectiveSpeed * 0.1);
-
-    // Update particles
-    particles = particles.filter(p => {
-        p.x += p.dx; p.y += p.dy; p.dy += 0.03;
-        p.life -= p.decay;
-        return p.life > 0;
-    });
-
-    // Update floats
-    floats = floats.filter(f => {
-        f.y += f.dy || 0;
-        f.life -= 0.018;
-        return f.life > 0;
-    });
-
-    // Trail decay
-    trail.forEach(t => t.life -= 0.04);
-    trail = trail.filter(t => t.life > 0);
-
-    if (shakeTime > 0) shakeTime--;
-    if (flashAlpha > 0) flashAlpha -= 0.012;
-    if (levelUpTimer > 0) levelUpTimer--;
+    score += Math.round(effectiveSpeed * 0.2);
+    
+    // Floats & Particles
+    floats.forEach(f => { f.y += f.dy; f.life -= 0.02; });
+    floats = floats.filter(f => f.life > 0);
+    particles.forEach(p => { p.x += p.dx; p.y += p.dy; p.life -= 0.05; });
+    particles = particles.filter(p => p.life > 0);
 }
 
 // ======================== DRAW ========================
@@ -496,325 +346,117 @@ function draw() {
     
     X.save();
     if (shakeTime > 0) {
-        const s = shakeIntensity * (shakeTime / 30);
+        const s = shakeTime * 0.5;
         X.translate((Math.random()-0.5)*s, (Math.random()-0.5)*s);
     }
 
-    // Background
-    X.fillStyle = cfg.bg1;
+    // Clean Background
+    X.fillStyle = '#05050a';
     X.fillRect(0, 0, W, H);
 
-    // Scrolling road lines (creates speed perception)
-    const lineOffset = (distance * 3) % 50;
-    X.strokeStyle = 'rgba(255,255,255,0.025)';
+    // Subtle Grid
+    X.strokeStyle = 'rgba(255,255,255,0.02)';
     X.lineWidth = 1;
-    for (let y = -50 + lineOffset; y < H; y += 50) {
+    const offset = (distance % 50);
+    for (let y = offset; y < H; y += 50) {
         X.beginPath(); X.moveTo(LANE_X, y); X.lineTo(LANE_X + LANE_W, y); X.stroke();
     }
-
-    // Road
-    X.fillStyle = THEME.road;
-    X.fillRect(LANE_X, 0, LANE_W, H);
-
-    // Road edges (glow)
-    const edgeGrad = X.createLinearGradient(LANE_X - 20, 0, LANE_X + 5, 0);
-    edgeGrad.addColorStop(0, 'transparent');
-    edgeGrad.addColorStop(1, `${cfg.accent}15`);
-    X.fillStyle = edgeGrad;
-    X.fillRect(LANE_X - 20, 0, 25, H);
-
-    const edgeGrad2 = X.createLinearGradient(LANE_X + LANE_W - 5, 0, LANE_X + LANE_W + 20, 0);
-    edgeGrad2.addColorStop(0, `${cfg.accent}15`);
-    edgeGrad2.addColorStop(1, 'transparent');
-    X.fillStyle = edgeGrad2;
-    X.fillRect(LANE_X + LANE_W - 5, 0, 25, H);
-
-    // Road edge lines
-    X.strokeStyle = `${cfg.accent}40`;
+    
+    // Lane Edges
+    X.strokeStyle = cfg.accent;
     X.lineWidth = 2;
     X.beginPath(); X.moveTo(LANE_X, 0); X.lineTo(LANE_X, H); X.stroke();
-    X.beginPath(); X.moveTo(LANE_X + LANE_W, 0); X.lineTo(LANE_X + LANE_W, H); X.stroke();
-
-    // Center dashes (scrolling)
-    X.strokeStyle = 'rgba(255,255,255,0.06)';
-    X.lineWidth = 2;
-    X.setLineDash([20, 30]);
-    X.lineDashOffset = -lineOffset * 2;
-    X.beginPath(); X.moveTo(W/2, 0); X.lineTo(W/2, H); X.stroke();
-    X.setLineDash([]);
-
-    // Obstacles
-    obstacles.forEach(o => {
-        X.fillStyle = o.color || cfg.obstacle;
-        X.shadowColor = o.color || cfg.obstacle;
-        X.shadowBlur = 10;
-        X.fillRect(o.x, o.y, o.w, o.h);
-        // Top highlight
-        X.fillStyle = 'rgba(255,255,255,0.15)';
-        X.fillRect(o.x, o.y, o.w, 2);
-        X.shadowBlur = 0;
-    });
-
-    // Orbs
-    orbs.forEach(o => {
-        const pulse = 0.8 + Math.sin(frame * 0.08 + o.x) * 0.2;
-        X.fillStyle = THEME.orb;
-        X.shadowColor = THEME.orbGlow;
-        X.shadowBlur = 12 * pulse;
-        X.beginPath(); X.arc(o.x, o.y, o.r * pulse, 0, Math.PI*2); X.fill();
-        X.fillStyle = 'rgba(255,255,255,0.5)';
-        X.beginPath(); X.arc(o.x - 1, o.y - 1, o.r * 0.3, 0, Math.PI*2); X.fill();
-        X.shadowBlur = 0;
-    });
-
-    // Power-ups
-    powerups.forEach(p => {
-        if (p.collected) return;
-        const pulse = 1 + Math.sin(frame * 0.1) * 0.15;
-        X.fillStyle = p.color;
-        X.shadowColor = p.color;
-        X.shadowBlur = 18;
-        X.beginPath(); X.arc(p.x, p.y, p.r * pulse, 0, Math.PI*2); X.fill();
-        X.shadowBlur = 0;
-        X.fillStyle = '#000';
-        X.font = '12px sans-serif';
-        X.textAlign = 'center';
-        X.fillText(p.icon, p.x, p.y + 4);
-    });
-
-    // Trail
-    trail.forEach((t, i) => {
-        X.globalAlpha = t.life * 0.3;
-        X.fillStyle = ghostActive ? '#c864ff' : cfg.accent;
-        X.beginPath(); X.arc(t.x, t.y, PLAYER_R * t.life * 0.6, 0, Math.PI*2); X.fill();
-    });
-    X.globalAlpha = 1;
+    X.beginPath(); X.moveTo(LANE_X+LANE_W, 0); X.lineTo(LANE_X+LANE_W, H); X.stroke();
 
     // Player
     if (state !== 'dead') {
-        const blink = invincible > 0 && Math.floor(invincible / 4) % 2 === 0;
-        if (!blink) {
-            const pColor = ghostActive ? '#c864ff88' : cfg.accent;
-            X.fillStyle = pColor;
-            X.shadowColor = pColor;
-            X.shadowBlur = ghostActive ? 25 : 15;
+        if (invincible % 10 < 5) {
+            X.fillStyle = THEME.player;
+            X.shadowColor = THEME.player;
+            X.shadowBlur = 15;
             X.beginPath(); X.arc(playerX, PLAYER_Y, PLAYER_R, 0, Math.PI*2); X.fill();
-            
-            // Inner ring
-            X.strokeStyle = 'rgba(255,255,255,0.5)';
-            X.lineWidth = 1.5;
-            X.beginPath(); X.arc(playerX, PLAYER_Y, PLAYER_R * 0.5, 0, Math.PI*2); X.stroke();
-            
-            // Highlight
-            X.fillStyle = 'rgba(255,255,255,0.4)';
-            X.beginPath(); X.arc(playerX - 2, PLAYER_Y - 2, 3, 0, Math.PI*2); X.fill();
             X.shadowBlur = 0;
+            
+            // Shields ring
+            if (shields > 0) {
+                X.strokeStyle = THEME.shield;
+                X.lineWidth = 2;
+                X.beginPath(); X.arc(playerX, PLAYER_Y, PLAYER_R + 6 + shields*2, 0, Math.PI*2); X.stroke();
+            }
         }
-
-        // Shield indicators
-        for (let i = 0; i < shields; i++) {
-            const a = -Math.PI/2 + (i - (shields-1)/2) * 0.4;
-            const sx = playerX + Math.cos(a) * (PLAYER_R + 8);
-            const sy = PLAYER_Y + Math.sin(a) * (PLAYER_R + 8);
-            X.fillStyle = THEME.shield;
-            X.globalAlpha = 0.6;
-            X.beginPath(); X.arc(sx, sy, 2.5, 0, Math.PI*2); X.fill();
-        }
-        X.globalAlpha = 1;
     }
 
-    // Particles
-    particles.forEach(p => {
-        X.globalAlpha = p.life;
-        X.fillStyle = p.color;
-        X.fillRect(p.x - p.size/2, p.y - p.size/2, p.size, p.size);
+    // Obstacles
+    obstacles.forEach(o => {
+        X.fillStyle = o.color;
+        X.shadowColor = o.color;
+        X.shadowBlur = 10;
+        X.fillRect(o.x, o.y, o.w, o.h);
+        X.shadowBlur = 0;
+        // Contrast line
+        X.fillStyle = '#fff';
+        X.fillRect(o.x, o.y + o.h - 2, o.w, 2);
     });
-    X.globalAlpha = 1;
+
+    // Orbs & Powerups
+    orbs.forEach(o => {
+        if (o.collected) return;
+        X.fillStyle = '#ffd700';
+        X.beginPath(); X.arc(o.x, o.y, o.r, 0, Math.PI*2); X.fill();
+    });
+    powerups.forEach(p => {
+        if (p.collected) return;
+        X.fillStyle = p.color;
+        X.beginPath(); X.arc(p.x, p.y, p.r, 0, Math.PI*2); X.fill();
+        X.fillStyle = '#000';
+        X.font = '12px sans-serif'; X.textAlign='center';
+        X.fillText(p.icon, p.x, p.y+4);
+    });
 
     // Floats
     floats.forEach(f => {
-        X.globalAlpha = Math.max(0, Math.min(1, f.life));
+        X.globalAlpha = f.life;
         X.fillStyle = f.color;
         X.font = `${f.size}px "Press Start 2P"`;
         X.textAlign = 'center';
-        X.shadowColor = f.color;
-        X.shadowBlur = 8;
         X.fillText(f.text, f.x, f.y);
-        X.shadowBlur = 0;
     });
     X.globalAlpha = 1;
 
-    // Flash
-    if (flashAlpha > 0) {
-        X.fillStyle = flashColor;
-        X.globalAlpha = flashAlpha;
-        X.fillRect(0, 0, W, H);
-        X.globalAlpha = 1;
-    }
-
-    // ======== HUD ========
-    X.textAlign = 'left';
-    X.font = '12px "Press Start 2P"';
+    // HUD
     X.fillStyle = '#fff';
-    X.fillText(score.toLocaleString(), LANE_X + 8, 30);
-    
-    X.textAlign = 'right';
-    X.fillStyle = 'rgba(255,255,255,0.3)';
-    X.font = '8px "Press Start 2P"';
-    X.fillText(`HI ${highScore.toLocaleString()}`, LANE_X + LANE_W - 8, 30);
-
-    // Shields display
+    X.font = '14px "Press Start 2P"';
     X.textAlign = 'left';
-    X.fillStyle = THEME.shield;
-    X.font = '10px "Press Start 2P"';
-    X.fillText('🛡️'.repeat(Math.max(0, shields)), LANE_X + 8, 50);
-
-    // Level indicator
+    X.fillText(`SCORE ${score}`, 20, 30);
     X.textAlign = 'right';
-    X.fillStyle = cfg.accent;
-    X.font = '8px "Press Start 2P"';
-    X.fillText(`LV ${level + 1}`, LANE_X + LANE_W - 8, 50);
-
-    // Speed bar
-    const speedPct = (speed - BASE_SPEED) / (MAX_SPEED - BASE_SPEED);
-    X.fillStyle = 'rgba(255,255,255,0.05)';
-    X.fillRect(LANE_X + LANE_W + 10, H * 0.3, 4, H * 0.4);
-    const barColor = speedPct > 0.7 ? '#ff4444' : speedPct > 0.4 ? '#ffaa33' : cfg.accent;
-    X.fillStyle = barColor;
-    X.fillRect(LANE_X + LANE_W + 10, H * 0.3 + H * 0.4 * (1 - speedPct), 4, H * 0.4 * speedPct);
-
-    // Streak multiplier (when active)
-    if (combo >= 2) {
+    X.fillText(`LVL ${level+1}`, W-20, 30);
+    
+    if (state === 'menu') {
+        X.fillStyle = 'rgba(0,0,0,0.7)';
+        X.fillRect(0,0,W,H);
+        X.fillStyle = '#fff';
         X.textAlign = 'center';
-        X.fillStyle = '#ffd700';
-        X.font = `${Math.min(12 + combo, 20)}px "Press Start 2P"`;
-        X.globalAlpha = 0.7;
-        X.fillText(`x${streakMultiplier.toFixed(1)}`, LANE_X + LANE_W + 25, PLAYER_Y);
-        X.globalAlpha = 1;
-    }
-
-    // Active power indicator
-    if (activePower) {
-        const pct = activePower.timer / (POWER_TYPES.find(p => p.type === activePower.type)?.duration || 300);
-        X.fillStyle = 'rgba(255,255,255,0.1)';
-        X.fillRect(LANE_X, H - 3, LANE_W, 3);
-        const pc = activePower.type === 'magnet' ? '#ffd700' : activePower.type === 'ghost' ? '#c864ff' : '#44ffaa';
-        X.fillStyle = pc;
-        X.fillRect(LANE_X, H - 3, LANE_W * pct, 3);
-    }
-
-    // Level-up banner
-    if (levelUpTimer > 0) {
-        const alpha = levelUpTimer > 90 ? (120 - levelUpTimer) / 30 : levelUpTimer / 90;
-        X.globalAlpha = alpha;
-        X.fillStyle = cfg.accent;
-        X.font = '16px "Press Start 2P"';
-        X.textAlign = 'center';
-        X.shadowColor = cfg.accent; X.shadowBlur = 20;
-        X.fillText(`LEVEL ${level + 1}`, W/2, H * 0.35);
+        X.font = '24px "Press Start 2P"';
+        X.fillText('DRIFT', W/2, H/2 - 20);
         X.font = '10px "Press Start 2P"';
-        X.fillStyle = 'rgba(255,255,255,0.6)';
-        X.fillText(levelUpText, W/2, H * 0.35 + 25);
-        X.shadowBlur = 0;
-        X.globalAlpha = 1;
+        X.fillText('Tap / Click to Start', W/2, H/2 + 20);
     }
-
-    // ======== OVERLAYS ========
-    if (state === 'menu') drawMenu();
-    if (state === 'dead') drawDeath();
+    
+    if (state === 'dead') {
+        X.fillStyle = 'rgba(50,0,0,0.6)';
+        X.fillRect(0,0,W,H);
+        X.fillStyle = '#fff';
+        X.textAlign = 'center';
+        X.font = '20px "Press Start 2P"';
+        X.fillText('CRASHED', W/2, H/2 - 20);
+        X.font = '10px "Press Start 2P"';
+        X.fillText(`Score: ${score}`, W/2, H/2 + 10);
+        X.fillText('Tap to Retry', W/2, H/2 + 40);
+    }
 
     X.restore();
 }
 
-function drawMenu() {
-    X.fillStyle = 'rgba(7,7,15,0.88)';
-    X.fillRect(0, 0, W, H);
-
-    X.textAlign = 'center';
-    X.fillStyle = THEME.accent;
-    X.font = '28px "Press Start 2P"';
-    X.shadowColor = THEME.accent; X.shadowBlur = 30;
-    X.fillText('DRIFT', W/2, H * 0.3);
-    X.shadowBlur = 0;
-
-    X.fillStyle = 'rgba(255,255,255,0.5)';
-    X.font = '9px "Press Start 2P"';
-    const lines = [
-        'Steer left/right to dodge obstacles.',
-        '',
-        '💥 GRAZE past danger for bonus points!',
-        '🔥 Chain near-misses for streak multipliers!',
-        '🛡️ 3 shields — lose all and it\'s over.',
-        '⚡ Speed increases. How far can you go?',
-    ];
-    lines.forEach((line, i) => {
-        X.fillStyle = line.startsWith('💥') ? THEME.graze : line.startsWith('🔥') ? '#ff8c00' : 'rgba(255,255,255,0.4)';
-        X.fillText(line, W/2, H * 0.42 + i * 22);
-    });
-
-    if (highScore > 0) {
-        X.fillStyle = 'rgba(255,255,255,0.25)';
-        X.font = '8px "Press Start 2P"';
-        X.fillText(`HIGH SCORE: ${highScore.toLocaleString()}`, W/2, H * 0.75);
-    }
-
-    // Pulsing start prompt
-    X.globalAlpha = 0.5 + Math.sin(Date.now() * 0.004) * 0.3;
-    X.fillStyle = THEME.accent;
-    X.font = '11px "Press Start 2P"';
-    X.fillText('TAP / CLICK TO START', W/2, H * 0.82);
-    X.globalAlpha = 1;
-}
-
-function drawDeath() {
-    X.fillStyle = 'rgba(7,7,15,0.85)';
-    X.fillRect(0, 0, W, H);
-
-    X.textAlign = 'center';
-    X.fillStyle = '#ff2255';
-    X.font = '22px "Press Start 2P"';
-    X.shadowColor = '#ff0033'; X.shadowBlur = 20;
-    X.fillText('CRASHED', W/2, H * 0.28);
-    X.shadowBlur = 0;
-
-    const isNewHigh = score >= highScore && score > 0;
-
-    X.font = '9px "Press Start 2P"';
-    const stats = [
-        { label: 'SCORE', value: score.toLocaleString(), color: isNewHigh ? '#ffd700' : '#fff' },
-        { label: 'HIGH SCORE', value: highScore.toLocaleString(), color: 'rgba(255,255,255,0.4)' },
-        { label: 'LEVEL', value: `${level + 1} — ${LEVEL_THEMES[level].name}`, color: LEVEL_THEMES[level].accent },
-        { label: 'MAX STREAK', value: `x${maxCombo}`, color: '#ffaa33' },
-        { label: 'NEAR MISSES', value: totalNearMisses.toString(), color: THEME.nearMiss },
-        { label: 'TOP SPEED', value: `${speed.toFixed(1)}`, color: '#ff6688' },
-    ];
-
-    stats.forEach((s, i) => {
-        const y = H * 0.38 + i * 28;
-        X.fillStyle = 'rgba(255,255,255,0.3)';
-        X.font = '7px "Press Start 2P"';
-        X.fillText(s.label, W/2, y);
-        X.fillStyle = s.color;
-        X.font = '11px "Press Start 2P"';
-        X.fillText(s.value, W/2, y + 14);
-    });
-
-    if (isNewHigh) {
-        X.fillStyle = '#ffd700';
-        X.font = '10px "Press Start 2P"';
-        X.shadowColor = '#ffd700'; X.shadowBlur = 10;
-        X.fillText('🏆 NEW HIGH SCORE! 🏆', W/2, H * 0.32);
-        X.shadowBlur = 0;
-    }
-
-    X.globalAlpha = 0.5 + Math.sin(Date.now() * 0.004) * 0.3;
-    X.fillStyle = THEME.accent;
-    X.font = '10px "Press Start 2P"';
-    X.fillText('TAP TO RETRY', W/2, H * 0.88);
-    X.globalAlpha = 1;
-}
-
-// ======================== LOOP ========================
 function loop() {
     update();
     draw();
