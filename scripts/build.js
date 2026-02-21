@@ -218,6 +218,7 @@ const GAME_REGISTRY = {
     // slug -> { icon, name_en, name_tr, desc_en, desc_tr }
     'asteroids':   { icon: '☄️', name_en: 'Neon Rocks',        name_tr: 'Neon Rocks',        desc_en: 'Classic asteroids. Destroy, collect, survive.',              desc_tr: 'Klasik asteroit. Parçala, topla, hayatta kal.' },
     'catalyst':    { icon: '💥', name_en: 'Catalyst',          name_tr: 'Catalyst',          desc_en: 'One click. Chain reaction. Detonate them all.',             desc_tr: 'Tek tık. Zincirleme reaksiyon. Hepsini patlat.' },
+    'drift':       { icon: '🏎️', name_en: 'Drift',             name_tr: 'Drift',             desc_en: 'Graze past danger. The closer, the higher you score.', desc_tr: 'Tehlikeye yakın geç. Ne kadar yakın, o kadar çok puan.' },
     'chronobreak': { icon: '⏱️', name_en: 'Chrono Break',      name_tr: 'Chrono Break',      desc_en: 'Time moves only when you move. Neon survival shooter.',     desc_tr: 'Zaman sadece sen hareket edince akar. Neon hayatta kalma oyunu.' },
     'fracture':    { icon: '💎', name_en: 'Fracture',           name_tr: 'Fracture',          desc_en: 'Neon breakout. Smash bricks, don\'t lose the ball.',        desc_tr: 'Neon breakout. Tuğlaları kır, topu kaçırma.' },
     'gravityflip': { icon: '🌀', name_en: 'Gravity Flip',      name_tr: 'Gravity Flip',      desc_en: 'Flip gravity to dodge walls. Endless runner.',              desc_tr: 'Yerçekimini tersine çevir, engellerden kaç.' },
