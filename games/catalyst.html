@@ -20,29 +20,29 @@
         .hud-level{color:#44ffaa}
         .hud-clicks{color:#00c8ff}
         .hud-stars{color:#ffd700;font-size:12px}
-        #overlay{position:fixed;top:0;left:0;width:100%;height:100%;display:flex;flex-direction:column;justify-content:center;align-items:center;z-index:30;pointer-events:all;background:rgba(6,6,15,0.92)}
+        #overlay{position:fixed;top:0;left:0;width:100%;height:100%;display:flex;flex-direction:column;justify-content:center;align-items:center;z-index:30;pointer-events:all;background:rgba(6,6,15,0.94)}
         #overlay.hidden{display:none}
-        #overlay h1{font-family:'Press Start 2P',cursive;font-size:24px;color:#ff8c00;text-shadow:0 0 30px rgba(255,140,0,0.4);margin-bottom:20px}
+        #overlay h1{font-family:'Press Start 2P',cursive;font-size:24px;color:#ff8c00;text-shadow:0 0 30px rgba(255,140,0,0.4);margin-bottom:16px}
         #overlay h2{font-family:'Press Start 2P',cursive;font-size:16px;color:#fff;margin-bottom:12px}
-        #overlay p{font-size:13px;color:rgba(255,255,255,0.6);max-width:500px;text-align:center;line-height:1.8;margin-bottom:8px}
-        #overlay .stars-display{font-size:32px;margin:16px 0}
-        #overlay .btn{font-family:'Press Start 2P',cursive;font-size:11px;color:#06060f;background:#ff8c00;border:none;padding:14px 28px;border-radius:6px;cursor:pointer;margin-top:18px;transition:all .2s;pointer-events:all}
+        #overlay p{font-size:12px;color:rgba(255,255,255,0.55);max-width:520px;text-align:center;line-height:2;margin-bottom:6px}
+        #overlay .stars-display{font-size:32px;margin:14px 0}
+        #overlay .btn{font-family:'Press Start 2P',cursive;font-size:11px;color:#06060f;background:#ff8c00;border:none;padding:14px 28px;border-radius:6px;cursor:pointer;margin-top:14px;transition:all .2s;pointer-events:all}
         #overlay .btn:hover{background:#ffaa33;transform:scale(1.05)}
         #overlay .btn-secondary{background:transparent;color:#ff8c00;border:2px solid #ff8c00}
         #overlay .btn-secondary:hover{background:rgba(255,140,0,0.1)}
-        .level-select{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin:20px 0}
+        .level-select{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin:16px 0}
         .level-btn{font-family:'Press Start 2P',cursive;font-size:10px;padding:12px 8px;background:rgba(255,255,255,0.05);border:2px solid rgba(255,255,255,0.1);border-radius:6px;color:#fff;cursor:pointer;text-align:center;transition:all .2s;pointer-events:all}
         .level-btn:hover{border-color:#ff8c00;background:rgba(255,140,0,0.1)}
         .level-btn.locked{opacity:0.3;cursor:not-allowed;pointer-events:none}
-        .level-btn.current{border-color:#ff8c00;background:rgba(255,140,0,0.15)}
         .level-btn .lvl-stars{font-size:8px;display:block;margin-top:4px;color:#ffd700}
         .achievements{position:fixed;top:50px;right:20px;z-index:25;display:flex;flex-direction:column;gap:8px}
         .achievement{font-family:'Press Start 2P',cursive;font-size:8px;background:rgba(255,215,0,0.15);border:1px solid #ffd700;color:#ffd700;padding:8px 14px;border-radius:4px;animation:achieveIn .5s ease-out,achieveOut .5s ease-in 3s forwards;white-space:nowrap}
         @keyframes achieveIn{from{transform:translateX(100px);opacity:0}to{transform:translateX(0);opacity:1}}
         @keyframes achieveOut{to{transform:translateX(100px);opacity:0}}
-        .stat-row{display:flex;gap:30px;margin:8px 0;align-items:center}
+        .stat-row{display:flex;gap:30px;margin:6px 0;align-items:center;justify-content:center}
         .stat-label{font-family:'Press Start 2P',cursive;font-size:8px;color:rgba(255,255,255,0.4)}
         .stat-value{font-family:'Press Start 2P',cursive;font-size:11px;color:#fff}
+        .tip{font-size:10px;color:rgba(255,255,255,0.3);margin-top:10px;font-style:italic}
     </style>
 </head>
 <body>
@@ -58,14 +58,16 @@
     </div>
     <div id="overlay">
         <h1>CATALYST</h1>
-        <p>Place explosions. Trigger chain reactions.<br>Detonate enough particles to earn stars and advance.</p>
+        <p>🎯 Click near clusters of particles to start a chain reaction.<br>
+        💥 Each detonated particle explodes and triggers nearby ones.<br>
+        ⭐ Detonate enough to earn stars and unlock the next level.</p>
+        <p class="tip">TIP: Wait for particles to cluster together, then strike!</p>
         <button class="btn" onclick="startGame()">START</button>
     </div>
     <div class="achievements" id="achievements"></div>
     <canvas id="c"></canvas>
 
 <script>
-// ======================== CONFIG ========================
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
 const overlay = document.getElementById('overlay');
@@ -76,17 +78,18 @@ const H = Math.min(window.innerHeight - 20, 620);
 canvas.width = W; canvas.height = H;
 
 // ======================== LEVEL DATA ========================
+// Key tuning: generous radii + clustered spawns = satisfying chains
 const LEVELS = [
-    { particles: 25, clicks: 1, target3: 0.70, target2: 0.50, target1: 0.30, speed: 0.6, types: ['normal'],            name: 'SPARK',     bg: '#06060f' },
-    { particles: 35, clicks: 1, target3: 0.65, target2: 0.45, target1: 0.25, speed: 0.8, types: ['normal'],            name: 'KINDLE',    bg: '#080812' },
-    { particles: 40, clicks: 2, target3: 0.75, target2: 0.55, target1: 0.35, speed: 0.9, types: ['normal','fast'],     name: 'IGNITE',    bg: '#0a0a18' },
-    { particles: 50, clicks: 2, target3: 0.70, target2: 0.50, target1: 0.30, speed: 1.0, types: ['normal','fast'],     name: 'BLAZE',     bg: '#0c0816' },
-    { particles: 55, clicks: 2, target3: 0.68, target2: 0.48, target1: 0.28, speed: 1.1, types: ['normal','fast','mega'], name: 'INFERNO',  bg: '#0e0a14' },
-    { particles: 60, clicks: 3, target3: 0.75, target2: 0.55, target1: 0.35, speed: 1.2, types: ['normal','fast','shy'],  name: 'NOVA',     bg: '#100c18' },
-    { particles: 70, clicks: 3, target3: 0.72, target2: 0.52, target1: 0.32, speed: 1.3, types: ['normal','fast','shy','mega'], name: 'SUPERNOVA', bg: '#120a1a' },
-    { particles: 80, clicks: 3, target3: 0.70, target2: 0.50, target1: 0.30, speed: 1.4, types: ['normal','fast','shy','mega'], name: 'QUASAR',    bg: '#14081c' },
-    { particles: 90, clicks: 4, target3: 0.75, target2: 0.55, target1: 0.35, speed: 1.5, types: ['normal','fast','shy','mega','ghost'], name: 'PULSAR',  bg: '#16061e' },
-    { particles:100, clicks: 4, target3: 0.80, target2: 0.60, target1: 0.40, speed: 1.6, types: ['normal','fast','shy','mega','ghost'], name: 'BIG BANG', bg: '#18041f' },
+    { particles: 20, clicks: 2, target3: 0.80, target2: 0.60, target1: 0.35, speed: 0.3, blastR: 75,  types: ['normal'],                          name: 'SPARK',     tip: 'Click where particles cluster!' },
+    { particles: 28, clicks: 2, target3: 0.75, target2: 0.55, target1: 0.30, speed: 0.4, blastR: 72,  types: ['normal'],                          name: 'KINDLE',    tip: 'Timing matters — wait for groups.' },
+    { particles: 35, clicks: 2, target3: 0.72, target2: 0.50, target1: 0.28, speed: 0.5, blastR: 70,  types: ['normal','mega'],                   name: 'IGNITE',    tip: 'Red MEGA particles have bigger blasts!' },
+    { particles: 40, clicks: 3, target3: 0.75, target2: 0.55, target1: 0.30, speed: 0.6, blastR: 68,  types: ['normal','mega'],                   name: 'BLAZE',     tip: '3 clicks now — plan your sequence.' },
+    { particles: 45, clicks: 3, target3: 0.72, target2: 0.50, target1: 0.28, speed: 0.7, blastR: 66,  types: ['normal','fast','mega'],             name: 'INFERNO',   tip: 'Blue particles move fast — intercept them.' },
+    { particles: 50, clicks: 3, target3: 0.70, target2: 0.48, target1: 0.26, speed: 0.8, blastR: 64,  types: ['normal','fast','mega'],             name: 'NOVA',      tip: 'Chain bonus: longer chains = more points!' },
+    { particles: 55, clicks: 3, target3: 0.68, target2: 0.46, target1: 0.25, speed: 0.9, blastR: 62,  types: ['normal','fast','shy','mega'],       name: 'SUPERNOVA', tip: 'Green SHY particles flee from explosions.' },
+    { particles: 60, clicks: 4, target3: 0.72, target2: 0.50, target1: 0.28, speed: 1.0, blastR: 60,  types: ['normal','fast','shy','mega'],       name: 'QUASAR',    tip: '4 clicks — corner the shy ones.' },
+    { particles: 70, clicks: 4, target3: 0.70, target2: 0.48, target1: 0.26, speed: 1.1, blastR: 58,  types: ['normal','fast','shy','mega','ghost'], name: 'PULSAR',  tip: 'Purple GHOST particles phase in and out.' },
+    { particles: 80, clicks: 5, target3: 0.75, target2: 0.55, target1: 0.30, speed: 1.2, blastR: 56,  types: ['normal','fast','shy','mega','ghost'], name: 'BIG BANG', tip: 'The final challenge. Detonate everything.' },
 ];
 
 const PARTICLE_COLORS = {
@@ -96,19 +99,21 @@ const PARTICLE_COLORS = {
     shy:    '#44ffaa',
     ghost:  '#c864ff',
 };
-const EXPLODE_R = 55;   // base explosion radius
-const CHAIN_DELAY = 80; // ms between chain steps
+
+const CHAIN_DELAY = 60;
 
 // ======================== STATE ========================
 let level = 0, score = 0, totalScore = 0;
-let clicksLeft = 0, particles = [], explosions = [], floats = [];
+let clicksLeft = 0, particles = [], explosions = [], floats = [], rings = [];
 let chainCount = 0, maxChain = 0, detonated = 0;
-let phase = 'menu'; // menu | playing | waiting | result
-let levelStars = new Array(10).fill(0); // 0-3 stars per level
+let phase = 'menu'; // menu | playing | chaining | result
+let levelStars = new Array(10).fill(0);
 let totalStarsEarned = 0;
 let achievements = {};
-let shakeTime = 0, slowMo = 0;
-let bgHue = 0;
+let shakeTime = 0;
+let mouseX = -100, mouseY = -100;
+let chainQueue = []; // queued explosions
+let chainProcessing = false;
 
 // Load save
 try {
@@ -123,14 +128,16 @@ function saveGame() {
 
 // ======================== ACHIEVEMENTS ========================
 const ACHIEVE_DEFS = [
-    { id: 'first_chain',   name: '🔗 First Chain',       desc: 'Get a 3+ chain',           check: () => maxChain >= 3 },
-    { id: 'chain_5',       name: '⛓️ Chain Master',      desc: '5+ chain reaction',         check: () => maxChain >= 5 },
-    { id: 'chain_10',      name: '💥 Chain God',          desc: '10+ chain reaction',        check: () => maxChain >= 10 },
-    { id: 'perfect',       name: '⭐ Perfect',            desc: '3 stars on any level',      check: () => levelStars.some(s => s >= 3) },
-    { id: 'all_stars_5',   name: '🌟 Rising Star',       desc: '15 total stars',            check: () => totalStarsEarned >= 15 },
-    { id: 'all_stars_10',  name: '✨ Constellation',     desc: '25 total stars',            check: () => totalStarsEarned >= 25 },
-    { id: 'score_5k',      name: '🏆 5K Club',           desc: 'Score 5000+ on one level',  check: () => score >= 5000 },
-    { id: 'complete',      name: '🎆 Big Bang',          desc: 'Beat all 10 levels',        check: () => levelStars.every(s => s >= 1) },
+    { id: 'first_chain',   name: '🔗 First Chain',       check: () => maxChain >= 3 },
+    { id: 'chain_5',       name: '⛓️ Chain Master',      check: () => maxChain >= 5 },
+    { id: 'chain_10',      name: '💥 Chain God',          check: () => maxChain >= 10 },
+    { id: 'chain_20',      name: '☢️ Nuclear',            check: () => maxChain >= 20 },
+    { id: 'perfect',       name: '⭐ Perfect Level',      check: () => levelStars.some(s => s >= 3) },
+    { id: 'all_15',        name: '🌟 Rising Star',        check: () => totalStarsEarned >= 15 },
+    { id: 'all_25',        name: '✨ Constellation',      check: () => totalStarsEarned >= 25 },
+    { id: 'score_5k',      name: '🏆 5K Score',           check: () => score >= 5000 },
+    { id: 'complete',      name: '🎆 Big Bang Master',    check: () => levelStars.every(s => s >= 1) },
+    { id: 'all_perfect',   name: '👑 Perfectionist',      check: () => levelStars.every(s => s >= 3) },
 ];
 
 function checkAchievements() {
@@ -155,127 +162,156 @@ function showAchievement(text) {
 function spawnParticles() {
     particles = [];
     const cfg = LEVELS[level];
-    const margin = 60;
+    const margin = 50;
+
+    // Spawn in clusters (3-6 clusters) to make chains actually possible
+    const clusterCount = 3 + Math.floor(level / 3);
+    const clusters = [];
+    for (let i = 0; i < clusterCount; i++) {
+        clusters.push({
+            x: margin + Math.random() * (W - margin * 2),
+            y: margin + Math.random() * (H - margin * 2),
+            spread: 60 + Math.random() * 50 // how tight the cluster is
+        });
+    }
+
     for (let i = 0; i < cfg.particles; i++) {
         const type = cfg.types[Math.floor(Math.random() * cfg.types.length)];
         const angle = Math.random() * Math.PI * 2;
-        let speed = (0.3 + Math.random() * 0.7) * cfg.speed;
-        let r = 6;
-        
-        if (type === 'fast') speed *= 1.8;
-        if (type === 'mega') { r = 10; speed *= 0.6; }
-        if (type === 'shy') speed *= 0.5;
-        if (type === 'ghost') speed *= 1.2;
+        let speed = (0.3 + Math.random() * 0.5) * cfg.speed;
+        let r = 7;
+
+        if (type === 'fast') speed *= 1.6;
+        if (type === 'mega') { r = 11; speed *= 0.5; }
+        if (type === 'shy') speed *= 0.4;
+        if (type === 'ghost') speed *= 0.8;
+
+        // Pick a random cluster and spawn near it
+        const cluster = clusters[Math.floor(Math.random() * clusters.length)];
+        const cx = cluster.x + (Math.random() - 0.5) * cluster.spread * 2;
+        const cy = cluster.y + (Math.random() - 0.5) * cluster.spread * 2;
 
         particles.push({
-            x: margin + Math.random() * (W - margin*2),
-            y: margin + Math.random() * (H - margin*2),
+            x: Math.max(margin, Math.min(W - margin, cx)),
+            y: Math.max(margin, Math.min(H - margin, cy)),
             dx: Math.cos(angle) * speed,
             dy: Math.sin(angle) * speed,
             r, type, color: PARTICLE_COLORS[type],
-            alive: true, exploding: false, explodeTime: 0, explodeR: 0,
-            maxExplodeR: type === 'mega' ? EXPLODE_R * 1.6 : EXPLODE_R,
+            alive: true, exploding: false, explodeTimer: 0,
+            blastR: type === 'mega' ? cfg.blastR * 1.5 : cfg.blastR,
             alpha: 1, ghostPhase: Math.random() * Math.PI * 2,
-            orbitAngle: Math.random() * Math.PI * 2,
             points: type === 'mega' ? 150 : type === 'ghost' ? 120 : 100,
         });
     }
 }
 
-// ======================== EXPLOSIONS ========================
-function triggerExplosion(x, y, isClick = false) {
-    explosions.push({
-        x, y, r: 0, maxR: isClick ? EXPLODE_R * 0.8 : EXPLODE_R,
-        life: 1, color: isClick ? '#ffffff' : '#ff8c00', isClick
-    });
-    shakeTime = isClick ? 5 : 8;
-    
+// ======================== CHAIN REACTION ENGINE ========================
+function detonateAt(x, y, radius, isClick) {
+    // Visual explosion ring
+    rings.push({ x, y, r: 0, maxR: radius, life: 1, isClick });
+    if (isClick) shakeTime = 6;
+
     // Find particles in range
-    setTimeout(() => {
-        const toExplode = [];
-        particles.forEach(p => {
+    const hit = [];
+    particles.forEach(p => {
+        if (!p.alive || p.exploding) return;
+        const dist = Math.hypot(p.x - x, p.y - y);
+        if (dist < radius + p.r) {
+            hit.push(p);
+        }
+    });
+
+    // Queue them for sequential detonation (creates visible chain)
+    hit.forEach((p, i) => {
+        setTimeout(() => {
             if (!p.alive || p.exploding) return;
-            const dist = Math.hypot(p.x - x, p.y - y);
-            const range = isClick ? EXPLODE_R * 0.8 : p.maxExplodeR;
-            if (dist < range + p.r) {
-                toExplode.push(p);
+            p.exploding = true;
+            p.explodeTimer = 0;
+            detonated++;
+            chainCount++;
+            if (chainCount > maxChain) maxChain = chainCount;
+
+            const mul = Math.min(chainCount, 20);
+            const pts = p.points * mul;
+            score += pts;
+
+            shakeTime = Math.min(3 + Math.floor(chainCount / 3), 12);
+
+            // Floating score
+            floats.push({ x: p.x, y: p.y - 10, text: `+${pts}`, color: p.color, size: 10, life: 1, dy: -1 });
+            if (chainCount >= 3 && chainCount % 2 === 1) {
+                floats.push({ x: p.x, y: p.y - 28, text: `CHAIN x${chainCount}!`, color: '#ffd700', size: Math.min(10 + chainCount, 20), life: 1.2, dy: -0.8 });
             }
-        });
 
-        toExplode.forEach((p, i) => {
+            // Burst particles visual
+            for (let j = 0; j < 6; j++) {
+                const a = (j / 6) * Math.PI * 2;
+                floats.push({ x: p.x, y: p.y, dx: Math.cos(a)*3, dy: Math.sin(a)*3, text: '', color: p.color, size: 3, life: 0.7, isPart: true });
+            }
+
+            // Shy particles nearby flee
+            particles.forEach(other => {
+                if (!other.alive || other.exploding || other.type !== 'shy') return;
+                const d = Math.hypot(other.x - p.x, other.y - p.y);
+                if (d < p.blastR * 2) {
+                    const flee = Math.atan2(other.y - p.y, other.x - p.x);
+                    other.dx += Math.cos(flee) * 2;
+                    other.dy += Math.sin(flee) * 2;
+                }
+            });
+
+            // This particle will explode after a brief visual delay, triggering neighbors
             setTimeout(() => {
-                if (!p.alive || p.exploding) return;
-                p.exploding = true;
-                p.explodeTime = 0;
-                detonated++;
-                chainCount++;
-                if (chainCount > maxChain) maxChain = chainCount;
+                if (p.alive) {
+                    p.alive = false;
+                    detonateAt(p.x, p.y, p.blastR, false);
+                }
+            }, 150);
+        }, i * CHAIN_DELAY);
+    });
 
-                const chainMul = Math.min(chainCount, 15);
-                const pts = p.points * chainMul;
-                score += pts;
-
-                // Float text
-                const texts = [];
-                if (chainCount >= 3) texts.push({ t: `CHAIN x${chainCount}`, c: '#ffd700', s: Math.min(14 + chainCount, 22) });
-                texts.push({ t: `+${pts}`, c: p.color, s: 10 });
-                texts.forEach((ft, fi) => {
-                    floats.push({ x: p.x, y: p.y - fi * 18, text: ft.t, color: ft.c, size: ft.s, life: 1, dy: -1.2 - fi * 0.3 });
-                });
-
-                // Cascade: this particle explodes and triggers neighbors
-                setTimeout(() => {
-                    if (p.alive) {
-                        p.alive = false;
-                        triggerExplosion(p.x, p.y, false);
-                        // Particle burst
-                        for (let j = 0; j < 8; j++) {
-                            const a = (j / 8) * Math.PI * 2;
-                            floats.push({
-                                x: p.x, y: p.y, dx: Math.cos(a) * 3, dy: Math.sin(a) * 3,
-                                text: '', color: p.color, size: 3, life: 0.8, isParticle: true
-                            });
-                        }
-                    }
-                }, 200);
-            }, i * CHAIN_DELAY);
-        });
-
-        // Check if chain is done after a delay
-        setTimeout(() => checkChainDone(), (toExplode.length + 1) * CHAIN_DELAY + 500);
-    }, isClick ? 0 : 50);
+    // Check if everything settled
+    const totalDelay = (hit.length + 2) * CHAIN_DELAY + 400;
+    setTimeout(() => checkDone(), totalDelay);
 }
 
-function checkChainDone() {
-    const anyExploding = particles.some(p => p.exploding && p.alive);
-    if (anyExploding) { setTimeout(checkChainDone, 300); return; }
-    
-    if (phase === 'playing' && clicksLeft <= 0) {
-        setTimeout(() => { if (phase === 'playing') endLevel(); }, 800);
+function checkDone() {
+    // If any particle is still mid-explosion, wait more
+    if (particles.some(p => p.exploding && p.alive)) {
+        setTimeout(checkDone, 300);
+        return;
+    }
+    // If we have clicks left, let player continue
+    if (clicksLeft > 0) {
+        phase = 'playing';
+        return;
+    }
+    // All clicks used and chain done → end level
+    if (phase !== 'result') {
+        setTimeout(endLevel, 600);
     }
 }
 
 // ======================== GAME FLOW ========================
-function startGame() {
-    showLevelSelect();
-}
+function startGame() { showLevelSelect(); }
 
 function showLevelSelect() {
     totalStarsEarned = levelStars.reduce((a,b) => a+b, 0);
     let html = `<h2>SELECT LEVEL</h2>`;
-    html += `<div class="stat-row"><span class="stat-label">TOTAL STARS</span><span class="stat-value">${'⭐'.repeat(totalStarsEarned)} (${totalStarsEarned}/30)</span></div>`;
-    html += `<div class="stat-row"><span class="stat-label">TOTAL SCORE</span><span class="stat-value">${totalScore.toLocaleString()}</span></div>`;
+    html += `<div class="stat-row"><span class="stat-label">TOTAL STARS</span><span class="stat-value">${totalStarsEarned}/30 ${'⭐'.repeat(Math.min(totalStarsEarned, 10))}</span></div>`;
+    html += `<div class="stat-row"><span class="stat-label">SCORE</span><span class="stat-value">${totalScore.toLocaleString()}</span></div>`;
     html += `<div class="level-select">`;
     for (let i = 0; i < 10; i++) {
         const unlocked = i === 0 || levelStars[i - 1] >= 1;
         const stars = levelStars[i];
         const starsStr = '★'.repeat(stars) + '☆'.repeat(3 - stars);
         html += `<div class="level-btn ${unlocked ? '' : 'locked'}" onclick="${unlocked ? `selectLevel(${i})` : ''}">
-            ${i + 1}<br><span style="font-size:8px;color:rgba(255,255,255,0.4)">${LEVELS[i].name}</span>
-            <span class="lvl-stars">${stars > 0 ? starsStr : '☆☆☆'}</span>
+            ${i + 1}<br><span style="font-size:7px;color:rgba(255,255,255,0.4)">${LEVELS[i].name}</span>
+            <span class="lvl-stars">${starsStr}</span>
         </div>`;
     }
     html += `</div>`;
+    html += `<p class="tip">🎯 Click clusters of particles to trigger chain reactions</p>`;
     overlay.innerHTML = html;
     overlay.classList.remove('hidden');
     phase = 'menu';
@@ -296,13 +332,12 @@ function endLevel() {
     const cfg = LEVELS[level];
     const total = cfg.particles;
     const pct = detonated / total;
-    
+
     let stars = 0;
     if (pct >= cfg.target1) stars = 1;
     if (pct >= cfg.target2) stars = 2;
     if (pct >= cfg.target3) stars = 3;
 
-    // Bonus points
     const starBonus = stars * 500;
     const chainBonus = maxChain * 100;
     score += starBonus + chainBonus;
@@ -312,35 +347,46 @@ function endLevel() {
     saveGame();
     checkAchievements();
 
-    const starsDisplay = ['⭐','⭐','⭐'].map((s, i) => i < stars ? '⭐' : '⚫').join(' ');
+    const starsDisplay = [0,1,2].map(i => i < stars ? '⭐' : '⚫').join(' ');
     const pctStr = Math.round(pct * 100);
     const pass = stars >= 1;
 
-    let html = `<h2>${pass ? (stars === 3 ? '⭐ PERFECT! ⭐' : 'LEVEL CLEAR!') : 'FAILED'}</h2>`;
+    let html = `<h2>${pass ? (stars === 3 ? '⭐ PERFECT! ⭐' : 'LEVEL CLEAR!') : '❌ NOT ENOUGH'}</h2>`;
     html += `<div class="stars-display">${starsDisplay}</div>`;
     html += `<div class="stat-row"><span class="stat-label">DETONATED</span><span class="stat-value">${detonated}/${total} (${pctStr}%)</span></div>`;
     html += `<div class="stat-row"><span class="stat-label">MAX CHAIN</span><span class="stat-value">x${maxChain}</span></div>`;
     html += `<div class="stat-row"><span class="stat-label">CHAIN BONUS</span><span class="stat-value">+${chainBonus}</span></div>`;
     html += `<div class="stat-row"><span class="stat-label">STAR BONUS</span><span class="stat-value">+${starBonus}</span></div>`;
-    html += `<div class="stat-row"><span class="stat-label">TOTAL SCORE</span><span class="stat-value" style="color:#ff8c00;font-size:14px">${score.toLocaleString()}</span></div>`;
-    
+    html += `<div class="stat-row"><span class="stat-label">LEVEL SCORE</span><span class="stat-value" style="color:#ff8c00;font-size:14px">${score.toLocaleString()}</span></div>`;
+
+    // Star thresholds explanation
+    html += `<div style="margin-top:8px">`;
+    html += `<span class="stat-label">★ ${Math.round(cfg.target1*100)}%  ★★ ${Math.round(cfg.target2*100)}%  ★★★ ${Math.round(cfg.target3*100)}%</span>`;
+    html += `</div>`;
+
+    html += `<div style="display:flex;gap:12px;margin-top:14px;flex-wrap:wrap;justify-content:center">`;
     if (pass && level < 9) {
-        html += `<div style="display:flex;gap:12px;margin-top:16px">`;
-        html += `<button class="btn" onclick="selectLevel(${level + 1})">NEXT LEVEL →</button>`;
-        html += `<button class="btn btn-secondary" onclick="selectLevel(${level})">RETRY</button>`;
-        html += `</div>`;
-    } else if (!pass) {
-        html += `<button class="btn" onclick="selectLevel(${level})">RETRY</button>`;
-    } else {
-        html += `<p style="color:#ffd700;margin-top:12px">🎆 ALL LEVELS COMPLETE!</p>`;
+        html += `<button class="btn" onclick="selectLevel(${level + 1})">NEXT →</button>`;
     }
-    html += `<button class="btn btn-secondary" style="margin-top:8px" onclick="showLevelSelect()">LEVEL SELECT</button>`;
+    html += `<button class="btn btn-secondary" onclick="selectLevel(${level})">RETRY</button>`;
+    html += `<button class="btn btn-secondary" onclick="showLevelSelect()">LEVELS</button>`;
+    html += `</div>`;
+
+    if (pass && level >= 9) {
+        html += `<p style="color:#ffd700;margin-top:12px;font-family:'Press Start 2P',cursive;font-size:10px">🎆 ALL LEVELS COMPLETE!</p>`;
+    }
 
     overlay.innerHTML = html;
     overlay.classList.remove('hidden');
 }
 
 // ======================== INPUT ========================
+canvas.addEventListener('mousemove', e => {
+    const rect = canvas.getBoundingClientRect();
+    mouseX = e.clientX - rect.left;
+    mouseY = e.clientY - rect.top;
+});
+
 canvas.addEventListener('click', e => {
     if (phase !== 'playing' || clicksLeft <= 0) return;
     const rect = canvas.getBoundingClientRect();
@@ -348,11 +394,8 @@ canvas.addEventListener('click', e => {
     const y = e.clientY - rect.top;
     clicksLeft--;
     chainCount = 0;
-    triggerExplosion(x, y, true);
-    if (clicksLeft <= 0) {
-        // Wait for chains to finish
-        setTimeout(() => checkChainDone(), 2000);
-    }
+    phase = 'chaining';
+    detonateAt(x, y, LEVELS[level].blastR * 0.9, true);
     updateHUD();
 });
 
@@ -364,8 +407,8 @@ canvas.addEventListener('touchstart', e => {
     const y = e.touches[0].clientY - rect.top;
     clicksLeft--;
     chainCount = 0;
-    triggerExplosion(x, y, true);
-    if (clicksLeft <= 0) setTimeout(() => checkChainDone(), 2000);
+    phase = 'chaining';
+    detonateAt(x, y, LEVELS[level].blastR * 0.9, true);
     updateHUD();
 }, { passive: false });
 
@@ -373,66 +416,65 @@ canvas.addEventListener('touchstart', e => {
 function updateHUD() {
     document.getElementById('hScore').textContent = score.toLocaleString();
     document.getElementById('hLevel').textContent = `LV ${level + 1}`;
-    document.getElementById('hClicks').textContent = '● '.repeat(clicksLeft).trim() || '—';
+    document.getElementById('hClicks').textContent = clicksLeft > 0 ? '● '.repeat(clicksLeft).trim() : '—';
     const s = levelStars[level];
     document.getElementById('hStars').textContent = '★'.repeat(s) + '☆'.repeat(3 - s);
 }
 
 // ======================== UPDATE ========================
 function update() {
-    if (phase !== 'playing' && phase !== 'result') return;
-
-    const cfg = LEVELS[level];
+    if (phase === 'menu' || phase === 'result') return;
 
     particles.forEach(p => {
-        if (!p.alive || p.exploding) return;
+        if (!p.alive) return;
 
-        // Movement
-        p.x += p.dx;
-        p.y += p.dy;
+        if (!p.exploding) {
+            p.x += p.dx;
+            p.y += p.dy;
 
-        // Bounce off walls
-        if (p.x - p.r < 0) { p.x = p.r; p.dx = Math.abs(p.dx); }
-        if (p.x + p.r > W) { p.x = W - p.r; p.dx = -Math.abs(p.dx); }
-        if (p.y - p.r < 0) { p.y = p.r; p.dy = Math.abs(p.dy); }
-        if (p.y + p.r > H) { p.y = H - p.r; p.dy = -Math.abs(p.dy); }
+            // Bounce
+            if (p.x - p.r < 0) { p.x = p.r; p.dx = Math.abs(p.dx); }
+            if (p.x + p.r > W) { p.x = W - p.r; p.dx = -Math.abs(p.dx); }
+            if (p.y - p.r < 0) { p.y = p.r; p.dy = Math.abs(p.dy); }
+            if (p.y + p.r > H) { p.y = H - p.r; p.dy = -Math.abs(p.dy); }
 
-        // Shy particles drift away from cursor (handled in draw via visual only)
-        // Ghost particles phase in and out
-        if (p.type === 'ghost') {
-            p.ghostPhase += 0.03;
-            p.alpha = 0.3 + Math.sin(p.ghostPhase) * 0.35 + 0.35;
-        }
-    });
-
-    // Exploding particles expand
-    particles.forEach(p => {
-        if (p.exploding && p.alive) {
-            p.explodeTime += 16;
-            p.explodeR = Math.min(p.explodeTime * 0.3, p.maxExplodeR * 0.4);
-            if (p.explodeTime > 300) {
-                p.alive = false;
+            // Dampen shy flee speed over time
+            if (p.type === 'shy') {
+                const spd = Math.hypot(p.dx, p.dy);
+                if (spd > LEVELS[level].speed * 0.5) {
+                    p.dx *= 0.995;
+                    p.dy *= 0.995;
+                }
             }
+
+            // Ghost phase
+            if (p.type === 'ghost') {
+                p.ghostPhase += 0.025;
+                p.alpha = 0.25 + (Math.sin(p.ghostPhase) * 0.5 + 0.5) * 0.75;
+            }
+        } else {
+            // Exploding visual
+            p.explodeTimer++;
         }
     });
 
-    // Explosions
-    explosions = explosions.filter(e => {
-        e.r += 4;
-        e.life -= 0.04;
-        return e.life > 0;
+    // Explosion rings
+    rings = rings.filter(r => {
+        r.r += 5;
+        r.life -= 0.035;
+        return r.life > 0;
     });
 
     // Floats
     floats = floats.filter(f => {
-        if (f.isParticle) {
+        if (f.isPart) {
             f.x += (f.dx || 0);
             f.y += (f.dy || 0);
-            f.dy += 0.1;
+            f.dy = (f.dy || 0) + 0.08;
         } else {
-            f.y += f.dy;
+            f.y += (f.dy || 0);
         }
-        f.life -= 0.018;
+        f.life -= 0.016;
         return f.life > 0;
     });
 
@@ -444,114 +486,144 @@ function update() {
 function draw() {
     ctx.save();
     if (shakeTime > 0) {
-        const i = shakeTime * 0.7;
-        ctx.translate((Math.random()-0.5)*i, (Math.random()-0.5)*i);
+        const s = shakeTime * 0.6;
+        ctx.translate((Math.random()-0.5)*s, (Math.random()-0.5)*s);
     }
 
-    // Background
-    const cfg = LEVELS[level] || LEVELS[0];
-    ctx.fillStyle = cfg.bg;
+    // BG
+    ctx.fillStyle = LEVELS[level]?.bg || '#06060f';
     ctx.fillRect(0, 0, W, H);
 
-    // Subtle grid
-    ctx.strokeStyle = 'rgba(255,140,0,0.02)';
+    // Grid
+    ctx.strokeStyle = 'rgba(255,140,0,0.015)';
     ctx.lineWidth = 1;
     for (let x = 0; x < W; x += 50) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
     for (let y = 0; y < H; y += 50) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
 
-    // Target zone indicators (during play)
+    // Blast radius preview on cursor
     if (phase === 'playing' && clicksLeft > 0) {
-        // Subtle range preview on cursor would be nice but keep it clean
+        const br = LEVELS[level].blastR * 0.9;
+        ctx.strokeStyle = 'rgba(255,140,0,0.12)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 6]);
+        ctx.beginPath();
+        ctx.arc(mouseX, mouseY, br, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Highlight particles in range
+        particles.forEach(p => {
+            if (!p.alive || p.exploding) return;
+            const d = Math.hypot(p.x - mouseX, p.y - mouseY);
+            if (d < br + p.r) {
+                ctx.strokeStyle = `rgba(255,255,255,0.15)`;
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.r + 4, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+        });
     }
 
-    // Explosions (behind particles)
-    explosions.forEach(e => {
-        const grad = ctx.createRadialGradient(e.x, e.y, 0, e.x, e.y, e.r);
-        grad.addColorStop(0, `rgba(255,255,255,${e.life * 0.3})`);
-        grad.addColorStop(0.3, `rgba(255,140,0,${e.life * 0.2})`);
+    // Explosion rings
+    rings.forEach(r => {
+        ctx.globalAlpha = r.life * 0.4;
+        ctx.strokeStyle = r.isClick ? '#ffffff' : '#ff8c00';
+        ctx.lineWidth = r.isClick ? 3 : 2;
+        ctx.beginPath();
+        ctx.arc(r.x, r.y, r.r, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Inner fill
+        const grad = ctx.createRadialGradient(r.x, r.y, 0, r.x, r.y, r.r);
+        grad.addColorStop(0, `rgba(255,200,100,${r.life * 0.15})`);
         grad.addColorStop(1, 'rgba(255,140,0,0)');
         ctx.fillStyle = grad;
-        ctx.beginPath(); ctx.arc(e.x, e.y, e.r, 0, Math.PI * 2); ctx.fill();
+        ctx.fill();
     });
+    ctx.globalAlpha = 1;
 
     // Particles
     particles.forEach(p => {
-        if (!p.alive) return;
+        if (!p.alive && !p.exploding) return;
         ctx.globalAlpha = p.alpha || 1;
 
         if (p.exploding) {
-            // Exploding animation
-            const progress = p.explodeTime / 300;
-            ctx.globalAlpha = 1 - progress;
-            
-            // Expanding ring
-            ctx.strokeStyle = p.color;
-            ctx.lineWidth = 2;
-            ctx.shadowColor = p.color;
-            ctx.shadowBlur = 15;
-            ctx.beginPath();
-            ctx.arc(p.x, p.y, p.r + p.explodeR, 0, Math.PI * 2);
-            ctx.stroke();
-
-            // Core flash
+            // Flash and shrink
+            const t = Math.min(p.explodeTimer / 15, 1);
+            ctx.globalAlpha = 1 - t;
             ctx.fillStyle = '#fff';
+            ctx.shadowColor = p.color;
+            ctx.shadowBlur = 20;
             ctx.beginPath();
-            ctx.arc(p.x, p.y, p.r * (1 - progress * 0.5), 0, Math.PI * 2);
+            ctx.arc(p.x, p.y, p.r * (1 + t * 2), 0, Math.PI * 2);
             ctx.fill();
             ctx.shadowBlur = 0;
         } else {
-            // Normal particle
-            ctx.fillStyle = p.color;
+            // Glow
             ctx.shadowColor = p.color;
-            ctx.shadowBlur = p.type === 'mega' ? 18 : 10;
+            ctx.shadowBlur = p.type === 'mega' ? 20 : 12;
+            ctx.fillStyle = p.color;
             ctx.beginPath();
             ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
             ctx.fill();
 
-            // Inner glow
-            ctx.fillStyle = 'rgba(255,255,255,0.4)';
+            // Highlight
+            ctx.fillStyle = 'rgba(255,255,255,0.35)';
             ctx.beginPath();
-            ctx.arc(p.x - p.r * 0.2, p.y - p.r * 0.2, p.r * 0.4, 0, Math.PI * 2);
+            ctx.arc(p.x - p.r*0.2, p.y - p.r*0.2, p.r*0.35, 0, Math.PI * 2);
             ctx.fill();
-
             ctx.shadowBlur = 0;
 
-            // Type indicators
+            // Type visual cues
             if (p.type === 'fast') {
-                ctx.strokeStyle = 'rgba(0,200,255,0.3)';
-                ctx.lineWidth = 1;
+                // Speed trail
+                ctx.strokeStyle = `rgba(0,200,255,0.25)`;
+                ctx.lineWidth = 2;
                 ctx.beginPath();
-                ctx.moveTo(p.x - p.dx * 5, p.y - p.dy * 5);
+                ctx.moveTo(p.x - p.dx*6, p.y - p.dy*6);
                 ctx.lineTo(p.x, p.y);
                 ctx.stroke();
             }
             if (p.type === 'mega') {
-                ctx.strokeStyle = 'rgba(255,68,102,0.3)';
+                // Blast radius hint
+                ctx.strokeStyle = 'rgba(255,68,102,0.08)';
                 ctx.lineWidth = 1;
                 ctx.beginPath();
-                ctx.arc(p.x, p.y, p.maxExplodeR * 0.3, 0, Math.PI * 2);
+                ctx.arc(p.x, p.y, p.blastR * 0.4, 0, Math.PI * 2);
                 ctx.stroke();
+                // Size label
+                ctx.fillStyle = 'rgba(255,255,255,0.5)';
+                ctx.font = '7px "Press Start 2P"';
+                ctx.textAlign = 'center';
+                ctx.fillText('M', p.x, p.y + 3);
             }
             if (p.type === 'shy') {
-                // Slight wobble visual
-                ctx.strokeStyle = 'rgba(68,255,170,0.2)';
-                ctx.setLineDash([2, 4]);
+                ctx.strokeStyle = 'rgba(68,255,170,0.15)';
+                ctx.setLineDash([2,3]);
                 ctx.beginPath();
-                ctx.arc(p.x, p.y, p.r + 4, 0, Math.PI * 2);
+                ctx.arc(p.x, p.y, p.r + 5, 0, Math.PI * 2);
                 ctx.stroke();
                 ctx.setLineDash([]);
             }
+            if (p.type === 'ghost') {
+                ctx.strokeStyle = `rgba(200,100,255,${p.alpha * 0.2})`;
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.r + 3 + Math.sin(p.ghostPhase) * 2, 0, Math.PI * 2);
+                ctx.stroke();
+            }
         }
-        ctx.globalAlpha = 1;
     });
+    ctx.globalAlpha = 1;
 
-    // Float texts and particle effects
+    // Floats
     floats.forEach(f => {
-        ctx.globalAlpha = f.life;
-        if (f.isParticle) {
+        ctx.globalAlpha = Math.max(0, f.life);
+        if (f.isPart) {
             ctx.fillStyle = f.color;
             ctx.fillRect(f.x - f.size/2, f.y - f.size/2, f.size, f.size);
-        } else {
+        } else if (f.text) {
             ctx.fillStyle = f.color;
             ctx.font = `${f.size}px "Press Start 2P"`;
             ctx.textAlign = 'center';
@@ -563,57 +635,55 @@ function draw() {
     });
     ctx.globalAlpha = 1;
 
-    // Click indicator when playing
-    if (phase === 'playing' && clicksLeft > 0) {
-        ctx.fillStyle = 'rgba(255,255,255,0.03)';
-        ctx.font = '10px "Press Start 2P"';
-        ctx.textAlign = 'center';
-        ctx.fillText('CLICK TO DETONATE', W/2, H - 15);
-    }
-    if (phase === 'playing' && clicksLeft <= 0 && particles.some(p => p.alive)) {
-        ctx.fillStyle = 'rgba(255,140,0,0.4)';
-        ctx.font = '10px "Press Start 2P"';
-        ctx.textAlign = 'center';
-        ctx.fillText('CHAIN REACTING...', W/2, H - 15);
-    }
-
-    // Progress bar at bottom
-    if (phase === 'playing') {
+    // Progress bar
+    if (phase === 'playing' || phase === 'chaining') {
         const total = LEVELS[level].particles;
         const pct = detonated / total;
-        const target1 = LEVELS[level].target1;
-        const target2 = LEVELS[level].target2;
-        const target3 = LEVELS[level].target3;
+        const cfg = LEVELS[level];
+        const barY = H - 8;
+        const barX = 20;
+        const barW = W - 40;
 
-        // Bar background
-        ctx.fillStyle = 'rgba(255,255,255,0.05)';
-        ctx.fillRect(20, H - 6, W - 40, 4);
+        ctx.fillStyle = 'rgba(255,255,255,0.04)';
+        ctx.fillRect(barX, barY, barW, 5);
 
-        // Progress
-        const barColor = pct >= target3 ? '#ffd700' : pct >= target2 ? '#44ffaa' : pct >= target1 ? '#ff8c00' : '#ff4466';
+        const barColor = pct >= cfg.target3 ? '#ffd700' : pct >= cfg.target2 ? '#44ffaa' : pct >= cfg.target1 ? '#ff8c00' : '#ff4466';
         ctx.fillStyle = barColor;
-        ctx.fillRect(20, H - 6, (W - 40) * pct, 4);
+        ctx.shadowColor = barColor;
+        ctx.shadowBlur = 6;
+        ctx.fillRect(barX, barY, barW * pct, 5);
+        ctx.shadowBlur = 0;
 
-        // Star thresholds
-        [target1, target2, target3].forEach((t, i) => {
-            const tx = 20 + (W - 40) * t;
+        // Star markers
+        [cfg.target1, cfg.target2, cfg.target3].forEach((t, i) => {
+            const tx = barX + barW * t;
             ctx.fillStyle = pct >= t ? '#ffd700' : 'rgba(255,255,255,0.2)';
-            ctx.font = '8px sans-serif';
+            ctx.font = '9px sans-serif';
             ctx.textAlign = 'center';
-            ctx.fillText('★', tx, H - 10);
+            ctx.fillText('★', tx, barY - 3);
         });
+    }
+
+    // Bottom tip during play
+    if (phase === 'playing' && clicksLeft > 0) {
+        ctx.fillStyle = 'rgba(255,255,255,0.08)';
+        ctx.font = '9px "Press Start 2P"';
+        ctx.textAlign = 'center';
+        ctx.fillText(LEVELS[level].tip, W/2, H - 18);
+    }
+    if (phase === 'chaining') {
+        ctx.fillStyle = 'rgba(255,140,0,0.5)';
+        ctx.font = '10px "Press Start 2P"';
+        ctx.textAlign = 'center';
+        const dots = '.'.repeat(1 + Math.floor(Date.now() / 300) % 3);
+        ctx.fillText(`CHAIN REACTING${dots}`, W/2, H - 18);
     }
 
     ctx.restore();
 }
 
 // ======================== LOOP ========================
-function loop() {
-    update();
-    draw();
-    requestAnimationFrame(loop);
-}
-
+function loop() { update(); draw(); requestAnimationFrame(loop); }
 loop();
 </script>
 </body>
