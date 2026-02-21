@@ -209,6 +209,80 @@ const buildRorschach = () => {
     }
 };
 
+/**
+ * Auto-sync games.json with games/ directory.
+ * Scans games/*.html, extracts title, and ensures games.json lists all games.
+ * This prevents games from "disappearing" when games.json is manually edited.
+ */
+const GAME_REGISTRY = {
+    // slug -> { icon, name_en, name_tr, desc_en, desc_tr }
+    'asteroids':   { icon: '☄️', name_en: 'Neon Rocks',        name_tr: 'Neon Rocks',        desc_en: 'Classic asteroids. Destroy, collect, survive.',              desc_tr: 'Klasik asteroit. Parçala, topla, hayatta kal.' },
+    'chronobreak': { icon: '⏱️', name_en: 'Chrono Break',      name_tr: 'Chrono Break',      desc_en: 'Time moves only when you move. Neon survival shooter.',     desc_tr: 'Zaman sadece sen hareket edince akar. Neon hayatta kalma oyunu.' },
+    'fracture':    { icon: '💎', name_en: 'Fracture',           name_tr: 'Fracture',          desc_en: 'Neon breakout. Smash bricks, don\'t lose the ball.',        desc_tr: 'Neon breakout. Tuğlaları kır, topu kaçırma.' },
+    'gravityflip': { icon: '🌀', name_en: 'Gravity Flip',      name_tr: 'Gravity Flip',      desc_en: 'Flip gravity to dodge walls. Endless runner.',              desc_tr: 'Yerçekimini tersine çevir, engellerden kaç.' },
+    'hexchain':    { icon: '⬡',  name_en: 'Hexchain',           name_tr: 'Hexchain',          desc_en: 'Chain hex tiles in sequence. Pattern puzzle.',              desc_tr: 'Altıgen taşları sırayla bağla. Örüntü bulmacası.' },
+    'orbital':     { icon: '🛰️', name_en: 'Orbital Defense',   name_tr: 'Yörünge Savunması', desc_en: 'Protect the core. 360° shield defense system.',             desc_tr: 'Çekirdeği koru. 360° kalkan savunma sistemi.' },
+    'pulsewave':   { icon: '🎵', name_en: 'Pulsewave',          name_tr: 'Pulsewave',         desc_en: 'Ride the rhythm. Tap to the beat, survive the pulse.',      desc_tr: 'Ritme bin. Vuruşa bas, dalgada kal.' },
+    'voidsnake':   { icon: '🐍', name_en: 'Void Snake',         name_tr: 'Void Snake',        desc_en: 'Collect stars in the void. Speed keeps rising.',            desc_tr: 'Boşlukta yıldız topla. Hız sürekli artıyor.' },
+};
+
+const syncGamesPage = () => {
+    const gamesDir = path.join(CONFIG.dirs.output, 'games');
+    const gamesJsonPath = path.join(CONFIG.dirs.pages, 'games.json');
+    
+    if (!exists(gamesDir)) return;
+
+    // Discover all game HTML files
+    const gameFiles = fs.readdirSync(gamesDir)
+        .filter(f => f.endsWith('.html'))
+        .map(f => f.replace('.html', ''))
+        .sort();
+
+    if (gameFiles.length === 0) return;
+
+    // For unknown games, try to extract title from HTML
+    gameFiles.forEach(slug => {
+        if (!GAME_REGISTRY[slug]) {
+            try {
+                const html = readFile(path.join(gamesDir, `${slug}.html`));
+                const titleMatch = html.match(/<title>(.+?)\s*[-–]\s*Arcade<\/title>/i);
+                const name = titleMatch ? titleMatch[1].trim() : slug;
+                GAME_REGISTRY[slug] = {
+                    icon: '🎮', name_en: name, name_tr: name,
+                    desc_en: `Play ${name}.`, desc_tr: `${name} oyna.`
+                };
+            } catch (e) {
+                GAME_REGISTRY[slug] = {
+                    icon: '🎮', name_en: slug, name_tr: slug,
+                    desc_en: `Play ${slug}.`, desc_tr: `${slug} oyna.`
+                };
+            }
+        }
+    });
+
+    // Build gallery HTML
+    const makeGrid = (lang) => {
+        const cards = gameFiles.map(slug => {
+            const g = GAME_REGISTRY[slug];
+            const name = lang === 'tr' ? g.name_tr : g.name_en;
+            const desc = lang === 'tr' ? g.desc_tr : g.desc_en;
+            return `<a href='games/${slug}.html' class='gallery-card'><div class='card-icon'>${g.icon}</div><h3>${name}</h3><p>${desc}</p></a>`;
+        }).join('');
+        return `<div class='gallery-grid'>${cards}</div>`;
+    };
+
+    const gamesJson = {
+        title: 'Arcade',
+        slug: 'games',
+        content: makeGrid('en'),
+        content_en: makeGrid('en'),
+        content_tr: makeGrid('tr')
+    };
+
+    writeFile(gamesJsonPath, JSON.stringify(gamesJson, null, 4));
+    console.log(`🎮 Games synced: ${gameFiles.length} games found.`);
+};
+
 // --- Main Execution ---
 const run = () => {
     console.time('🌙 Night Hunter Build');
@@ -221,6 +295,7 @@ const run = () => {
         buildLists(posts, layout, 'journal', 'index.html', 'Journal');
         buildLists(posts, layout, 'article', 'articles.html', 'Articles');
         buildLists(posts, layout, 'radar', 'radar.html', 'Tech Radar');
+        syncGamesPage();
         buildStaticPages(layout);
         buildRorschach();
 
