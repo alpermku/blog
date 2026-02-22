@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Neon Pong - Arcade</title>
+  <style>
+    :root { --bg:#05070d; --neon:#43f3ff; --hot:#ff4fd8; --ok:#8cff6b; }
+    *{box-sizing:border-box}
+    body{
+      margin:0; min-height:100vh; display:grid; place-items:center;
+      background:radial-gradient(circle at 20% 10%,#11162a 0%,var(--bg) 55%);
+      color:#dbe7ff; font-family:Inter,system-ui,Segoe UI,Arial,sans-serif;
+    }
+    .wrap{width:min(920px,96vw)}
+    .hud{display:flex;justify-content:space-between;align-items:center;margin:.4rem 0 .7rem}
+    .badge{padding:.35rem .7rem;border:1px solid #2b355f;border-radius:999px;background:#0b1022}
+    canvas{width:100%;aspect-ratio:16/9;border:1px solid #27325a;border-radius:14px;background:#060913;box-shadow:0 0 30px #0ef2 inset,0 0 20px #7b2cff33}
+    .hint{font-size:.9rem;opacity:.8;margin-top:.6rem}
+    .btn{background:#0d1430;border:1px solid #324079;color:#dbe7ff;padding:.45rem .7rem;border-radius:10px;cursor:pointer}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="hud">
+      <div class="badge">🏓 Neon Pong</div>
+      <div class="badge" id="score">You 0 : 0 CPU</div>
+      <button class="btn" id="restart">Restart</button>
+    </div>
+    <canvas id="game" width="960" height="540"></canvas>
+    <div class="hint">W/S veya ↑/↓ ile hareket et • İlk 7 kazansın</div>
+  </div>
+
+<script>
+const c = document.getElementById('game');
+const x = c.getContext('2d');
+const scoreEl = document.getElementById('score');
+const restartBtn = document.getElementById('restart');
+
+const state = {
+  p1:{x:28,y:220,w:14,h:100,vy:0,speed:7},
+  p2:{x:918,y:220,w:14,h:100,vy:0,speed:6.2},
+  b:{x:480,y:270,r:9,vx:5.5,vy:3.4,trail:[]},
+  s1:0,s2:0,goal:7,ended:false
+};
+
+const keys = new Set();
+addEventListener('keydown',e=>keys.add(e.key.toLowerCase()));
+addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));
+restartBtn.onclick=()=>reset(true);
+
+function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+function reset(full=false){
+  state.b.x=480; state.b.y=270;
+  const dir = Math.random()<.5?-1:1;
+  state.b.vx=(5+Math.random()*2)*dir;
+  state.b.vy=(Math.random()*4-2.2);
+  state.b.trail.length=0;
+  state.p1.y=220; state.p2.y=220;
+  if(full){state.s1=0;state.s2=0;state.ended=false;}
+  updateScore();
+}
+function updateScore(){ scoreEl.textContent=`You ${state.s1} : ${state.s2} CPU`; }
+
+function tick(){
+  if(state.ended){draw(true); requestAnimationFrame(tick); return;}
+
+  state.p1.vy = 0;
+  if(keys.has('w')||keys.has('arrowup')) state.p1.vy=-state.p1.speed;
+  if(keys.has('s')||keys.has('arrowdown')) state.p1.vy= state.p1.speed;
+  state.p1.y = clamp(state.p1.y + state.p1.vy,0,c.height-state.p1.h);
+
+  const target = state.b.y - state.p2.h/2;
+  state.p2.y += clamp(target-state.p2.y,-state.p2.speed,state.p2.speed);
+  state.p2.y = clamp(state.p2.y,0,c.height-state.p2.h);
+
+  state.b.x += state.b.vx;
+  state.b.y += state.b.vy;
+  state.b.trail.push({x:state.b.x,y:state.b.y});
+  if(state.b.trail.length>12) state.b.trail.shift();
+
+  if(state.b.y < state.b.r || state.b.y > c.height-state.b.r) state.b.vy *= -1;
+
+  collide(state.p1,1);
+  collide(state.p2,-1);
+
+  if(state.b.x < -20){ state.s2++; afterPoint(); }
+  if(state.b.x > c.width+20){ state.s1++; afterPoint(); }
+
+  draw(false);
+  requestAnimationFrame(tick);
+}
+
+function collide(p,dir){
+  if(state.b.x+state.b.r>p.x && state.b.x-state.b.r<p.x+p.w && state.b.y+state.b.r>p.y && state.b.y-state.b.r<p.y+p.h){
+    state.b.vx = Math.abs(state.b.vx) * dir;
+    const rel = (state.b.y-(p.y+p.h/2))/(p.h/2);
+    state.b.vy += rel*1.4;
+    state.b.vx *= 1.04;
+  }
+}
+
+function afterPoint(){
+  if(state.s1>=state.goal || state.s2>=state.goal){ state.ended=true; }
+  updateScore();
+  reset(false);
+}
+
+function draw(end){
+  x.fillStyle='#060913'; x.fillRect(0,0,c.width,c.height);
+  x.strokeStyle='#1f2b55'; x.lineWidth=3; x.setLineDash([10,12]);
+  x.beginPath(); x.moveTo(c.width/2,0); x.lineTo(c.width/2,c.height); x.stroke(); x.setLineDash([]);
+
+  for(let i=0;i<state.b.trail.length;i++){
+    const t=state.b.trail[i], a=(i+1)/state.b.trail.length;
+    x.fillStyle=`rgba(67,243,255,${a*.35})`; x.beginPath(); x.arc(t.x,t.y,state.b.r*(.4+a*.6),0,Math.PI*2); x.fill();
+  }
+
+  glowRect(state.p1,'#43f3ff'); glowRect(state.p2,'#ff4fd8');
+  glowBall();
+
+  if(end){
+    x.fillStyle='rgba(4,8,20,.65)'; x.fillRect(0,0,c.width,c.height);
+    x.textAlign='center'; x.fillStyle='#e9f0ff'; x.font='700 56px Inter, sans-serif';
+    x.fillText(state.s1>state.s2?'YOU WIN':'CPU WINS',c.width/2,c.height/2-12);
+    x.font='400 22px Inter, sans-serif'; x.fillStyle='#9fb1dd';
+    x.fillText('Restart ile yeni maç',c.width/2,c.height/2+32);
+  }
+}
+
+function glowRect(p,color){
+  x.shadowBlur=22; x.shadowColor=color; x.fillStyle=color; x.fillRect(p.x,p.y,p.w,p.h); x.shadowBlur=0;
+}
+function glowBall(){
+  x.shadowBlur=24; x.shadowColor='#8cff6b'; x.fillStyle='#8cff6b';
+  x.beginPath(); x.arc(state.b.x,state.b.y,state.b.r,0,Math.PI*2); x.fill(); x.shadowBlur=0;
+}
+
+reset(true); tick();
+</script>
+</body>
+</html>
