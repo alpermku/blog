@@ -87,19 +87,22 @@ const c = $('game'), ctx = c.getContext('2d');
 const dpr = Math.min(window.devicePixelRatio || 1, 2);
 
 // ── LEVELS ──
+// cpuMaxSpd = max px/frame movement (smooth, speed-limited)
+// cpuNapChance = probability per second of CPU "napping" (mistake)
+// cpuNapDur = nap duration range in ms [min, max]
+// cpuReactDelay = ms delay before CPU reacts to ball direction change
 const LEVELS = [
-  { name:'Uyanış',       desc:'Yavaş top, yavaş CPU. Alış.',                        cpuSpeed:.55, ballSpeed:3.5, winScore:5,  puRate:0,    multi:false, walls:false, accel:1.018 },
-  { name:'Isınma',        desc:'Top biraz hızlandı.',                                 cpuSpeed:.60, ballSpeed:4.0, winScore:5,  puRate:0,    multi:false, walls:false, accel:1.020 },
-  { name:'İlk Güç',      desc:'Power-up\'lar sahneye çıkıyor!',                      cpuSpeed:.60, ballSpeed:4.2, winScore:5,  puRate:.12,  multi:false, walls:false, accel:1.020 },
-  { name:'Baskı',         desc:'CPU biraz daha akıllı.',                              cpuSpeed:.68, ballSpeed:4.5, winScore:6,  puRate:.14,  multi:false, walls:false, accel:1.022 },
-  { name:'Daralan',       desc:'CPU raketi küçülüyor ama daha iyi.',                  cpuSpeed:.72, ballSpeed:4.8, winScore:6,  puRate:.14,  multi:false, walls:false, accel:1.025, shrinkCPU:true },
-  { name:'Kaos',          desc:'Çift top geliyor!',                                   cpuSpeed:.65, ballSpeed:4.5, winScore:6,  puRate:.15,  multi:true,  walls:false, accel:1.022 },
-  { name:'Labirent',      desc:'Sahada engeller var.',                                cpuSpeed:.70, ballSpeed:5.0, winScore:7,  puRate:.15,  multi:false, walls:true,  accel:1.025 },
-  { name:'Fırtına',       desc:'Her şey bir arada.',                                 cpuSpeed:.73, ballSpeed:5.2, winScore:7,  puRate:.16,  multi:true,  walls:true,  accel:1.028, shrinkCPU:true },
-  { name:'Son Sınav',     desc:'CPU hızlı ama mükemmel değil.',                       cpuSpeed:.78, ballSpeed:5.5, winScore:8,  puRate:.14,  multi:false, walls:true,  accel:1.030, shrinkCPU:true },
-  { name:'Efsane',        desc:'Buraya kadar gelen az. Kanıtla.',                     cpuSpeed:.83, ballSpeed:5.8, winScore:10, puRate:.16,  multi:true,  walls:true,  accel:1.032, shrinkCPU:true },
+  { name:'Uyanış',       desc:'Yavaş top, yavaş CPU. Alış.',                        cpuMaxSpd:.25, cpuNapChance:.8,  cpuNapDur:[400,900],  cpuReactDelay:280, ballSpeed:3.5, winScore:5,  puRate:0,    multi:false, walls:false, accel:1.018 },
+  { name:'Isınma',        desc:'Top biraz hızlandı.',                                 cpuMaxSpd:.28, cpuNapChance:.65, cpuNapDur:[350,800],  cpuReactDelay:240, ballSpeed:4.0, winScore:5,  puRate:0,    multi:false, walls:false, accel:1.020 },
+  { name:'İlk Güç',      desc:'Power-up\'lar sahneye çıkıyor!',                      cpuMaxSpd:.30, cpuNapChance:.55, cpuNapDur:[300,750],  cpuReactDelay:220, ballSpeed:4.2, winScore:5,  puRate:.12,  multi:false, walls:false, accel:1.020 },
+  { name:'Baskı',         desc:'CPU biraz daha akıllı.',                              cpuMaxSpd:.33, cpuNapChance:.45, cpuNapDur:[280,650],  cpuReactDelay:190, ballSpeed:4.5, winScore:6,  puRate:.14,  multi:false, walls:false, accel:1.022 },
+  { name:'Daralan',       desc:'CPU raketi küçülüyor ama daha iyi.',                  cpuMaxSpd:.36, cpuNapChance:.38, cpuNapDur:[250,600],  cpuReactDelay:170, ballSpeed:4.8, winScore:6,  puRate:.14,  multi:false, walls:false, accel:1.025, shrinkCPU:true },
+  { name:'Kaos',          desc:'Çift top geliyor!',                                   cpuMaxSpd:.32, cpuNapChance:.42, cpuNapDur:[300,700],  cpuReactDelay:200, ballSpeed:4.5, winScore:6,  puRate:.15,  multi:true,  walls:false, accel:1.022 },
+  { name:'Labirent',      desc:'Sahada engeller var.',                                cpuMaxSpd:.35, cpuNapChance:.35, cpuNapDur:[250,550],  cpuReactDelay:160, ballSpeed:5.0, winScore:7,  puRate:.15,  multi:false, walls:true,  accel:1.025 },
+  { name:'Fırtına',       desc:'Her şey bir arada.',                                 cpuMaxSpd:.38, cpuNapChance:.30, cpuNapDur:[200,500],  cpuReactDelay:140, ballSpeed:5.2, winScore:7,  puRate:.16,  multi:true,  walls:true,  accel:1.028, shrinkCPU:true },
+  { name:'Son Sınav',     desc:'CPU hızlı ama mükemmel değil.',                       cpuMaxSpd:.42, cpuNapChance:.22, cpuNapDur:[180,450],  cpuReactDelay:110, ballSpeed:5.5, winScore:8,  puRate:.14,  multi:false, walls:true,  accel:1.030, shrinkCPU:true },
+  { name:'Efsane',        desc:'Buraya kadar gelen az. Kanıtla.',                     cpuMaxSpd:.45, cpuNapChance:.15, cpuNapDur:[150,380],  cpuReactDelay:80,  ballSpeed:5.8, winScore:10, puRate:.16,  multi:true,  walls:true,  accel:1.032, shrinkCPU:true },
 ];
-// cpuSpeed = tracking ratio (0-1). 1.0 = perfect tracking. 0.5 = follows half the distance per frame.
 
 const THEMES = [
   { pad:'#43f3ff', cpu:'#ff4fd8', ball:'#8cff6b' },
@@ -133,6 +136,8 @@ let playing = false, paused = false;
 let scoreP1 = 0, scoreP2 = 0; // P1 = player (bottom), P2 = cpu (top)
 let combo = 0, maxCombo = 0, comboTimer = 0;
 let ddaOffset = 0, rally = 0;
+// CPU brain state
+let cpuBrain = { napping:false, napEnd:0, napDir:0, lastBallVy:0, reactLock:0 };
 let puTimer = 0;
 let effects = { bigPaddle:0, slowMo:0 };
 
@@ -323,45 +328,88 @@ function collidePU(ball){
 }
 
 // ── CPU AI ──
-// Uses tracking ratio: each frame CPU moves a fraction toward target
-// This creates natural, beatable lag — NOT speed-limited AI
-function updateCPU(){
-  let targetX = W/2;
-  let bestDist = Infinity;
-  for(const b of balls){
-    if(!b.alive || b.vy>=0) continue; // only track balls heading up
-    const dist = b.y - cpu.y;
-    if(dist>0 && dist<bestDist){ bestDist=dist; targetX=b.x; }
-  }
-  // If no ball heading up, track closest ball
-  if(bestDist===Infinity){
-    for(const b of balls){
-      if(!b.alive) continue;
-      const d=Math.abs(b.y-cpu.y);
-      if(d<bestDist){bestDist=d; targetX=b.x;}
+// Speed-limited + nap (mistake) system + reaction delay
+// CPU has a max speed per frame and randomly "naps" — drifts wrong direction
+function updateCPU(rawDt){
+  const now = Date.now();
+
+  // --- Nap system: random mistakes ---
+  if(!cpuBrain.napping){
+    // Roll for nap (chance per second)
+    const chance = (lv ? lv.cpuNapChance : .5) * rawDt;
+    if(Math.random() < chance){
+      cpuBrain.napping = true;
+      const durRange = lv ? lv.cpuNapDur : [300,700];
+      cpuBrain.napEnd = now + rand(durRange[0], durRange[1]);
+      cpuBrain.napDir = Math.random() < .5 ? -1 : 1; // drift random direction
     }
   }
-  // Imperfection: random offset
-  const errPx = (1 - (lv?lv.cpuSpeed:.5)) * W * 0.15;
-  targetX += rand(-errPx, errPx);
+  if(cpuBrain.napping && now > cpuBrain.napEnd){
+    cpuBrain.napping = false;
+  }
 
-  const center = cpu.x + cpu.w/2;
-  const tracking = (lv?lv.cpuSpeed:.5) + ddaOffset;
-  cpu.x += (targetX - center) * clamp(tracking, 0.1, 0.95);
-  cpu.x = clamp(cpu.x, 0, W-cpu.w);
+  // --- Reaction delay: ignore ball direction changes briefly ---
+  let trackBall = null;
+  let bestDist = Infinity;
+  for(const b of balls){
+    if(!b.alive) continue;
+    // Detect direction change → lock reaction
+    if(b.vy < 0){ // heading toward CPU
+      const d = b.y - cpu.y;
+      if(d > 0 && d < bestDist){ bestDist = d; trackBall = b; }
+    }
+  }
+  // If no ball heading up, lazily track closest
+  if(!trackBall){
+    for(const b of balls){
+      if(!b.alive) continue;
+      const d = Math.abs(b.y - cpu.y);
+      if(d < bestDist){ bestDist = d; trackBall = b; }
+    }
+  }
+
+  // Detect ball vertical direction flip → apply reaction delay
+  if(trackBall){
+    const curVy = trackBall.vy;
+    if(Math.sign(curVy) !== Math.sign(cpuBrain.lastBallVy) && cpuBrain.lastBallVy !== 0){
+      cpuBrain.reactLock = now + (lv ? lv.cpuReactDelay : 200);
+    }
+    cpuBrain.lastBallVy = curVy;
+  }
+
+  // --- Movement ---
+  const maxSpd = (lv ? lv.cpuMaxSpd : .3) * W * rawDt * 60; // normalize to ~60fps
+  const center = cpu.x + cpu.w / 2;
+
+  if(cpuBrain.napping){
+    // During nap: drift in random direction at half speed
+    cpu.x += cpuBrain.napDir * maxSpd * 0.5;
+  } else if(now < cpuBrain.reactLock){
+    // During react delay: hold position (slight drift toward center)
+    const toCenter = W/2 - center;
+    cpu.x += clamp(toCenter, -maxSpd*.2, maxSpd*.2);
+  } else if(trackBall){
+    // Normal tracking with speed limit
+    const targetX = trackBall.x;
+    const diff = targetX - center;
+    const move = clamp(diff, -maxSpd, maxSpd);
+    cpu.x += move;
+  }
+
+  cpu.x = clamp(cpu.x, 0, W - cpu.w);
 }
 
 // ── SCORING ──
 function playerScored(){
   scoreP1++; rally=0; updateHUD();
   emit(W/2, cpu.y, '#8cff6b', 25, 6); doShake(4);
-  if(scoreP1-scoreP2>=3) ddaOffset=clamp(ddaOffset+.02, -.15, .15);
+  if(scoreP1-scoreP2>=3) ddaOffset=clamp(ddaOffset+.01, -.08, .08);
   checkWin();
 }
 function cpuScored(){
   scoreP2++; rally=0; breakCombo(); updateHUD();
   emit(W/2, player.y, '#ff4444', 25, 6); doShake(5);
-  if(scoreP2-scoreP1>=2) ddaOffset=clamp(ddaOffset-.03, -.15, .15);
+  if(scoreP2-scoreP1>=2) ddaOffset=clamp(ddaOffset-.015, -.08, .08);
   checkWin();
 }
 
@@ -420,6 +468,7 @@ function startLevel(){
   hideAll();
   lv=LEVELS[currentLevel];
   scoreP1=0;scoreP2=0;combo=0;maxCombo=0;comboTimer=0;ddaOffset=0;rally=0;puTimer=0;
+  cpuBrain={napping:false,napEnd:0,napDir:0,lastBallVy:0,reactLock:0};
   effects={bigPaddle:0,slowMo:0};
   powerups=[];particles=[];
   $('combo').textContent='';
@@ -447,7 +496,7 @@ function loop(ts){
     // Big paddle expiry
     if(effects.bigPaddle>0&&effects.bigPaddle<Date.now()){ player.w=player.baseW; effects.bigPaddle=0; }
 
-    updateCPU();
+    updateCPU(rawDt);
 
     // Balls
     for(const b of balls){
