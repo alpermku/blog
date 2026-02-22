@@ -226,6 +226,7 @@ const GAME_REGISTRY = {
     'orbital':     { icon: '🛰️', name_en: 'Orbital Defense',   name_tr: 'Yörünge Savunması', desc_en: 'Protect the core. 360° shield defense system.',             desc_tr: 'Çekirdeği koru. 360° kalkan savunma sistemi.' },
     'pulsewave':   { icon: '🎵', name_en: 'Pulsewave',          name_tr: 'Pulsewave',         desc_en: 'Ride the rhythm. Tap to the beat, survive the pulse.',      desc_tr: 'Ritme bin. Vuruşa bas, dalgada kal.' },
     'voidsnake':   { icon: '🐍', name_en: 'Void Snake',         name_tr: 'Void Snake',        desc_en: 'Collect stars in the void. Speed keeps rising.',            desc_tr: 'Boşlukta yıldız topla. Hız sürekli artıyor.' },
+    'neonpong':    { icon: '🏓', name_en: 'Neon Pong',          name_tr: 'Neon Pong',         desc_en: 'Fast neon pong with keyboard + touch controls.',            desc_tr: 'Klavye + dokunmatik kontrollü hızlı neon pong.' },
 };
 
 const syncGamesPage = () => {

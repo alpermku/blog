@@ -2,22 +2,27 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Neon Pong - Arcade</title>
   <style>
     :root { --bg:#05070d; --neon:#43f3ff; --hot:#ff4fd8; --ok:#8cff6b; }
-    *{box-sizing:border-box}
-    body{
-      margin:0; min-height:100vh; display:grid; place-items:center;
-      background:radial-gradient(circle at 20% 10%,#11162a 0%,var(--bg) 55%);
-      color:#dbe7ff; font-family:Inter,system-ui,Segoe UI,Arial,sans-serif;
-    }
-    .wrap{width:min(920px,96vw)}
-    .hud{display:flex;justify-content:space-between;align-items:center;margin:.4rem 0 .7rem}
+    *{box-sizing:border-box;touch-action:manipulation}
+    body{margin:0;min-height:100vh;display:grid;place-items:center;background:radial-gradient(circle at 20% 10%,#11162a 0%,var(--bg) 55%);color:#dbe7ff;font-family:Inter,system-ui,Segoe UI,Arial,sans-serif}
+    .wrap{width:min(980px,96vw);padding:8px 0}
+    .hud{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:.3rem 0 .6rem;flex-wrap:wrap}
     .badge{padding:.35rem .7rem;border:1px solid #2b355f;border-radius:999px;background:#0b1022}
-    canvas{width:100%;aspect-ratio:16/9;border:1px solid #27325a;border-radius:14px;background:#060913;box-shadow:0 0 30px #0ef2 inset,0 0 20px #7b2cff33}
-    .hint{font-size:.9rem;opacity:.8;margin-top:.6rem}
     .btn{background:#0d1430;border:1px solid #324079;color:#dbe7ff;padding:.45rem .7rem;border-radius:10px;cursor:pointer}
+    canvas{width:100%;height:auto;aspect-ratio:16/9;border:1px solid #27325a;border-radius:14px;background:#060913;box-shadow:0 0 30px #0ef2 inset,0 0 20px #7b2cff33;display:block}
+    .hint{font-size:.9rem;opacity:.85;margin-top:.6rem}
+    .touch-controls{display:none;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+    .touch-btn{padding:14px;border-radius:12px;border:1px solid #2d3a6d;background:#0b1230;color:#dbe7ff;font-weight:600}
+
+    @media (orientation: portrait){
+      .wrap{width:min(100vw,560px)}
+      canvas{aspect-ratio:9/16}
+      .touch-controls{display:grid}
+      .hint{font-size:.82rem}
+    }
   </style>
 </head>
 <body>
@@ -28,7 +33,11 @@
       <button class="btn" id="restart">Restart</button>
     </div>
     <canvas id="game" width="960" height="540"></canvas>
-    <div class="hint">W/S veya ↑/↓ ile hareket et • İlk 7 kazansın</div>
+    <div class="touch-controls" aria-label="touch controls">
+      <button class="touch-btn" id="up">⬆️ UP</button>
+      <button class="touch-btn" id="down">⬇️ DOWN</button>
+    </div>
+    <div class="hint">Klavye: W/S veya ↑/↓ • Mobil: buton ya da soldaki raketi parmağınla sürükle</div>
   </div>
 
 <script>
@@ -36,107 +45,151 @@ const c = document.getElementById('game');
 const x = c.getContext('2d');
 const scoreEl = document.getElementById('score');
 const restartBtn = document.getElementById('restart');
+const upBtn = document.getElementById('up');
+const downBtn = document.getElementById('down');
 
+const keys = new Set();
+const touch = { up:false, down:false, dragging:false };
 const state = {
+  W:960,H:540,
   p1:{x:28,y:220,w:14,h:100,vy:0,speed:7},
   p2:{x:918,y:220,w:14,h:100,vy:0,speed:6.2},
   b:{x:480,y:270,r:9,vx:5.5,vy:3.4,trail:[]},
   s1:0,s2:0,goal:7,ended:false
 };
 
-const keys = new Set();
+function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+function isPortrait(){return matchMedia('(orientation: portrait)').matches;}
+
+function resizeArena(){
+  const portrait = isPortrait();
+  state.W = portrait ? 540 : 960;
+  state.H = portrait ? 960 : 540;
+  c.width = state.W; c.height = state.H;
+
+  state.p1.w = Math.round(state.W*0.015);
+  state.p1.h = Math.round(state.H*0.18);
+  state.p1.x = Math.round(state.W*0.03);
+  state.p1.speed = portrait ? 10 : 7;
+
+  state.p2.w = state.p1.w;
+  state.p2.h = state.p1.h;
+  state.p2.x = state.W - state.p1.x - state.p2.w;
+  state.p2.speed = portrait ? 8 : 6.2;
+
+  state.b.r = Math.round(state.W*0.01 + state.H*0.004);
+
+  state.p1.y = clamp(state.p1.y,0,state.H-state.p1.h);
+  state.p2.y = clamp(state.p2.y,0,state.H-state.p2.h);
+  state.b.x = clamp(state.b.x,state.b.r,state.W-state.b.r);
+  state.b.y = clamp(state.b.y,state.b.r,state.H-state.b.r);
+}
+
 addEventListener('keydown',e=>keys.add(e.key.toLowerCase()));
 addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));
 restartBtn.onclick=()=>reset(true);
 
-function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+function bindHold(btn,key){
+  const on=()=>touch[key]=true, off=()=>touch[key]=false;
+  btn.addEventListener('touchstart',e=>{e.preventDefault();on();},{passive:false});
+  btn.addEventListener('touchend',off); btn.addEventListener('touchcancel',off);
+  btn.addEventListener('mousedown',on); btn.addEventListener('mouseup',off); btn.addEventListener('mouseleave',off);
+}
+bindHold(upBtn,'up'); bindHold(downBtn,'down');
+
+c.addEventListener('touchstart', onDrag, {passive:false});
+c.addEventListener('touchmove', onDrag, {passive:false});
+function onDrag(e){
+  const t=e.touches[0]; if(!t) return;
+  const r=c.getBoundingClientRect();
+  const tx=(t.clientX-r.left)/r.width*state.W;
+  const ty=(t.clientY-r.top)/r.height*state.H;
+  if(tx < state.W*0.45){ // left half controls player paddle
+    touch.dragging=true;
+    state.p1.y = clamp(ty-state.p1.h/2,0,state.H-state.p1.h);
+    e.preventDefault();
+  }
+}
+addEventListener('touchend',()=>touch.dragging=false);
+
 function reset(full=false){
-  state.b.x=480; state.b.y=270;
-  const dir = Math.random()<.5?-1:1;
-  state.b.vx=(5+Math.random()*2)*dir;
-  state.b.vy=(Math.random()*4-2.2);
+  state.b.x=state.W/2; state.b.y=state.H/2;
+  const dir=Math.random()<.5?-1:1;
+  const speed=isPortrait()?6.2:5.2;
+  state.b.vx=(speed+Math.random()*1.7)*dir;
+  state.b.vy=(Math.random()*4-2);
   state.b.trail.length=0;
-  state.p1.y=220; state.p2.y=220;
+  state.p1.y=(state.H-state.p1.h)/2; state.p2.y=(state.H-state.p2.h)/2;
   if(full){state.s1=0;state.s2=0;state.ended=false;}
   updateScore();
 }
-function updateScore(){ scoreEl.textContent=`You ${state.s1} : ${state.s2} CPU`; }
-
-function tick(){
-  if(state.ended){draw(true); requestAnimationFrame(tick); return;}
-
-  state.p1.vy = 0;
-  if(keys.has('w')||keys.has('arrowup')) state.p1.vy=-state.p1.speed;
-  if(keys.has('s')||keys.has('arrowdown')) state.p1.vy= state.p1.speed;
-  state.p1.y = clamp(state.p1.y + state.p1.vy,0,c.height-state.p1.h);
-
-  const target = state.b.y - state.p2.h/2;
-  state.p2.y += clamp(target-state.p2.y,-state.p2.speed,state.p2.speed);
-  state.p2.y = clamp(state.p2.y,0,c.height-state.p2.h);
-
-  state.b.x += state.b.vx;
-  state.b.y += state.b.vy;
-  state.b.trail.push({x:state.b.x,y:state.b.y});
-  if(state.b.trail.length>12) state.b.trail.shift();
-
-  if(state.b.y < state.b.r || state.b.y > c.height-state.b.r) state.b.vy *= -1;
-
-  collide(state.p1,1);
-  collide(state.p2,-1);
-
-  if(state.b.x < -20){ state.s2++; afterPoint(); }
-  if(state.b.x > c.width+20){ state.s1++; afterPoint(); }
-
-  draw(false);
-  requestAnimationFrame(tick);
-}
+function updateScore(){scoreEl.textContent=`You ${state.s1} : ${state.s2} CPU`;}
 
 function collide(p,dir){
   if(state.b.x+state.b.r>p.x && state.b.x-state.b.r<p.x+p.w && state.b.y+state.b.r>p.y && state.b.y-state.b.r<p.y+p.h){
-    state.b.vx = Math.abs(state.b.vx) * dir;
-    const rel = (state.b.y-(p.y+p.h/2))/(p.h/2);
-    state.b.vy += rel*1.4;
-    state.b.vx *= 1.04;
+    state.b.vx=Math.abs(state.b.vx)*dir;
+    const rel=(state.b.y-(p.y+p.h/2))/(p.h/2);
+    state.b.vy+=rel*1.3;
+    state.b.vx*=1.035;
   }
 }
 
 function afterPoint(){
-  if(state.s1>=state.goal || state.s2>=state.goal){ state.ended=true; }
+  if(state.s1>=state.goal || state.s2>=state.goal) state.ended=true;
   updateScore();
   reset(false);
 }
 
-function draw(end){
-  x.fillStyle='#060913'; x.fillRect(0,0,c.width,c.height);
+function tick(){
+  if(!state.ended){
+    state.p1.vy=0;
+    if(keys.has('w')||keys.has('arrowup')||touch.up) state.p1.vy=-state.p1.speed;
+    if(keys.has('s')||keys.has('arrowdown')||touch.down) state.p1.vy= state.p1.speed;
+    if(!touch.dragging) state.p1.y=clamp(state.p1.y+state.p1.vy,0,state.H-state.p1.h);
+
+    const target=state.b.y-state.p2.h/2;
+    state.p2.y += clamp(target-state.p2.y,-state.p2.speed,state.p2.speed);
+    state.p2.y = clamp(state.p2.y,0,state.H-state.p2.h);
+
+    state.b.x += state.b.vx; state.b.y += state.b.vy;
+    state.b.trail.push({x:state.b.x,y:state.b.y}); if(state.b.trail.length>12) state.b.trail.shift();
+
+    if(state.b.y < state.b.r || state.b.y > state.H-state.b.r) state.b.vy *= -1;
+    collide(state.p1,1); collide(state.p2,-1);
+
+    if(state.b.x < -30){state.s2++;afterPoint();}
+    if(state.b.x > state.W+30){state.s1++;afterPoint();}
+  }
+  draw();
+  requestAnimationFrame(tick);
+}
+
+function draw(){
+  x.fillStyle='#060913'; x.fillRect(0,0,state.W,state.H);
   x.strokeStyle='#1f2b55'; x.lineWidth=3; x.setLineDash([10,12]);
-  x.beginPath(); x.moveTo(c.width/2,0); x.lineTo(c.width/2,c.height); x.stroke(); x.setLineDash([]);
+  x.beginPath(); x.moveTo(state.W/2,0); x.lineTo(state.W/2,state.H); x.stroke(); x.setLineDash([]);
 
   for(let i=0;i<state.b.trail.length;i++){
-    const t=state.b.trail[i], a=(i+1)/state.b.trail.length;
-    x.fillStyle=`rgba(67,243,255,${a*.35})`; x.beginPath(); x.arc(t.x,t.y,state.b.r*(.4+a*.6),0,Math.PI*2); x.fill();
+    const t=state.b.trail[i],a=(i+1)/state.b.trail.length;
+    x.fillStyle=`rgba(67,243,255,${a*.34})`; x.beginPath(); x.arc(t.x,t.y,state.b.r*(.4+a*.6),0,Math.PI*2); x.fill();
   }
 
-  glowRect(state.p1,'#43f3ff'); glowRect(state.p2,'#ff4fd8');
-  glowBall();
+  glowRect(state.p1,'#43f3ff'); glowRect(state.p2,'#ff4fd8'); glowBall();
 
-  if(end){
-    x.fillStyle='rgba(4,8,20,.65)'; x.fillRect(0,0,c.width,c.height);
-    x.textAlign='center'; x.fillStyle='#e9f0ff'; x.font='700 56px Inter, sans-serif';
-    x.fillText(state.s1>state.s2?'YOU WIN':'CPU WINS',c.width/2,c.height/2-12);
-    x.font='400 22px Inter, sans-serif'; x.fillStyle='#9fb1dd';
-    x.fillText('Restart ile yeni maç',c.width/2,c.height/2+32);
+  if(state.ended){
+    x.fillStyle='rgba(4,8,20,.65)'; x.fillRect(0,0,state.W,state.H);
+    x.textAlign='center'; x.fillStyle='#e9f0ff'; x.font=`700 ${Math.round(state.W*0.07)}px Inter, sans-serif`;
+    x.fillText(state.s1>state.s2?'YOU WIN':'CPU WINS',state.W/2,state.H/2-10);
+    x.font=`400 ${Math.round(state.W*0.035)}px Inter, sans-serif`; x.fillStyle='#9fb1dd';
+    x.fillText('Restart ile yeni maç',state.W/2,state.H/2+30);
   }
 }
 
-function glowRect(p,color){
-  x.shadowBlur=22; x.shadowColor=color; x.fillStyle=color; x.fillRect(p.x,p.y,p.w,p.h); x.shadowBlur=0;
-}
-function glowBall(){
-  x.shadowBlur=24; x.shadowColor='#8cff6b'; x.fillStyle='#8cff6b';
-  x.beginPath(); x.arc(state.b.x,state.b.y,state.b.r,0,Math.PI*2); x.fill(); x.shadowBlur=0;
-}
+function glowRect(p,color){x.shadowBlur=22;x.shadowColor=color;x.fillStyle=color;x.fillRect(p.x,p.y,p.w,p.h);x.shadowBlur=0;}
+function glowBall(){x.shadowBlur=24;x.shadowColor='#8cff6b';x.fillStyle='#8cff6b';x.beginPath();x.arc(state.b.x,state.b.y,state.b.r,0,Math.PI*2);x.fill();x.shadowBlur=0;}
 
-reset(true); tick();
+addEventListener('resize',()=>{const sx=state.W, sy=state.H; resizeArena(); state.p1.y=state.p1.y/sy*state.H; state.p2.y=state.p2.y/sy*state.H; state.b.x=state.b.x/sx*state.W; state.b.y=state.b.y/sy*state.H;});
+resizeArena(); reset(true); tick();
 </script>
 </body>
 </html>
