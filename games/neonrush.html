@@ -644,67 +644,66 @@ function update() {
             }
         }
 
-        // === OBSTACLE COLLISION (simplified & reliable) ===
-        // 1) Horizontal overlap check
-        const hOverlap = Math.abs(player.x - o.x) < (player.w + o.w) * 0.4;
-        // 2) Obstacle visual bounds
-        const oTop = o.jumpable ? (o.y - o.h * 0.2) : (o.y - o.h * 0.5);
-        const oBot = o.jumpable ? (o.y + o.h * 0.2) : (o.y + o.h * 0.5);
-        // 3) Player effective position (elevated by jump)
-        const pEff = player.y - player.jumpHeight;
-        const pTop = pEff - player.h * 0.4; // slightly forgiving hitbox
-        const pBot = pEff + player.h * 0.4;
+        // Obstacle as platform — can land on top like trains
+        const effectiveY = player.y - player.jumpHeight;
+        const obsTop = o.y - (o.jumpable ? o.h * 0.2 : o.h * 0.5);
+        const obsBottom = o.y + (o.jumpable ? o.h * 0.2 : o.h * 0.5);
+        const obsVisH = o.jumpable ? o.h * 0.4 : o.h;
+        const playerInLane = Math.abs(player.x - o.x) < LANE_W * 0.5;
+        const playerBottom = effectiveY + player.h / 2;
 
-        // Already riding this obstacle
+        // Skip if riding on train or on this obstacle already
+        if (!player.invincible && !player.onTrain && player.onObstacle !== o && playerInLane) {
+            // If jumping & descending & above obstacle → land on it
+            if (player.isJumping && player.jumpVelocity > 0 && player.jumpHeight > 15) {
+                if (playerBottom >= obsTop - 10 && effectiveY < obsTop + 10 &&
+                    player.y > o.y - o.h && player.y < o.y + o.h) {
+                    player.onObstacle = o;
+                    player.isJumping = false;
+                    player.jumpHeight = (player.y - obsTop) + player.h / 2 + 5;
+                    player.jumpVelocity = 0;
+                    emit(player.x, effectiveY + player.h / 2, '#76ff03', 6, 2, 10);
+                    score += Math.floor(30 * multiplier); // bonus for landing on obstacle
+                    continue;
+                }
+            }
+            // On ground and hitting obstacle → caught
+            if (!player.isJumping && player.jumpHeight < 10) {
+                if (playerBottom > obsTop + 5 && effectiveY < obsBottom - 5) {
+                    if (player.shield) {
+                        player.shield = false;
+                        emit(o.x, o.y, COLORS.shield, 20, 4, 25);
+                        shake(5);
+                        sfxShieldBreak();
+                        obstacles.splice(i, 1);
+                        continue;
+                    } else {
+                        gameOver();
+                        return;
+                    }
+                }
+            }
+        }
+
+        // Riding on this obstacle
         if (player.onObstacle === o) {
-            // Keep player elevated on top
-            const rideHeight = player.y - oTop + 5;
-            player.jumpHeight = rideHeight;
+            player.jumpHeight = (player.y - obsTop) + player.h / 2 + 5;
             player.isJumping = false;
             player.jumpVelocity = 0;
-            // Fall off if obstacle scrolled past or player left lane
-            if (o.y > player.y + player.h || !hOverlap) {
+            // Fall off if obstacle passed below or player changed lane
+            if (o.y > player.y + 20 || !playerInLane) {
                 player.onObstacle = null;
                 player.isJumping = true;
                 player.jumpVelocity = 0;
-                player.jumpHeight = Math.max(rideHeight - 5, 25);
-            }
-        }
-        // Not riding — check interactions
-        else if (!player.invincible && !player.onTrain && player.onObstacle !== o && hOverlap) {
-            // Player feet are ABOVE obstacle top → cleared it, no collision
-            if (pBot < oTop) {
-                // Fully above — safe, do nothing
-            }
-            // Player descending onto obstacle top → LAND on it
-            else if (player.jumpHeight > 10 && player.jumpVelocity >= 0 && pBot >= oTop && pTop < oTop + 15) {
-                player.onObstacle = o;
-                player.isJumping = false;
-                player.jumpHeight = player.y - oTop + 5;
-                player.jumpVelocity = 0;
-                emit(player.x, pEff + player.h / 2, '#76ff03', 8, 2, 12);
-                score += Math.floor(30 * multiplier);
-            }
-            // Player body overlaps obstacle (not above it) → HIT
-            else if (pBot > oTop + 8 && pTop < oBot - 5) {
-                if (player.shield) {
-                    player.shield = false;
-                    emit(o.x, o.y, COLORS.shield, 20, 4, 25);
-                    shake(5);
-                    sfxShieldBreak();
-                    obstacles.splice(i, 1);
-                    continue;
-                } else {
-                    gameOver();
-                    return;
-                }
+                player.jumpHeight = Math.max(player.jumpHeight - 10, 30);
             }
         }
 
         // Near-miss bonus
         if (!o.scored && o.y > player.y + player.h / 2 + 5) {
             o.scored = true;
-            if (hOverlap && player.jumpHeight > 10) {
+            const laneMatch = Math.abs(o.x - player.x) < LANE_W * 0.7;
+            if (laneMatch && player.jumpHeight > 15) {
                 score += Math.floor(25 * multiplier);
                 emit(player.x, player.y - player.jumpHeight, '#76ff03', 4, 1.5, 10);
             }
