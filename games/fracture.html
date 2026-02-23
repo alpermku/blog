@@ -174,22 +174,11 @@ const NOTE = {};
 
 // Long-form music material (4 sections x 64 steps = 256-step loop)
 const PROGRESSIONS = [
-    { // A
-        chords: [[NOTE.A3, NOTE.C4, NOTE.E4], [NOTE.F3, NOTE.A3, NOTE.C4], [NOTE.C3, NOTE.E3, NOTE.G3], [NOTE.G3, NOTE.B3, NOTE.D4]],
-        bass: [NOTE.A3 / 2, NOTE.F3 / 2, NOTE.C3, NOTE.G3 / 2]
-    },
-    { // B
-        chords: [[NOTE.D3, NOTE.F3, NOTE.A3], [NOTE.B3/2, NOTE.D3, NOTE.F3], [NOTE.F3, NOTE.A3, NOTE.C4], [NOTE.C3, NOTE.E3, NOTE.G3]],
-        bass: [NOTE.D3 / 2, NOTE.B3 / 4, NOTE.F3 / 2, NOTE.C3]
-    },
-    { // C
-        chords: [[NOTE.E3, NOTE.G3, NOTE.B3], [NOTE.C3, NOTE.E3, NOTE.G3], [NOTE.A3, NOTE.C4, NOTE.E4], [NOTE.B3/2, NOTE.D3, NOTE.F3]],
-        bass: [NOTE.E3 / 2, NOTE.C3, NOTE.A3 / 2, NOTE.B3 / 4]
-    },
-    { // D
-        chords: [[NOTE.F3, NOTE.A3, NOTE.C4], [NOTE.G3, NOTE.B3, NOTE.D4], [NOTE.E3, NOTE.G3, NOTE.B3], [NOTE.A3, NOTE.C4, NOTE.E4]],
-        bass: [NOTE.F3 / 2, NOTE.G3 / 2, NOTE.E3 / 2, NOTE.A3 / 2]
-    }
+    // Keep original beloved harmonic identity across all sections
+    { chords: [[NOTE.A3, NOTE.C4, NOTE.E4], [NOTE.F3, NOTE.A3, NOTE.C4], [NOTE.C3, NOTE.E3, NOTE.G3], [NOTE.G3, NOTE.B3, NOTE.D4]], bass: [NOTE.A3 / 2, NOTE.F3 / 2, NOTE.C3, NOTE.G3 / 2] },
+    { chords: [[NOTE.A3, NOTE.C4, NOTE.E4], [NOTE.F3, NOTE.A3, NOTE.C4], [NOTE.C3, NOTE.E3, NOTE.G3], [NOTE.G3, NOTE.B3, NOTE.D4]], bass: [NOTE.A3 / 2, NOTE.F3 / 2, NOTE.C3, NOTE.G3 / 2] },
+    { chords: [[NOTE.A3, NOTE.C4, NOTE.E4], [NOTE.F3, NOTE.A3, NOTE.C4], [NOTE.C3, NOTE.E3, NOTE.G3], [NOTE.G3, NOTE.B3, NOTE.D4]], bass: [NOTE.A3 / 2, NOTE.F3 / 2, NOTE.C3, NOTE.G3 / 2] },
+    { chords: [[NOTE.A3, NOTE.C4, NOTE.E4], [NOTE.F3, NOTE.A3, NOTE.C4], [NOTE.C3, NOTE.E3, NOTE.G3], [NOTE.G3, NOTE.B3, NOTE.D4]], bass: [NOTE.A3 / 2, NOTE.F3 / 2, NOTE.C3, NOTE.G3 / 2] }
 ];
 
 const MELODY_A = [
@@ -200,20 +189,22 @@ const MELODY_A = [
 ];
 
 const MELODY_B = [
-    NOTE.C5,0,NOTE.E5,0, NOTE.G5,0,NOTE.E5,0, NOTE.D5,0,NOTE.C5,0, NOTE.A4,0,NOTE.C5,0,
-    NOTE.F4,0,NOTE.A4,0, NOTE.C5,0,NOTE.A4,0, NOTE.G4,0,NOTE.F4,0, NOTE.E4,0,NOTE.G4,0,
-    NOTE.E5,0,NOTE.D5,0, NOTE.C5,0,NOTE.B4,0, NOTE.A4,0,NOTE.C5,0, NOTE.E5,0,NOTE.C5,0,
-    NOTE.D5,0,NOTE.F5,0, NOTE.G5,0,NOTE.D5,0, NOTE.B4,0,NOTE.G4,0, NOTE.E4,0,NOTE.D4,0
+    // Variation 1: same motif, gentle octave/suspension touches
+    NOTE.E5,0,NOTE.D5,0, NOTE.C5,0,NOTE.D5,NOTE.E5, NOTE.G5,0,NOTE.E5,0, NOTE.D5,0,NOTE.C5,0,
+    NOTE.C5,0,NOTE.A4,0, NOTE.C5,0,NOTE.D5,0, NOTE.F4,0,NOTE.A4,NOTE.C5, NOTE.A4,0,0,0,
+    NOTE.G4,0,NOTE.E4,0, NOTE.G4,0,NOTE.C5,0, NOTE.E5,0,NOTE.G5,0, NOTE.E5,0,NOTE.D5,0,
+    NOTE.G4,0,NOTE.B4,0, NOTE.D5,0,NOTE.G5,0, NOTE.F5,0,NOTE.E5,0, NOTE.D5,0,NOTE.G4,0
 ];
 
 const MELODY_C = [
-    NOTE.A4,0,NOTE.C5,0, NOTE.E5,0,NOTE.G5,0, NOTE.E5,0,NOTE.C5,0, NOTE.A4,0,0,0,
-    NOTE.B4,0,NOTE.D5,0, NOTE.F5,0,NOTE.D5,0, NOTE.B4,0,NOTE.G4,0, NOTE.E4,0,0,0,
-    NOTE.C5,0,NOTE.E5,0, NOTE.G5,0,NOTE.E5,0, NOTE.C5,0,NOTE.A4,0, NOTE.G4,0,0,0,
-    NOTE.D5,0,NOTE.F5,0, NOTE.A5,0,NOTE.F5,0, NOTE.D5,0,NOTE.B4,0, NOTE.G4,0,0,0
+    // Variation 2: calmer mid section, preserves original emotional contour
+    NOTE.E5,0,NOTE.D5,0, NOTE.C5,0,NOTE.B4,0, NOTE.C5,0,NOTE.D5,0, NOTE.E5,0,0,0,
+    NOTE.C5,0,NOTE.A4,0, NOTE.C5,0,NOTE.A4,0, NOTE.F4,0,NOTE.A4,0, NOTE.C5,0,0,0,
+    NOTE.G4,0,NOTE.E4,0, NOTE.G4,0,NOTE.C5,0, NOTE.E5,0,NOTE.D5,0, NOTE.C5,0,NOTE.G4,0,
+    NOTE.G4,0,NOTE.B4,0, NOTE.D5,0,NOTE.G5,0, NOTE.F5,0,NOTE.D5,0, NOTE.B4,0,NOTE.G4,0
 ];
 
-const SECTION_MELODIES = [MELODY_A, MELODY_B, MELODY_C, MELODY_B];
+const SECTION_MELODIES = [MELODY_A, MELODY_B, MELODY_C, MELODY_A];
 
 // Drum patterns (kick, snare, hihat) — 16 steps
 const KICK =  [1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0];
@@ -338,16 +329,13 @@ function musicTick() {
     const section = Math.floor(musicStep / 64) % 4;
     const prog = PROGRESSIONS[section];
 
-    // Drums + slight section variation
+    // Drums (keep original groove feel)
     if (KICK[s]) playKick(when);
     if (SNARE[s]) playSnare(when);
-    if (HIHAT[s] || (section >= 2 && s % 2 === 1)) playHihat(when);
+    if (HIHAT[s]) playHihat(when);
 
-    // End-of-section mini fills
-    if (musicStep % 64 >= 60) {
-        if (s % 2 === 0) playHihat(when);
-        if (s === 15) playSnare(when);
-    }
+    // Very subtle fill only at section boundary
+    if (musicStep % 64 === 63) playSnare(when);
 
     if (s % 4 === 0) playBass(prog.bass[bar], when);
     if (s === 0) playChord(prog.chords[bar], when);
