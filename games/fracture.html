@@ -481,16 +481,26 @@ canvas.addEventListener('click', () => {
     if (ballStuck) { launchBall(); startMusic(); return; }
     if (activePowerups.laser) fireLaser();
 });
-canvas.addEventListener('touchmove', e => {
-    e.preventDefault();
-    mouseX = e.touches[0].clientX - canvas.getBoundingClientRect().left;
-    if (paused && !gameOver && !gameWon) paused = false;
-}, { passive: false });
+let touchMoved = false;
 canvas.addEventListener('touchstart', e => {
     if (AC.state === 'suspended') AC.resume();
+    touchMoved = false;
+    mouseX = e.touches[0].clientX - canvas.getBoundingClientRect().left;
     if (gameOver || gameWon) { restart(); startMusic(); return; }
-    if (ballStuck) { launchBall(); startMusic(); return; }
-    if (activePowerups.laser) fireLaser();
+}, { passive: true });
+canvas.addEventListener('touchmove', e => {
+    e.preventDefault();
+    touchMoved = true;
+    mouseX = e.touches[0].clientX - canvas.getBoundingClientRect().left;
+}, { passive: false });
+canvas.addEventListener('touchend', e => {
+    if (gameOver || gameWon) return;
+    // Short tap (no significant drag) → launch ball or fire laser
+    if (!touchMoved) {
+        if (ballStuck) { launchBall(); startMusic(); return; }
+        if (activePowerups.laser) fireLaser();
+    }
+    touchMoved = false;
 });
 
 // --- Effects ---
