@@ -23,10 +23,33 @@
         .hud-level { color: #44ffaa; font-size: 10px; }
         .back-btn { position: fixed; top: 14px; left: 18px; z-index: 20; font-family: 'JetBrains Mono', monospace; font-size: 13px; color: rgba(255,255,255,0.35); text-decoration: none; transition: color 0.2s; }
         .back-btn:hover { color: #fff; }
+        .pause-btn { position: fixed; top: 12px; right: 14px; z-index: 30; width: 34px; height: 34px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.25); background: rgba(10,10,26,0.75); color: #fff; cursor: pointer; font-size: 14px; pointer-events: auto; }
+        .pause-menu { position: fixed; inset: 0; z-index: 40; display: none; align-items: center; justify-content: center; background: rgba(6,8,18,0.75); pointer-events: auto; }
+        .pause-menu.open { display: flex; }
+        .pause-card { width: min(92vw, 360px); background: rgba(10,10,26,0.96); border: 1px solid rgba(0,200,255,0.25); border-radius: 12px; padding: 16px; box-shadow: 0 0 30px rgba(0,200,255,0.08); }
+        .pause-title { font-family: 'Press Start 2P', cursive; font-size: 12px; color: #00c8ff; margin-bottom: 14px; text-align: center; }
+        .pause-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 10px 0; font-size: 12px; color: rgba(255,255,255,0.85); }
+        .pause-row input[type=range] { width: 140px; accent-color: #00c8ff; }
+        .pause-actions { display: flex; gap: 8px; margin-top: 14px; }
+        .pause-actions button { flex: 1; padding: 9px 8px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.06); color: #fff; cursor: pointer; }
+        .pause-actions button.primary { border-color: rgba(0,200,255,0.5); background: rgba(0,200,255,0.12); }
     </style>
 </head>
 <body>
     <a href="../games.html" class="back-btn">← Arcade</a>
+    <button class="pause-btn" id="pauseBtn">⏸</button>
+    <div class="pause-menu" id="pauseMenu">
+        <div class="pause-card">
+            <div class="pause-title">PAUSED</div>
+            <div class="pause-row"><span>Müzik</span><input id="musicSlider" type="range" min="0" max="1" step="0.01" value="0.25"></div>
+            <div class="pause-row"><span>Efekt</span><input id="sfxSlider" type="range" min="0" max="1" step="0.01" value="0.5"></div>
+            <div class="pause-row"><span>Ekran Sarsıntısı</span><input id="shakeToggle" type="checkbox" checked></div>
+            <div class="pause-actions">
+                <button id="restartBtn">Yeniden Başlat</button>
+                <button id="resumeBtn" class="primary">Devam</button>
+            </div>
+        </div>
+    </div>
     <div class="ui">
         <div class="hud">
             <span class="hud-item" id="score">0</span>
@@ -58,6 +81,16 @@ comp.connect(masterGain);
 const sfxBus = AC.createGain();
 sfxBus.gain.value = 0.5;
 sfxBus.connect(comp);
+
+function getStore(key, fallback) {
+    try { const v = localStorage.getItem(key); return v == null ? fallback : v; } catch { return fallback; }
+}
+function setStore(key, value) {
+    try { localStorage.setItem(key, value); } catch {}
+}
+const initialMusicVol = Math.min(1, Math.max(0, parseFloat(getStore('fracture_music_vol', '0.25'))));
+const initialSfxVol = Math.min(1, Math.max(0, parseFloat(getStore('fracture_sfx_vol', '0.5'))));
+const initialShake = getStore('fracture_shake', '1') === '1';
 
 function tone(freq, dur, type, vol, dest, ramp) {
     const t = AC.currentTime;
@@ -141,8 +174,9 @@ function sfxLaser() {
 //  PROCEDURAL MUSIC — Synthwave Sequencer
 // ================================================================
 const musicBus = AC.createGain();
-musicBus.gain.value = 0.25;
+musicBus.gain.value = initialMusicVol;
 musicBus.connect(comp);
+sfxBus.gain.value = initialSfxVol;
 
 // Reverb (convolution-like using delay feedback)
 const reverbDelay = AC.createDelay(0.5);
@@ -367,6 +401,13 @@ const scoreEl = document.getElementById('score');
 const livesEl = document.getElementById('lives');
 const comboEl = document.getElementById('combo');
 const lvlEl = document.getElementById('lvl');
+const pauseBtn = document.getElementById('pauseBtn');
+const pauseMenu = document.getElementById('pauseMenu');
+const resumeBtn = document.getElementById('resumeBtn');
+const restartBtn = document.getElementById('restartBtn');
+const musicSlider = document.getElementById('musicSlider');
+const sfxSlider = document.getElementById('sfxSlider');
+const shakeToggle = document.getElementById('shakeToggle');
 
 const W = Math.min(window.innerWidth - 40, 800);
 const H = Math.min(window.innerHeight - 40, 600);
@@ -384,7 +425,8 @@ const POWERUP_TYPES = [
 
 // --- State ---
 let score = 0, lives = 3, level = 1, maxLevel = 8;
-let gameOver = false, gameWon = false, paused = true;
+let gameOver = false, gameWon = false, paused = false;
+let shakeEnabled = initialShake;
 let particles = [], floatingTexts = [], powerups = [], lasers = [];
 let shakeTime = 0, flashAlpha = 0;
 let combo = 0, maxCombo = 0, comboTimer = 0;
@@ -487,6 +529,11 @@ let mouseX = W/2, keys = {};
 canvas.addEventListener('mousemove', e => { mouseX = e.clientX - canvas.getBoundingClientRect().left; });
 document.addEventListener('keydown', e => {
     keys[e.key] = true;
+    if (e.key === 'Escape' && !gameOver && !gameWon) {
+        setPaused(!paused);
+        return;
+    }
+    if (paused) return;
     if (e.key === ' ') {
         if (ballStuck) { launchBall(); startMusic(); }
         else if (activePowerups.laser) fireLaser();
@@ -496,6 +543,7 @@ document.addEventListener('keyup', e => { keys[e.key] = false; });
 canvas.addEventListener('click', () => {
     if (AC.state === 'suspended') AC.resume();
     if (gameOver || gameWon) { restart(); startMusic(); return; }
+    if (paused) return;
     if (ballStuck) { launchBall(); startMusic(); return; }
     if (activePowerups.laser) fireLaser();
 });
@@ -505,6 +553,7 @@ canvas.addEventListener('touchstart', e => {
     touchMoved = false;
     mouseX = e.touches[0].clientX - canvas.getBoundingClientRect().left;
     if (gameOver || gameWon) { restart(); startMusic(); return; }
+    if (paused) return;
 }, { passive: true });
 canvas.addEventListener('touchmove', e => {
     e.preventDefault();
@@ -512,13 +561,47 @@ canvas.addEventListener('touchmove', e => {
     mouseX = e.touches[0].clientX - canvas.getBoundingClientRect().left;
 }, { passive: false });
 canvas.addEventListener('touchend', e => {
-    if (gameOver || gameWon) return;
+    if (gameOver || gameWon || paused) return;
     // Short tap (no significant drag) → launch ball or fire laser
     if (!touchMoved) {
         if (ballStuck) { launchBall(); startMusic(); return; }
         if (activePowerups.laser) fireLaser();
     }
     touchMoved = false;
+});
+
+// --- Pause / Settings ---
+musicSlider.value = String(initialMusicVol);
+sfxSlider.value = String(initialSfxVol);
+shakeToggle.checked = initialShake;
+
+function setPaused(v) {
+    paused = v;
+    pauseMenu.classList.toggle('open', v);
+    pauseBtn.textContent = v ? '▶' : '⏸';
+}
+
+pauseBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (gameOver || gameWon) return;
+    setPaused(!paused);
+});
+resumeBtn.addEventListener('click', () => setPaused(false));
+restartBtn.addEventListener('click', () => { restart(); setPaused(false); });
+
+musicSlider.addEventListener('input', () => {
+    const v = parseFloat(musicSlider.value);
+    musicBus.gain.setValueAtTime(v, AC.currentTime);
+    setStore('fracture_music_vol', String(v));
+});
+sfxSlider.addEventListener('input', () => {
+    const v = parseFloat(sfxSlider.value);
+    sfxBus.gain.setValueAtTime(v, AC.currentTime);
+    setStore('fracture_sfx_vol', String(v));
+});
+shakeToggle.addEventListener('change', () => {
+    shakeEnabled = !!shakeToggle.checked;
+    setStore('fracture_shake', shakeEnabled ? '1' : '0');
 });
 
 // --- Effects ---
@@ -580,7 +663,7 @@ function applyPowerup(pu) {
 // --- Update ---
 function update() {
     if (levelTransition > 0) { levelTransition -= 0.02; return; }
-    if (gameOver || gameWon) return;
+    if (gameOver || gameWon || paused) return;
 
     const now = Date.now();
     const slowActive = activePowerups.slow && now < activePowerups.slow;
@@ -769,7 +852,7 @@ function update() {
 // --- Draw ---
 function draw() {
     ctx.save();
-    if (shakeTime > 0) {
+    if (shakeEnabled && shakeTime > 0) {
         const i = shakeTime * 0.6;
         ctx.translate((Math.random()-0.5)*i, (Math.random()-0.5)*i);
     }
@@ -927,7 +1010,9 @@ function draw() {
     }
 
     // Paused / Game Over / Win
-    if (ballStuck && !gameOver && !gameWon && levelTransition <= 0) {
+    if (paused && !gameOver && !gameWon) {
+        drawOverlay('PAUSED', 'Menüden devam edebilirsin');
+    } else if (ballStuck && !gameOver && !gameWon && levelTransition <= 0) {
         drawOverlay('CLICK TO LAUNCH', `Level ${level}: ${LEVELS[level-1].name}`);
     }
     if (gameOver) {
