@@ -146,8 +146,8 @@ let flowPaths = []; // currently energized cells
 let sourceCol = -1; // which column has the source on top row
 
 // Difficulty
-const BASE_PUSH = 480;
-const MIN_PUSH = 140;
+const BASE_PUSH = 900;
+const MIN_PUSH = 300;
 
 // localStorage
 function getStore(k, fb) { try { const v = localStorage.getItem(k); return v == null ? fb : v; } catch { return fb; } }
@@ -295,7 +295,7 @@ function triggerClear() {
         flashColor = '#44ffaa'; flashAlpha = 0.25;
         floatText(W / 2, GY - 20, `LEVEL ${level}`, '#44ffaa', 16);
         // Increase speed
-        pushInterval = Math.max(MIN_PUSH, Math.round(BASE_PUSH - (level - 1) * 30));
+        pushInterval = Math.max(MIN_PUSH, Math.round(BASE_PUSH - (level - 1) * 40));
     }
 
     sfxChain(combo);
@@ -470,7 +470,7 @@ function checkGameOver() {
     // Let's track: if the last 4 pushes had no clears, game over
     if (!gameOver) {
         pushesWithoutClear++;
-        if (pushesWithoutClear >= 5) {
+        if (pushesWithoutClear >= 8) {
             gameOver = true;
             sfxGameOver();
             shakeTime = 20;
