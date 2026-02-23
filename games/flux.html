@@ -146,8 +146,8 @@ let flowPaths = []; // currently energized cells
 let sourceCol = -1; // which column has the source on top row
 
 // Difficulty
-const BASE_PUSH = 900;
-const MIN_PUSH = 300;
+const BASE_PUSH = 1500;
+const MIN_PUSH = 500;
 
 // localStorage
 function getStore(k, fb) { try { const v = localStorage.getItem(k); return v == null ? fb : v; } catch { return fb; } }
@@ -332,7 +332,9 @@ function finishClear() {
             }
         }
     }
-    recalcFlow();
+    // Reset flow — player must manually create new connections
+    for (const row of grid) for (const cell of row) { cell.connected = false; cell.energyFlow = 0; }
+    flowPaths = [];
 }
 
 // --- Particles ---
@@ -350,6 +352,7 @@ function spawnParticles(x, y, color, count) {
 }
 
 function floatText(x, y, text, color, size) {
+    if (floatingTexts.length > 5) floatingTexts.shift();
     floatingTexts.push({ x, y, text, color, size: size || 14, life: 1, dy: -1.5 });
 }
 
@@ -415,11 +418,9 @@ function update() {
         pushTimer = 0;
         combo = 0; // reset combo on push
         pushRow();
-        recalcFlow();
-
-        // Game over: check if any connected flow and bottom row is full of non-connected tiles
-        // Simple: game over after certain pushes if score is 0... 
-        // Better: count total pushes, game over when push happens and grid bottom row was already full
+        // Reset flow display but don't auto-trigger clears from push
+        for (const row of grid) for (const cell of row) { cell.connected = false; cell.energyFlow = 0; }
+        flowPaths = [];
         checkGameOver();
     }
 
@@ -463,22 +464,16 @@ function update() {
 }
 
 function checkGameOver() {
-    // Game over when grid is fully stacked and new row was just pushed
-    // Check if any tile in the top two rows is connected — if not for 3 consecutive pushes, game over
-    // Simpler: game ends when pushCount exceeds threshold without any clears happening
-    // Actually simplest: grid always stays ROWS. Game over after X pushes with no scoring.
-    // Let's track: if the last 4 pushes had no clears, game over
-    if (!gameOver) {
-        pushesWithoutClear++;
-        if (pushesWithoutClear >= 8) {
-            gameOver = true;
-            sfxGameOver();
-            shakeTime = 20;
-            flashColor = '#ff2d78'; flashAlpha = 0.4;
-            if (score > highScore) {
-                highScore = score;
-                setStore('flux_high', String(highScore));
-            }
+    if (gameOver) return;
+    pushesWithoutClear++;
+    if (pushesWithoutClear >= 8) {
+        gameOver = true;
+        sfxGameOver();
+        shakeTime = 20;
+        flashColor = '#ff2d78'; flashAlpha = 0.4;
+        if (score > highScore) {
+            highScore = score;
+            setStore('flux_high', String(highScore));
         }
     }
 }
