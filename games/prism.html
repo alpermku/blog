@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>PRISM - Arcade</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;700&display=swap');
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #0a0a1a; overflow: hidden;
+            font-family: 'JetBrains Mono', monospace; color: #fff;
+            user-select: none; display: flex; justify-content: center; align-items: center; height: 100vh;
+            touch-action: manipulation;
+        }
+        canvas { border: 2px solid rgba(0,200,255,0.2); border-radius: 4px; box-shadow: 0 0 40px rgba(0,200,255,0.06); }
+        .back-btn { position: fixed; top: 14px; left: 18px; z-index: 20; font-family: 'JetBrains Mono', monospace; font-size: 13px; color: rgba(255,255,255,0.35); text-decoration: none; transition: color 0.2s; }
+        .back-btn:hover { color: #fff; }
+    </style>
+</head>
+<body>
+    <a href="../games.html" class="back-btn">← Arcade</a>
+    <canvas id="c"></canvas>
+<script>
+// ================================================================
+//  PRISM — Hyper-Casual Color Reflex Game
+//  Tap to switch color. Match the incoming rings. Don't miss.
+// ================================================================
+
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+// --- Audio ---
+const AC = new (window.AudioContext || window.webkitAudioContext)();
+const masterGain = AC.createGain();
+masterGain.gain.value = 0.5;
+masterGain.connect(AC.destination);
+
+function sfxTone(freq, dur, type, vol) {
+    const t = AC.currentTime;
+    const o = AC.createOscillator();
+    const g = AC.createGain();
+    o.type = type || 'sine';
+    o.frequency.setValueAtTime(freq, t);
+    g.gain.setValueAtTime(vol || 0.08, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    o.connect(g); g.connect(masterGain);
+    o.start(t); o.stop(t + dur);
+}
+
+function sfxMatch(combo) {
+    const base = 440 + Math.min(combo, 20) * 30;
+    sfxTone(base, 0.1, 'sine', 0.1);
+    setTimeout(() => sfxTone(base * 1.5, 0.08, 'sine', 0.07), 40);
+}
+
+function sfxSwitch() {
+    sfxTone(800, 0.03, 'triangle', 0.05);
+}
+
+function sfxFail() {
+    sfxTone(200, 0.2, 'sawtooth', 0.1);
+    setTimeout(() => sfxTone(140, 0.3, 'sawtooth', 0.08), 100);
+}
+
+function sfxPerfect() {
+    sfxTone(880, 0.08, 'sine', 0.1);
+    setTimeout(() => sfxTone(1100, 0.08, 'sine', 0.09), 60);
+    setTimeout(() => sfxTone(1320, 0.1, 'sine', 0.08), 120);
+}
+
+function sfxMilestone() {
+    const notes = [523, 659, 784, 1047];
+    notes.forEach((n, i) => setTimeout(() => sfxTone(n, 0.15, 'sine', 0.08), i * 80));
+}
+
+// --- Sizing (portrait-first) ---
+const W = Math.min(window.innerWidth - 20, 420);
+const H = Math.min(window.innerHeight - 20, 740);
+canvas.width = W; canvas.height = H;
+
+const CX = W / 2;
+const CY = H * 0.72; // player circle center (lower area)
+const PLAYER_R = 32;
+
+// --- Colors (neon palette) ---
+const PALETTE = [
+    { name: 'cyan',    fill: '#00e5ff', glow: 'rgba(0,229,255,0.4)' },
+    { name: 'magenta', fill: '#ff2d78', glow: 'rgba(255,45,120,0.4)' },
+    { name: 'gold',    fill: '#ffd740', glow: 'rgba(255,215,64,0.4)' },
+    { name: 'lime',    fill: '#76ff03', glow: 'rgba(118,255,3,0.4)' },
+];
+
+// --- State ---
+let score = 0, highScore = 0;
+let combo = 0, maxCombo = 0;
+let colorIdx = 0; // current player color index
+let rings = [];
+let particles = [];
+let floatingTexts = [];
+let gameOver = false;
+let started = false;
+let shakeTime = 0;
+let flashColor = null, flashAlpha = 0;
+let speed = 2.2; // ring fall speed
+let spawnInterval = 70; // frames between spawns
+let spawnTimer = 0;
+let frameCount = 0;
+let lastRingColor = -1;
+let perfectZone = 6; // px tolerance for "PERFECT"
+let goodZone = 22;   // px tolerance for "GOOD" match
+
+// Difficulty ramp
+const BASE_SPEED = 2.2;
+const MAX_SPEED = 6.5;
+const BASE_INTERVAL = 70;
+const MIN_INTERVAL = 28;
+
+// localStorage
+function getStore(k, fb) { try { const v = localStorage.getItem(k); return v == null ? fb : v; } catch { return fb; } }
+function setStore(k, v) { try { localStorage.setItem(k, v); } catch {} }
+highScore = parseInt(getStore('prism_high', '0'));
+
+// --- Ring spawning ---
+function spawnRing() {
+    // Pick color, avoid too many repeats
+    let ci;
+    const numColors = getActiveColors();
+    do { ci = Math.floor(Math.random() * numColors); } while (ci === lastRingColor && Math.random() < 0.6);
+    lastRingColor = ci;
+
+    rings.push({
+        y: -40,
+        colorIdx: ci,
+        r: PLAYER_R + 14 + Math.random() * 8, // ring radius (slightly bigger than player)
+        thickness: 3 + Math.random() * 2,
+        speed: speed * (0.9 + Math.random() * 0.2),
+        scored: false,
+        missed: false,
+        alpha: 1
+    });
+}
+
+function getActiveColors() {
+    // Start with 2 colors, add more as score increases
+    if (score < 8) return 2;
+    if (score < 25) return 3;
+    return 4;
+}
+
+// --- Difficulty scaling ---
+function updateDifficulty() {
+    const progress = Math.min(score / 80, 1);
+    speed = BASE_SPEED + (MAX_SPEED - BASE_SPEED) * progress;
+    spawnInterval = Math.round(BASE_INTERVAL - (BASE_INTERVAL - MIN_INTERVAL) * progress);
+}
+
+// --- Particles ---
+function spawnParticles(x, y, color, count) {
+    for (let i = 0; i < count; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const spd = 1.5 + Math.random() * 4;
+        particles.push({
+            x, y,
+            dx: Math.cos(a) * spd,
+            dy: Math.sin(a) * spd,
+            life: 1,
+            decay: 0.02 + Math.random() * 0.03,
+            size: 2 + Math.random() * 4,
+            color
+        });
+    }
+}
+
+function spawnRingBurst(y, color) {
+    // Ring-shaped burst at CX, y
+    for (let i = 0; i < 16; i++) {
+        const a = (i / 16) * Math.PI * 2;
+        const dist = PLAYER_R + 10;
+        particles.push({
+            x: CX + Math.cos(a) * dist,
+            y: y + Math.sin(a) * dist,
+            dx: Math.cos(a) * (2 + Math.random() * 2),
+            dy: Math.sin(a) * (2 + Math.random() * 2),
+            life: 1,
+            decay: 0.03 + Math.random() * 0.02,
+            size: 2 + Math.random() * 3,
+            color
+        });
+    }
+}
+
+function floatText(x, y, text, color, size) {
+    floatingTexts.push({ x, y, text, color, size: size || 14, life: 1, dy: -1.8 });
+}
+
+// --- Input ---
+function switchColor() {
+    if (gameOver) return;
+    const n = getActiveColors();
+    colorIdx = (colorIdx + 1) % n;
+    sfxSwitch();
+}
+
+function handleTap() {
+    if (AC.state === 'suspended') AC.resume();
+    if (gameOver) { restart(); return; }
+    if (!started) { started = true; return; }
+    switchColor();
+}
+
+canvas.addEventListener('click', handleTap);
+canvas.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    handleTap();
+}, { passive: false });
+
+document.addEventListener('keydown', (e) => {
+    if (e.key === ' ' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        e.preventDefault();
+        handleTap();
+    }
+});
+
+// --- Game logic ---
+function restart() {
+    score = 0; combo = 0; maxCombo = 0; colorIdx = 0;
+    rings = []; particles = []; floatingTexts = [];
+    gameOver = false; started = false;
+    speed = BASE_SPEED; spawnInterval = BASE_INTERVAL;
+    spawnTimer = 0; frameCount = 0; lastRingColor = -1;
+    shakeTime = 0; flashAlpha = 0;
+}
+
+function update() {
+    if (!started || gameOver) return;
+
+    frameCount++;
+    spawnTimer++;
+
+    if (spawnTimer >= spawnInterval) {
+        spawnRing();
+        spawnTimer = 0;
+    }
+
+    // Update rings
+    for (let i = rings.length - 1; i >= 0; i--) {
+        const ring = rings[i];
+        ring.y += ring.speed;
+
+        // Check if ring passes through player zone
+        const dist = Math.abs(ring.y - CY);
+
+        if (!ring.scored && !ring.missed && dist < goodZone) {
+            // Ring is in scoring zone
+            if (ring.colorIdx === colorIdx) {
+                // Correct color match!
+                ring.scored = true;
+                combo++;
+                if (combo > maxCombo) maxCombo = combo;
+
+                const isPerfect = dist < perfectZone;
+                const points = isPerfect ? 2 : 1;
+                const bonusMultiplier = 1 + Math.floor(combo / 10) * 0.5;
+                const totalPoints = Math.round(points * bonusMultiplier);
+                score += totalPoints;
+
+                updateDifficulty();
+
+                // Effects
+                const col = PALETTE[ring.colorIdx].fill;
+                spawnRingBurst(CY, col);
+
+                if (isPerfect) {
+                    sfxPerfect();
+                    floatText(CX, CY - 50, 'PERFECT!', col, 16);
+                    flashColor = col; flashAlpha = 0.3;
+                } else {
+                    sfxMatch(combo);
+                    floatText(CX, CY - 50, `+${totalPoints}`, col, 14);
+                }
+
+                if (combo > 0 && combo % 10 === 0) {
+                    sfxMilestone();
+                    floatText(CX, CY - 80, `${combo}x COMBO!`, '#fff', 18);
+                    flashColor = '#fff'; flashAlpha = 0.2;
+                }
+
+                // Check high score
+                if (score > highScore) {
+                    highScore = score;
+                    setStore('prism_high', String(highScore));
+                }
+            }
+        }
+
+        // Ring passed player and wasn't scored — check if wrong color or missed
+        if (!ring.scored && !ring.missed && ring.y > CY + goodZone) {
+            ring.missed = true;
+            // Wrong color or didn't switch in time = life lost
+            combo = 0;
+            shakeTime = 12;
+            flashColor = '#ff2d78'; flashAlpha = 0.4;
+            sfxFail();
+            floatText(CX, CY - 50, 'MISS', '#ff2d78', 16);
+            spawnParticles(CX, CY, '#ff2d78', 10);
+            gameOver = true;
+
+            if (score > highScore) {
+                highScore = score;
+                setStore('prism_high', String(highScore));
+            }
+        }
+
+        // Remove off-screen or scored rings (with fade)
+        if (ring.scored) {
+            ring.alpha -= 0.08;
+            if (ring.alpha <= 0) { rings.splice(i, 1); continue; }
+        }
+        if (ring.y > H + 60) { rings.splice(i, 1); }
+    }
+
+    // Update particles
+    for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.x += p.dx; p.y += p.dy;
+        p.life -= p.decay;
+        p.dx *= 0.97; p.dy *= 0.97;
+        if (p.life <= 0) particles.splice(i, 1);
+    }
+
+    // Update floating texts
+    for (let i = floatingTexts.length - 1; i >= 0; i--) {
+        const t = floatingTexts[i];
+        t.y += t.dy;
+        t.life -= 0.025;
+        if (t.life <= 0) floatingTexts.splice(i, 1);
+    }
+
+    // Decay effects
+    if (shakeTime > 0) shakeTime--;
+    if (flashAlpha > 0) flashAlpha -= 0.015;
+}
+
+// --- Drawing ---
+function draw() {
+    ctx.save();
+
+    // Shake
+    if (shakeTime > 0) {
+        const i = shakeTime * 0.8;
+        ctx.translate((Math.random() - 0.5) * i, (Math.random() - 0.5) * i);
+    }
+
+    // Background
+    ctx.fillStyle = '#0a0a1a';
+    ctx.fillRect(-10, -10, W + 20, H + 20);
+
+    // Subtle grid
+    ctx.strokeStyle = 'rgba(0,200,255,0.025)';
+    ctx.lineWidth = 1;
+    for (let x = 0; x < W; x += 40) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+    for (let y = 0; y < H; y += 40) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+
+    // Guide line (center vertical, very subtle)
+    const grad = ctx.createLinearGradient(CX, 0, CX, CY);
+    grad.addColorStop(0, 'rgba(255,255,255,0)');
+    grad.addColorStop(1, 'rgba(255,255,255,0.04)');
+    ctx.strokeStyle = grad;
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(CX, 0); ctx.lineTo(CX, CY - PLAYER_R - 20); ctx.stroke();
+
+    // Draw rings (behind player)
+    for (const ring of rings) {
+        const col = PALETTE[ring.colorIdx];
+        ctx.globalAlpha = ring.alpha * (ring.scored ? 0.5 : 1);
+        ctx.strokeStyle = col.fill;
+        ctx.lineWidth = ring.thickness;
+        ctx.shadowColor = col.glow;
+        ctx.shadowBlur = ring.scored ? 20 : 10;
+        ctx.beginPath();
+        ctx.arc(CX, ring.y, ring.r, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+    }
+    ctx.globalAlpha = 1;
+
+    // Draw player circle
+    const pc = PALETTE[colorIdx];
+    // Glow
+    ctx.shadowColor = pc.glow;
+    ctx.shadowBlur = 25;
+    ctx.fillStyle = pc.fill;
+    ctx.beginPath();
+    ctx.arc(CX, CY, PLAYER_R, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+    // Inner ring detail
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(CX, CY, PLAYER_R - 6, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Dot in center
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.beginPath();
+    ctx.arc(CX, CY, 4, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Color preview dots (bottom)
+    const numC = getActiveColors();
+    const dotY = CY + PLAYER_R + 28;
+    const dotSpacing = 24;
+    const dotStartX = CX - ((numC - 1) * dotSpacing) / 2;
+    for (let i = 0; i < numC; i++) {
+        const dx = dotStartX + i * dotSpacing;
+        const isActive = i === colorIdx;
+        ctx.fillStyle = isActive ? PALETTE[i].fill : 'rgba(255,255,255,0.15)';
+        ctx.beginPath();
+        ctx.arc(dx, dotY, isActive ? 5 : 3, 0, Math.PI * 2);
+        ctx.fill();
+        if (isActive) {
+            ctx.shadowColor = PALETTE[i].glow;
+            ctx.shadowBlur = 8;
+            ctx.fill();
+            ctx.shadowBlur = 0;
+        }
+    }
+
+    // Particles
+    for (const p of particles) {
+        ctx.globalAlpha = p.life;
+        ctx.fillStyle = p.color;
+        ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+    }
+    ctx.globalAlpha = 1;
+
+    // Floating texts
+    for (const t of floatingTexts) {
+        ctx.globalAlpha = t.life;
+        ctx.fillStyle = t.color;
+        ctx.font = `bold ${t.size}px 'Press Start 2P', monospace`;
+        ctx.textAlign = 'center';
+        ctx.fillText(t.text, t.x, t.y);
+    }
+    ctx.globalAlpha = 1;
+
+    // Flash overlay
+    if (flashAlpha > 0 && flashColor) {
+        ctx.globalAlpha = flashAlpha;
+        ctx.fillStyle = flashColor;
+        ctx.fillRect(-10, -10, W + 20, H + 20);
+        ctx.globalAlpha = 1;
+    }
+
+    // HUD
+    ctx.font = "bold 11px 'Press Start 2P', monospace";
+    ctx.textAlign = 'center';
+
+    // Score (top center)
+    ctx.fillStyle = '#fff';
+    ctx.font = "bold 22px 'Press Start 2P', monospace";
+    ctx.fillText(String(score), CX, 45);
+
+    // High score
+    ctx.fillStyle = 'rgba(255,255,255,0.3)';
+    ctx.font = "9px 'Press Start 2P', monospace";
+    ctx.fillText(`BEST ${highScore}`, CX, 65);
+
+    // Combo (right of score area)
+    if (combo >= 3) {
+        ctx.fillStyle = '#ffaa33';
+        ctx.font = "bold 10px 'Press Start 2P', monospace";
+        ctx.fillText(`${combo}x`, CX, 85);
+    }
+
+    // Start screen
+    if (!started && !gameOver) {
+        ctx.fillStyle = 'rgba(6,8,18,0.6)';
+        ctx.fillRect(0, 0, W, H);
+
+        ctx.fillStyle = '#00e5ff';
+        ctx.font = "bold 28px 'Press Start 2P', monospace";
+        ctx.textAlign = 'center';
+        ctx.shadowColor = 'rgba(0,229,255,0.5)';
+        ctx.shadowBlur = 20;
+        ctx.fillText('PRISM', CX, H * 0.35);
+        ctx.shadowBlur = 0;
+
+        ctx.fillStyle = 'rgba(255,255,255,0.5)';
+        ctx.font = "10px 'Press Start 2P', monospace";
+        ctx.fillText('TAP TO SWITCH COLOR', CX, H * 0.35 + 40);
+        ctx.fillText('MATCH THE RINGS', CX, H * 0.35 + 60);
+
+        // Animated hint circles
+        const t = Date.now() * 0.002;
+        for (let i = 0; i < 3; i++) {
+            const hc = PALETTE[i % PALETTE.length];
+            ctx.strokeStyle = hc.fill;
+            ctx.lineWidth = 2;
+            ctx.globalAlpha = 0.3 + Math.sin(t + i) * 0.2;
+            ctx.beginPath();
+            ctx.arc(CX, H * 0.55 + i * 30, 20 + i * 8, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
+
+        ctx.fillStyle = 'rgba(255,255,255,0.35)';
+        ctx.font = "9px 'Press Start 2P', monospace";
+        ctx.fillText('TAP TO START', CX, H * 0.78);
+    }
+
+    // Game over screen
+    if (gameOver) {
+        ctx.fillStyle = 'rgba(6,8,18,0.7)';
+        ctx.fillRect(0, 0, W, H);
+
+        ctx.fillStyle = '#ff2d78';
+        ctx.font = "bold 20px 'Press Start 2P', monospace";
+        ctx.textAlign = 'center';
+        ctx.shadowColor = 'rgba(255,45,120,0.5)';
+        ctx.shadowBlur = 15;
+        ctx.fillText('GAME OVER', CX, H * 0.32);
+        ctx.shadowBlur = 0;
+
+        ctx.fillStyle = '#fff';
+        ctx.font = "bold 28px 'Press Start 2P', monospace";
+        ctx.fillText(String(score), CX, H * 0.42);
+
+        ctx.fillStyle = 'rgba(255,255,255,0.4)';
+        ctx.font = "9px 'Press Start 2P', monospace";
+        ctx.fillText(`BEST: ${highScore}`, CX, H * 0.48);
+        ctx.fillText(`MAX COMBO: ${maxCombo}x`, CX, H * 0.53);
+
+        ctx.fillStyle = 'rgba(255,255,255,0.35)';
+        ctx.font = "9px 'Press Start 2P', monospace";
+        ctx.fillText('TAP TO RETRY', CX, H * 0.65);
+    }
+
+    ctx.restore();
+}
+
+// --- Loop ---
+function loop() {
+    update();
+    draw();
+    requestAnimationFrame(loop);
+}
+
+restart();
+loop();
+
+</script>
+</body>
+</html>
