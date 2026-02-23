@@ -357,6 +357,9 @@ function triggerClear() {
 
     sfxChain(combo);
 
+    // Reward: reset push timer (player earned breathing room)
+    pushTimer = 0;
+
     // Mark cells for clearing animation
     animatingClear = true;
     for (const { r, c } of flowPaths) {
