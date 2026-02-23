@@ -147,9 +147,9 @@ const player = {
 
 // ======================== POLICE CHASE ========================
 const police = {
-    y: H + 80,         // starts off screen bottom (behind player conceptually)
-    baseY: H + 80,
-    targetY: H * 0.92,  // cruising distance
+    y: H + 200,        // starts well off screen (behind player)
+    baseY: H + 200,
+    targetY: H + 200,   // will approach gradually
     lane: 1,
     runAnim: 0,
     catchDistance: 0,    // 0-1 how close (1 = caught)
@@ -391,11 +391,14 @@ function startGame() {
     powerups = [];
     particles = [];
 
-    // Police reset
-    police.y = H + 80;
+    // Police reset — starts well off screen
+    police.y = H + 200;
+    police.targetY = H + 200;
     police.lane = 1;
     police.runAnim = 0;
     police.dogAnim = 0;
+    police.surgeTimer = 0;
+    police.laneTimer = 0;
     startSiren();
 }
 
@@ -532,6 +535,7 @@ function update() {
                 emit(o.x, o.y, COLORS.shield, 20, 4, 25);
                 shake(5);
                 sfxShieldBreak();
+                police.surgeTimer = 60; // police gains ground on mistake
                 obstacles.splice(i, 1);
                 continue;
             } else {
@@ -637,23 +641,39 @@ function update() {
     police.runAnim += dt * 0.25;
     police.dogAnim += dt * 0.35;
 
-    // Police approaches over time; gets closer the longer you play
-    const chaseProgress = Math.min(gameTime / 800, 1);
-    police.targetY = H * 0.92 - chaseProgress * H * 0.12; // gets closer
-    police.y += (police.targetY - police.y) * 0.01;
+    // Police chase — starts far behind, very slowly approaches
+    // Only gets dangerously close after sustained play (60s+)
+    // Hitting obstacles slows YOU down, letting police gain ground
+    const chaseProgress = Math.min(gameTime / 3000, 1); // full approach takes ~3000 frames (~50s at 60fps)
+    const baseTarget = H * 1.15 - chaseProgress * H * 0.30; // starts well below screen, approaches to ~H*0.85
+    
+    // Police gains extra ground when player hits obstacle (shield break) or slows
+    if (!police.surgeTimer) police.surgeTimer = 0;
+    if (police.surgeTimer > 0) {
+        police.surgeTimer -= dt;
+        police.targetY = Math.min(police.targetY, baseTarget - 30); // surge closer
+    } else {
+        police.targetY = baseTarget;
+    }
+    
+    // Very slow lerp — police doesn't teleport
+    police.y += (police.targetY - police.y) * 0.005;
 
-    // Police follows player lane with delay
-    const policeLaneX = LANES[police.lane];
-    if (Math.abs(LANES[player.lane] - policeLaneX) > LANE_W * 0.8) {
-        police.lane += (player.lane > police.lane ? 1 : -1);
+    // Police follows player lane with heavy delay
+    police.laneTimer = (police.laneTimer || 0) + dt;
+    if (police.laneTimer > 40) { // reacts slowly
+        police.laneTimer = 0;
+        if (player.lane !== police.lane) {
+            police.lane += (player.lane > police.lane ? 1 : -1);
+        }
     }
 
     // Siren volume based on proximity
-    const policeProximity = 1 - (police.y - player.y) / H;
-    setSirenVolume(0.02 + policeProximity * 0.06);
+    const policeProximity = Math.max(0, 1 - (police.y - player.y) / H);
+    setSirenVolume(0.015 + policeProximity * 0.04);
 
-    // If police catches player = game over
-    if (police.y <= player.y + player.h) {
+    // Police catches player ONLY if very close
+    if (police.y <= player.y + 10 && police.y >= player.y - 10) {
         gameOver();
         return;
     }
