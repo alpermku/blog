@@ -75,7 +75,14 @@ const player = {
     magnetTimer: 0,
     invincible: false,
     invTimer: 0,
-    tilt: 0
+    tilt: 0,
+    // Jump mechanics
+    jumpHeight: 0,       // current height off ground (0 = on ground)
+    jumpVelocity: 0,
+    isJumping: false,
+    jumpPeak: 120,       // max jump height
+    gravity: 0.45,
+    jumpForce: -9.5
 };
 
 // ======================== ENTITIES ========================
@@ -135,10 +142,12 @@ function spawnObstacle() {
 
     const w = type === 'wide' ? LANE_W * 1.8 : LANE_W * 0.6;
     const h = type === 'wide' ? 25 : 40 + Math.random() * 20;
+    // jumpable = short obstacles player can jump over; tall = must dodge
+    const jumpable = type !== 'wide' && Math.random() > 0.35;
 
     obstacles.push({
         lane, type, x: LANES[lane], y: -h,
-        w, h, color: COLORS.obstacle,
+        w, h, color: COLORS.obstacle, jumpable,
         moveDir: type === 'moving' ? (Math.random() > 0.5 ? 1 : -1) : 0,
         moveSpeed: 1.5 + Math.random()
     });
@@ -213,6 +222,7 @@ document.addEventListener('keydown', e => {
     if (state === STATE.OVER) { if (e.key === ' ' || e.key === 'Enter') startGame(); return; }
     if (e.key === 'ArrowLeft' || e.key === 'a') moveLane(-1);
     if (e.key === 'ArrowRight' || e.key === 'd') moveLane(1);
+    if (e.key === 'ArrowUp' || e.key === 'w' || e.key === ' ') jump();
 });
 document.addEventListener('keyup', e => keys[e.key] = false);
 
@@ -235,8 +245,12 @@ C.addEventListener('touchend', e => {
     const dx = t.clientX - touchStartX;
     const dy = t.clientY - touchStartY;
     const dt = Date.now() - touchStartTime;
-    if (Math.abs(dx) > 30 && dt < 300) {
-        moveLane(dx > 0 ? 1 : -1);
+    if (dt < 300) {
+        if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 30) {
+            moveLane(dx > 0 ? 1 : -1);
+        } else if (dy < -40) {
+            jump();
+        }
     }
 });
 
@@ -255,6 +269,13 @@ function moveLane(dir) {
     player.lane = newLane;
     player.targetX = LANES[player.lane];
     player.tilt = dir * 0.3;
+}
+
+function jump() {
+    if (player.isJumping) return;
+    player.isJumping = true;
+    player.jumpVelocity = player.jumpForce;
+    emit(player.x, player.y + player.h / 2, '#00e5ff', 6, 2, 10);
 }
 
 // ======================== GAME LIFECYCLE ========================
@@ -287,6 +308,9 @@ function startGame() {
     player.invincible = false;
     player.tilt = 0;
     player.trail = [];
+    player.jumpHeight = 0;
+    player.jumpVelocity = 0;
+    player.isJumping = false;
 
     obstacles = [];
     coins = [];
@@ -333,6 +357,18 @@ function update() {
     // Player movement (smooth lerp)
     player.x += (player.targetX - player.x) * 0.18;
     player.tilt *= 0.9;
+
+    // Jump physics
+    if (player.isJumping) {
+        player.jumpVelocity += player.gravity;
+        player.jumpHeight -= player.jumpVelocity;
+        if (player.jumpHeight <= 0) {
+            player.jumpHeight = 0;
+            player.jumpVelocity = 0;
+            player.isJumping = false;
+        }
+        if (player.jumpHeight > player.jumpPeak) player.jumpHeight = player.jumpPeak;
+    }
 
     // Trail
     player.trail.push({ x: player.x, y: player.y, alpha: 1 });
@@ -402,8 +438,9 @@ function update() {
             }
         }
 
-        // Collision
-        if (!player.invincible && rectCollide(
+        // Collision — skip if jumping over jumpable obstacle
+        const canClear = player.isJumping && player.jumpHeight > 40 && o.jumpable;
+        if (!player.invincible && !canClear && rectCollide(
             player.x - player.w / 2, player.y - player.h / 2, player.w, player.h,
             o.x - o.w / 2, o.y - o.h / 2, o.w, o.h
         )) {
@@ -585,23 +622,30 @@ function draw() {
 
     // Obstacles
     obstacles.forEach(o => {
-        // Glow
         X.shadowBlur = 20;
         X.shadowColor = COLORS.obstacleGlow;
-        X.fillStyle = COLORS.obstacle;
 
-        // Draw obstacle with slight bevel
-        const grad = X.createLinearGradient(o.x - o.w / 2, o.y, o.x + o.w / 2, o.y);
-        grad.addColorStop(0, '#ff1744');
-        grad.addColorStop(0.5, '#ff5252');
-        grad.addColorStop(1, '#ff1744');
-        X.fillStyle = grad;
-        roundRect(o.x - o.w / 2, o.y - o.h / 2, o.w, o.h, 4);
-
-        // Warning stripes
-        X.fillStyle = 'rgba(0,0,0,0.2)';
-        for (let s = 0; s < o.w; s += 12) {
-            X.fillRect(o.x - o.w / 2 + s, o.y - o.h / 2, 4, o.h);
+        if (o.jumpable) {
+            // Jumpable: low barrier style — flat, neon red
+            const grad = X.createLinearGradient(o.x - o.w / 2, o.y - o.h / 2, o.x - o.w / 2, o.y + o.h / 2);
+            grad.addColorStop(0, '#ff5252');
+            grad.addColorStop(1, '#b71c1c');
+            X.fillStyle = grad;
+            roundRect(o.x - o.w / 2, o.y - o.h / 4, o.w, o.h / 2, 3);
+            // Top highlight
+            X.fillStyle = 'rgba(255,255,255,0.15)';
+            X.fillRect(o.x - o.w / 2 + 2, o.y - o.h / 4, o.w - 4, 3);
+        } else {
+            // Tall barrier — must dodge, not jumpable
+            const grad = X.createLinearGradient(o.x - o.w / 2, o.y - o.h / 2, o.x + o.w / 2, o.y + o.h / 2);
+            grad.addColorStop(0, '#ff1744');
+            grad.addColorStop(0.5, '#d50000');
+            grad.addColorStop(1, '#ff1744');
+            X.fillStyle = grad;
+            roundRect(o.x - o.w / 2, o.y - o.h / 2, o.w, o.h, 5);
+            // Neon edge top
+            X.fillStyle = 'rgba(255,82,82,0.5)';
+            X.fillRect(o.x - o.w / 2 + 3, o.y - o.h / 2, o.w - 6, 2);
         }
         X.shadowBlur = 0;
     });
@@ -670,9 +714,21 @@ function drawPlayer() {
     const py = player.y;
     const pw = player.w;
     const ph = player.h;
+    const jh = player.jumpHeight;
+
+    // Ground shadow when jumping
+    if (jh > 5) {
+        const shadowScale = Math.max(0.3, 1 - jh / player.jumpPeak * 0.6);
+        X.globalAlpha = 0.2 * shadowScale;
+        X.fillStyle = '#00e5ff';
+        X.beginPath();
+        X.ellipse(px, py + ph / 2, pw * 0.5 * shadowScale, 4 * shadowScale, 0, 0, Math.PI * 2);
+        X.fill();
+        X.globalAlpha = 1;
+    }
 
     X.save();
-    X.translate(px, py);
+    X.translate(px, py - jh);
     X.rotate(player.tilt);
 
     // Glow
@@ -824,7 +880,7 @@ function drawMenu() {
     // Controls
     X.fillStyle = 'rgba(255,255,255,0.25)';
     X.font = '10px JetBrains Mono';
-    X.fillText('← → / Swipe / Tap sides', W / 2, H * 0.78);
+    X.fillText('← → Şerit | ↑ / Swipe Up Zıpla', W / 2, H * 0.78);
 }
 
 function drawGameOver() {
