@@ -172,22 +172,48 @@ const NOTE = {};
     NOTE[n] = 130.81 * Math.pow(2, semitones / 12);
 });
 
-// Chord progressions (Am - F - C - G) in notes
-const CHORDS = [
-    [NOTE.A3, NOTE.C4, NOTE.E4],  // Am
-    [NOTE.F3, NOTE.A3, NOTE.C4],  // F
-    [NOTE.C3, NOTE.E3, NOTE.G3],  // C
-    [NOTE.G3, NOTE.B3, NOTE.D4],  // G
+// Long-form music material (4 sections x 64 steps = 256-step loop)
+const PROGRESSIONS = [
+    { // A
+        chords: [[NOTE.A3, NOTE.C4, NOTE.E4], [NOTE.F3, NOTE.A3, NOTE.C4], [NOTE.C3, NOTE.E3, NOTE.G3], [NOTE.G3, NOTE.B3, NOTE.D4]],
+        bass: [NOTE.A3 / 2, NOTE.F3 / 2, NOTE.C3, NOTE.G3 / 2]
+    },
+    { // B
+        chords: [[NOTE.D3, NOTE.F3, NOTE.A3], [NOTE.B3/2, NOTE.D3, NOTE.F3], [NOTE.F3, NOTE.A3, NOTE.C4], [NOTE.C3, NOTE.E3, NOTE.G3]],
+        bass: [NOTE.D3 / 2, NOTE.B3 / 4, NOTE.F3 / 2, NOTE.C3]
+    },
+    { // C
+        chords: [[NOTE.E3, NOTE.G3, NOTE.B3], [NOTE.C3, NOTE.E3, NOTE.G3], [NOTE.A3, NOTE.C4, NOTE.E4], [NOTE.B3/2, NOTE.D3, NOTE.F3]],
+        bass: [NOTE.E3 / 2, NOTE.C3, NOTE.A3 / 2, NOTE.B3 / 4]
+    },
+    { // D
+        chords: [[NOTE.F3, NOTE.A3, NOTE.C4], [NOTE.G3, NOTE.B3, NOTE.D4], [NOTE.E3, NOTE.G3, NOTE.B3], [NOTE.A3, NOTE.C4, NOTE.E4]],
+        bass: [NOTE.F3 / 2, NOTE.G3 / 2, NOTE.E3 / 2, NOTE.A3 / 2]
+    }
 ];
-const BASS = [NOTE.A3 / 2, NOTE.F3 / 2, NOTE.C3, NOTE.G3 / 2];
 
-// Melody (16 steps per chord = 64 steps total)
-const MELODY = [
-    NOTE.E5, 0, NOTE.D5, 0, NOTE.C5, 0, NOTE.D5, NOTE.E5, NOTE.E5, 0, NOTE.G5, 0, NOTE.E5, 0, NOTE.D5, 0,
-    NOTE.C5, 0, NOTE.A4, 0, NOTE.C5, 0, NOTE.A4, 0, NOTE.F4, 0, NOTE.A4, NOTE.C5, NOTE.A4, 0, 0, 0,
-    NOTE.G4, 0, NOTE.E4, 0, NOTE.G4, 0, NOTE.C5, 0, NOTE.E5, 0, NOTE.D5, 0, NOTE.C5, 0, NOTE.G4, 0,
-    NOTE.G4, 0, NOTE.B4, 0, NOTE.D5, 0, NOTE.G5, 0, NOTE.F5, 0, NOTE.D5, 0, NOTE.B4, 0, NOTE.G4, 0
+const MELODY_A = [
+    NOTE.E5,0,NOTE.D5,0, NOTE.C5,0,NOTE.D5,NOTE.E5, NOTE.E5,0,NOTE.G5,0, NOTE.E5,0,NOTE.D5,0,
+    NOTE.C5,0,NOTE.A4,0, NOTE.C5,0,NOTE.A4,0, NOTE.F4,0,NOTE.A4,NOTE.C5, NOTE.A4,0,0,0,
+    NOTE.G4,0,NOTE.E4,0, NOTE.G4,0,NOTE.C5,0, NOTE.E5,0,NOTE.D5,0, NOTE.C5,0,NOTE.G4,0,
+    NOTE.G4,0,NOTE.B4,0, NOTE.D5,0,NOTE.G5,0, NOTE.F5,0,NOTE.D5,0, NOTE.B4,0,NOTE.G4,0
 ];
+
+const MELODY_B = [
+    NOTE.C5,0,NOTE.E5,0, NOTE.G5,0,NOTE.E5,0, NOTE.D5,0,NOTE.C5,0, NOTE.A4,0,NOTE.C5,0,
+    NOTE.F4,0,NOTE.A4,0, NOTE.C5,0,NOTE.A4,0, NOTE.G4,0,NOTE.F4,0, NOTE.E4,0,NOTE.G4,0,
+    NOTE.E5,0,NOTE.D5,0, NOTE.C5,0,NOTE.B4,0, NOTE.A4,0,NOTE.C5,0, NOTE.E5,0,NOTE.C5,0,
+    NOTE.D5,0,NOTE.F5,0, NOTE.G5,0,NOTE.D5,0, NOTE.B4,0,NOTE.G4,0, NOTE.E4,0,NOTE.D4,0
+];
+
+const MELODY_C = [
+    NOTE.A4,0,NOTE.C5,0, NOTE.E5,0,NOTE.G5,0, NOTE.E5,0,NOTE.C5,0, NOTE.A4,0,0,0,
+    NOTE.B4,0,NOTE.D5,0, NOTE.F5,0,NOTE.D5,0, NOTE.B4,0,NOTE.G4,0, NOTE.E4,0,0,0,
+    NOTE.C5,0,NOTE.E5,0, NOTE.G5,0,NOTE.E5,0, NOTE.C5,0,NOTE.A4,0, NOTE.G4,0,0,0,
+    NOTE.D5,0,NOTE.F5,0, NOTE.A5,0,NOTE.F5,0, NOTE.D5,0,NOTE.B4,0, NOTE.G4,0,0,0
+];
+
+const SECTION_MELODIES = [MELODY_A, MELODY_B, MELODY_C, MELODY_B];
 
 // Drum patterns (kick, snare, hihat) — 16 steps
 const KICK =  [1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0];
@@ -306,26 +332,31 @@ function playMelody(freq, when) {
 }
 
 function musicTick() {
-    const when = AC.currentTime + 0.05; // small lookahead
-    const s = musicStep % 16; // step within bar
-    const bar = Math.floor(musicStep / 16) % 4; // which chord
+    const when = AC.currentTime + 0.05;
+    const s = musicStep % 16;
+    const bar = Math.floor(musicStep / 16) % 4;
+    const section = Math.floor(musicStep / 64) % 4;
+    const prog = PROGRESSIONS[section];
 
-    // Drums
-    if (KICK[s])  playKick(when);
+    // Drums + slight section variation
+    if (KICK[s]) playKick(when);
     if (SNARE[s]) playSnare(when);
-    if (HIHAT[s]) playHihat(when);
+    if (HIHAT[s] || (section >= 2 && s % 2 === 1)) playHihat(when);
 
-    // Bass (plays on beat 1 of every 4 steps)
-    if (s % 4 === 0) playBass(BASS[bar], when);
+    // End-of-section mini fills
+    if (musicStep % 64 >= 60) {
+        if (s % 2 === 0) playHihat(when);
+        if (s === 15) playSnare(when);
+    }
 
-    // Chords (play once per bar)
-    if (s === 0) playChord(CHORDS[bar], when);
+    if (s % 4 === 0) playBass(prog.bass[bar], when);
+    if (s === 0) playChord(prog.chords[bar], when);
 
-    // Melody
+    const melPattern = SECTION_MELODIES[section];
     const melIdx = musicStep % 64;
-    playMelody(MELODY[melIdx], when);
+    playMelody(melPattern[melIdx], when);
 
-    musicStep++;
+    musicStep = (musicStep + 1) % 256;
 }
 
 function startMusic() {
