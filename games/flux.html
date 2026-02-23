@@ -9,14 +9,14 @@
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;700&display=swap');
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            background: linear-gradient(180deg, #ffffff 0%, #f6f9ff 100%); overflow: hidden;
-            font-family: 'JetBrains Mono', monospace; color: #1f2937;
+            background: radial-gradient(circle at 50% 20%, #1b1f5e 0%, #0b0f2f 45%, #050712 100%); overflow: hidden;
+            font-family: 'JetBrains Mono', monospace; color: #e5ecff;
             user-select: none; display: flex; justify-content: center; align-items: center; height: 100vh;
             touch-action: manipulation;
         }
-        canvas { border: 2px solid #dbeafe; border-radius: 16px; box-shadow: 0 14px 42px rgba(59,130,246,0.12); background: #ffffff; }
-        .back-btn { position: fixed; top: 14px; left: 18px; z-index: 20; font-family: 'JetBrains Mono', monospace; font-size: 13px; color: rgba(31,41,55,0.55); text-decoration: none; transition: color 0.2s; }
-        .back-btn:hover { color: #111827; }
+        canvas { border: 2px solid rgba(77,124,255,0.7); border-radius: 18px; box-shadow: 0 0 30px rgba(67,131,255,0.35), 0 0 80px rgba(144,73,255,0.18); background: #070b24; }
+        .back-btn { position: fixed; top: 14px; left: 18px; z-index: 20; font-family: 'JetBrains Mono', monospace; font-size: 13px; color: rgba(210,224,255,0.7); text-decoration: none; transition: color 0.2s; }
+        .back-btn:hover { color: #fff; }
     </style>
 </head>
 <body>
@@ -570,17 +570,17 @@ const origTriggerClear = triggerClear;
 function resetClearCounter() { pushesWithoutClear = 0; }
 
 // --- Drawing ---
-const ENERGY_COLOR = '#2563eb';
-const ENERGY_GLOW = 'rgba(37,99,235,0.22)';
-const PIPE_COLOR = '#93c5fd';
-const PIPE_CONNECTED = '#f97316';
-const BG_CELL = '#eff6ff';
+const ENERGY_COLOR = '#66f2ff';
+const ENERGY_GLOW = 'rgba(102,242,255,0.55)';
+const PIPE_COLOR = '#35a8ff';
+const PIPE_CONNECTED = '#7dff6a';
+const BG_CELL = 'rgba(103,129,255,0.09)';
 
 function drawPipeSegment(cx, cy, openings, connected, clearing, justPlaced, energyPulse) {
     const half = CELL / 2;
     const pipeW = 8;
 
-    const baseColor = connected ? PIPE_CONNECTED : 'rgba(37,99,235,0.35)';
+    const baseColor = connected ? PIPE_CONNECTED : 'rgba(53,168,255,0.92)';
     const alpha = clearing > 0 ? clearing : 1;
 
     ctx.globalAlpha = alpha;
@@ -612,7 +612,7 @@ function drawPipeSegment(cx, cy, openings, connected, clearing, justPlaced, ener
     ctx.shadowBlur = 0;
 
     // Center node
-    ctx.fillStyle = connected ? PIPE_CONNECTED : 'rgba(59,130,246,0.45)';
+    ctx.fillStyle = connected ? '#b8ffad' : '#9ad6ff';
     ctx.beginPath();
     ctx.arc(cx, cy, pipeW / 2 + 1, 0, Math.PI * 2);
     ctx.fill();
@@ -647,17 +647,42 @@ function draw() {
 
     // Background
     const bgGrad = ctx.createLinearGradient(0, 0, 0, H);
-    bgGrad.addColorStop(0, '#ffffff');
-    bgGrad.addColorStop(1, '#f8fbff');
+    bgGrad.addColorStop(0, '#10164a');
+    bgGrad.addColorStop(0.55, '#0b1030');
+    bgGrad.addColorStop(1, '#070b20');
     ctx.fillStyle = bgGrad;
     ctx.fillRect(-10, -10, W + 20, H + 20);
 
+    // Star particles backdrop
+    for (let i = 0; i < 120; i++) {
+        const sx = (i * 73) % W;
+        const sy = (i * 131 + (Date.now() * 0.01)) % H;
+        const a = 0.12 + ((i % 7) / 28);
+        ctx.fillStyle = `rgba(180,220,255,${a})`;
+        ctx.fillRect(sx, sy, 1.5, 1.5);
+    }
+
+    // Cabinet frame
+    ctx.strokeStyle = 'rgba(126,98,255,0.65)';
+    ctx.lineWidth = 5;
+    ctx.strokeRect(8, 8, W - 16, H - 16);
+    ctx.strokeStyle = 'rgba(77,215,255,0.45)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(14, 14, W - 28, H - 28);
+
+    // Top HUD plate
+    ctx.fillStyle = 'rgba(19,27,77,0.85)';
+    ctx.fillRect(22, 18, W - 44, 56);
+    ctx.strokeStyle = 'rgba(94,152,255,0.65)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(22, 18, W - 44, 56);
+
     // Grid background
-    ctx.fillStyle = '#f1f5ff';
+    ctx.fillStyle = 'rgba(9,16,49,0.88)';
     ctx.fillRect(GX, GY, COLS * CELL, ROWS * CELL);
 
     // Grid lines
-    ctx.strokeStyle = 'rgba(37,99,235,0.15)';
+    ctx.strokeStyle = 'rgba(101,132,255,0.28)';
     ctx.lineWidth = 1;
     for (let c = 0; c <= COLS; c++) {
         ctx.beginPath(); ctx.moveTo(GX + c * CELL, GY); ctx.lineTo(GX + c * CELL, GY + ROWS * CELL); ctx.stroke();
@@ -744,19 +769,19 @@ function draw() {
     ctx.textAlign = 'center';
 
     // Score
-    ctx.fillStyle = '#0f172a';
+    ctx.fillStyle = '#ffe991';
     ctx.font = "bold 20px 'Press Start 2P', monospace";
-    ctx.fillText(String(score), W / 2, 38);
+    ctx.fillText(String(score), W / 2, 44);
 
     // High score + Level
-    ctx.fillStyle = 'rgba(30,41,59,0.55)';
+    ctx.fillStyle = 'rgba(200,220,255,0.9)';
     ctx.font = "8px 'Press Start 2P', monospace";
-    ctx.fillText(`BEST ${highScore}`, W / 2, 56);
+    ctx.fillText(`BEST ${highScore}`, W / 2, 62);
 
-    ctx.fillStyle = '#10b981';
+    ctx.fillStyle = '#85f7ff';
     ctx.font = "8px 'Press Start 2P', monospace";
     ctx.textAlign = 'right';
-    ctx.fillText(`LV ${level}`, W - 16, 38);
+    ctx.fillText(`LV ${level}`, W - 30, 44);
 
     // Push timer bar
     if (started && !gameOver) {
@@ -764,10 +789,10 @@ function draw() {
         const barH = 3;
         const barY = GY - 3;
         const progress = pushTimer / pushInterval;
-        ctx.fillStyle = 'rgba(30,41,59,0.12)';
+        ctx.fillStyle = 'rgba(165,196,255,0.2)';
         ctx.fillRect(GX, barY, barW, barH);
 
-        const barColor = progress > 0.8 ? '#ef4444' : progress > 0.5 ? '#f59e0b' : '#3b82f6';
+        const barColor = progress > 0.8 ? '#ff6a8e' : progress > 0.5 ? '#ffd36a' : '#5ddfff';
         ctx.fillStyle = barColor;
         ctx.fillRect(GX, barY, barW * progress, barH);
     }
@@ -775,25 +800,25 @@ function draw() {
     // Bottom hint
     if (started && !gameOver) {
         ctx.textAlign = 'center';
-        ctx.fillStyle = 'rgba(30,41,59,0.4)';
+        ctx.fillStyle = 'rgba(190,214,255,0.75)';
         ctx.font = "8px 'JetBrains Mono', monospace";
         ctx.fillText('Tap tiles to rotate • Connect source to drain', W / 2, H - 12);
     }
 
     // Start screen
     if (!started && !gameOver) {
-        ctx.fillStyle = 'rgba(255,255,255,0.82)';
+        ctx.fillStyle = 'rgba(7,10,28,0.72)';
         ctx.fillRect(0, 0, W, H);
 
         ctx.textAlign = 'center';
-        ctx.fillStyle = '#2563eb';
+        ctx.fillStyle = '#72e9ff';
         ctx.font = "bold 32px 'Press Start 2P', monospace";
-        ctx.shadowColor = 'rgba(37,99,235,0.25)';
+        ctx.shadowColor = 'rgba(114,233,255,0.45)';
         ctx.shadowBlur = 20;
         ctx.fillText('FLUX', W / 2, H * 0.3);
         ctx.shadowBlur = 0;
 
-        ctx.fillStyle = 'rgba(15,23,42,0.68)';
+        ctx.fillStyle = 'rgba(210,226,255,0.85)';
         ctx.font = "9px 'Press Start 2P', monospace";
         ctx.fillText('ROTATE PIPES', W / 2, H * 0.3 + 35);
         ctx.fillText('CONNECT SOURCE → DRAIN', W / 2, H * 0.3 + 55);
@@ -820,27 +845,27 @@ function draw() {
 
     // Game over
     if (gameOver) {
-        ctx.fillStyle = 'rgba(255,255,255,0.86)';
+        ctx.fillStyle = 'rgba(7,10,28,0.78)';
         ctx.fillRect(0, 0, W, H);
 
         ctx.textAlign = 'center';
-        ctx.fillStyle = '#ef4444';
+        ctx.fillStyle = '#ff7b9f';
         ctx.font = "bold 18px 'Press Start 2P', monospace";
-        ctx.shadowColor = 'rgba(239,68,68,0.2)';
+        ctx.shadowColor = 'rgba(255,123,159,0.4)';
         ctx.shadowBlur = 15;
         ctx.fillText('GAME OVER', W / 2, H * 0.3);
         ctx.shadowBlur = 0;
 
-        ctx.fillStyle = '#0f172a';
+        ctx.fillStyle = '#fff3a0';
         ctx.font = "bold 26px 'Press Start 2P', monospace";
         ctx.fillText(String(score), W / 2, H * 0.4);
 
-        ctx.fillStyle = 'rgba(15,23,42,0.62)';
+        ctx.fillStyle = 'rgba(209,225,255,0.85)';
         ctx.font = "9px 'Press Start 2P', monospace";
         ctx.fillText(`BEST: ${highScore}`, W / 2, H * 0.46);
         ctx.fillText(`LEVEL: ${level}`, W / 2, H * 0.51);
 
-        ctx.fillStyle = 'rgba(15,23,42,0.55)';
+        ctx.fillStyle = 'rgba(194,217,255,0.86)';
         ctx.fillText('TAP TO RETRY', W / 2, H * 0.63);
     }
 
