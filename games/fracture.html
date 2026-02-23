@@ -429,12 +429,29 @@ function initBricks() {
     }
 }
 
+let ballStuck = true; // ball stuck on paddle, waiting for launch
+
 function resetBall() {
     const cfg = LEVELS[level - 1];
-    const angle = -Math.PI/2 + (Math.random() - 0.5) * 0.6;
+    // Ball starts stuck on paddle center
+    balls = [makeBall(paddle.x + paddle.w / 2, paddle.y - 8, 0, 0)];
+    ballStuck = true;
+    paused = false; // don't pause — let player move paddle freely
+}
+
+function launchBall() {
+    if (!ballStuck || balls.length === 0) return;
+    ballStuck = false;
+    const cfg = LEVELS[level - 1];
     const spd = cfg.ballSpeed;
-    balls = [makeBall(W/2, H - 60, Math.cos(angle) * spd, Math.sin(angle) * spd)];
-    paused = true;
+    // Angle based on ball position on paddle (left = left, right = right)
+    const ball = balls[0];
+    const offset = (ball.x - (paddle.x + paddle.w / 2)) / (paddle.w / 2); // -1 to 1
+    const angle = -Math.PI / 2 + offset * 0.5; // max ±28° from vertical
+    ball.dx = Math.cos(angle) * spd;
+    ball.dy = Math.sin(angle) * spd;
+    if (ball.dy > -1.5) ball.dy = -1.5; // ensure it goes upward
+    sfxPaddleHit();
 }
 
 function restart() {
@@ -443,6 +460,7 @@ function restart() {
     particles = []; floatingTexts = []; powerups = []; lasers = [];
     activePowerups = {};
     paddle.w = paddle.baseW;
+    paddle.x = W / 2 - paddle.w / 2;
     initBricks(); resetBall();
 }
 
@@ -451,13 +469,16 @@ let mouseX = W/2, keys = {};
 canvas.addEventListener('mousemove', e => { mouseX = e.clientX - canvas.getBoundingClientRect().left; });
 document.addEventListener('keydown', e => {
     keys[e.key] = true;
-    if (e.key === ' ' && activePowerups.laser) fireLaser();
+    if (e.key === ' ') {
+        if (ballStuck) { launchBall(); startMusic(); }
+        else if (activePowerups.laser) fireLaser();
+    }
 });
 document.addEventListener('keyup', e => { keys[e.key] = false; });
 canvas.addEventListener('click', () => {
     if (AC.state === 'suspended') AC.resume();
-    if (paused && !gameOver && !gameWon) { paused = false; startMusic(); }
-    else if (gameOver || gameWon) { restart(); startMusic(); }
+    if (gameOver || gameWon) { restart(); startMusic(); return; }
+    if (ballStuck) { launchBall(); startMusic(); return; }
     if (activePowerups.laser) fireLaser();
 });
 canvas.addEventListener('touchmove', e => {
@@ -467,8 +488,8 @@ canvas.addEventListener('touchmove', e => {
 }, { passive: false });
 canvas.addEventListener('touchstart', e => {
     if (AC.state === 'suspended') AC.resume();
-    if (gameOver || gameWon) { restart(); startMusic(); }
-    if (paused) { paused = false; startMusic(); }
+    if (gameOver || gameWon) { restart(); startMusic(); return; }
+    if (ballStuck) { launchBall(); startMusic(); return; }
     if (activePowerups.laser) fireLaser();
 });
 
@@ -531,7 +552,7 @@ function applyPowerup(pu) {
 // --- Update ---
 function update() {
     if (levelTransition > 0) { levelTransition -= 0.02; return; }
-    if (paused || gameOver || gameWon) return;
+    if (gameOver || gameWon) return;
 
     const now = Date.now();
     const slowActive = activePowerups.slow && now < activePowerups.slow;
@@ -559,6 +580,16 @@ function update() {
     // Balls
     for (let bi = balls.length - 1; bi >= 0; bi--) {
         const ball = balls[bi];
+
+        // Stuck on paddle — follow paddle position
+        if (ballStuck && bi === 0) {
+            ball.x = paddle.x + paddle.w / 2;
+            ball.y = paddle.y - ball.r - 2;
+            ball.dx = 0;
+            ball.dy = 0;
+            continue; // skip all physics for stuck ball
+        }
+
         ball.trail.push({ x: ball.x, y: ball.y });
         if (ball.trail.length > 12) ball.trail.shift();
 
@@ -868,7 +899,7 @@ function draw() {
     }
 
     // Paused / Game Over / Win
-    if (paused && !gameOver && !gameWon && levelTransition <= 0) {
+    if (ballStuck && !gameOver && !gameWon && levelTransition <= 0) {
         drawOverlay('CLICK TO LAUNCH', `Level ${level}: ${LEVELS[level-1].name}`);
     }
     if (gameOver) {
