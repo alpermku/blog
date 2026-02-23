@@ -143,9 +143,10 @@ const player = {
     jumpPeak: 120,       // max jump height
     gravity: 0.45,
     jumpForce: -9.5,
-    // Train riding
+    // Train/obstacle riding
     onTrain: null,       // reference to train being ridden
-    onTrainY: 0          // visual Y offset when on train
+    onTrainY: 0,         // visual Y offset when on train
+    onObstacle: null     // reference to obstacle being ridden
 };
 
 // ======================== POLICE CHASE ========================
@@ -405,11 +406,10 @@ function moveLane(dir) {
 }
 
 function jump() {
-    if (player.isJumping && !player.onTrain) return; // can't double jump (unless on train)
-    // Jump off train
-    if (player.onTrain) {
-        player.onTrain = null;
-    }
+    if (player.isJumping && !player.onTrain && !player.onObstacle) return;
+    // Jump off train or obstacle
+    if (player.onTrain) player.onTrain = null;
+    if (player.onObstacle) player.onObstacle = null;
     player.isJumping = true;
     player.jumpVelocity = player.jumpForce;
     emit(player.x, player.y + player.h / 2, '#00e5ff', 6, 2, 10);
@@ -450,6 +450,7 @@ function startGame() {
     player.jumpVelocity = 0;
     player.isJumping = false;
     player.onTrain = null;
+    player.onObstacle = null;
 
     obstacles = [];
     coins = [];
@@ -552,7 +553,7 @@ function update() {
     player.tilt *= 0.9;
 
     // Jump physics
-    if (player.isJumping && !player.onTrain) {
+    if (player.isJumping && !player.onTrain && !player.onObstacle) {
         player.jumpVelocity += player.gravity;
         player.jumpHeight -= player.jumpVelocity;
         if (player.jumpHeight <= 0) {
@@ -643,45 +644,75 @@ function update() {
             }
         }
 
-        // Collision — use elevated hitbox when jumping
-        // Player's effective Y moves up by jumpHeight
+        // Obstacle as platform — can land on top like trains
         const effectiveY = player.y - player.jumpHeight;
-        // Jumpable obstacles are visually short (h/2), so use that for collision too
-        const obsVisH = o.jumpable ? o.h * 0.5 : o.h;
-        const obsVisY = o.jumpable ? o.y - o.h * 0.25 : o.y - o.h * 0.5;
-        // Skip collision if on train
-        const onTrainSafe = player.onTrain != null;
-        if (!player.invincible && !onTrainSafe && rectCollide(
-            player.x - player.w / 2, effectiveY - player.h / 2, player.w, player.h,
-            o.x - o.w / 2, obsVisY, o.w, obsVisH
-        )) {
-            if (player.shield) {
-                player.shield = false;
-                emit(o.x, o.y, COLORS.shield, 20, 4, 25);
-                shake(5);
-                sfxShieldBreak();
-                police.surgeTimer = 60; // police gains ground on mistake
-                obstacles.splice(i, 1);
-                continue;
-            } else {
-                gameOver();
-                return;
+        const obsTop = o.y - (o.jumpable ? o.h * 0.2 : o.h * 0.5);
+        const obsBottom = o.y + (o.jumpable ? o.h * 0.2 : o.h * 0.5);
+        const obsVisH = o.jumpable ? o.h * 0.4 : o.h;
+        const playerInLane = Math.abs(player.x - o.x) < LANE_W * 0.5;
+        const playerBottom = effectiveY + player.h / 2;
+
+        // Skip if riding on train or on this obstacle already
+        if (!player.invincible && !player.onTrain && player.onObstacle !== o && playerInLane) {
+            // If jumping & descending & above obstacle → land on it
+            if (player.isJumping && player.jumpVelocity > 0 && player.jumpHeight > 15) {
+                if (playerBottom >= obsTop - 10 && effectiveY < obsTop + 10 &&
+                    player.y > o.y - o.h && player.y < o.y + o.h) {
+                    player.onObstacle = o;
+                    player.isJumping = false;
+                    player.jumpHeight = (player.y - obsTop) + player.h / 2 + 5;
+                    player.jumpVelocity = 0;
+                    emit(player.x, effectiveY + player.h / 2, '#76ff03', 6, 2, 10);
+                    score += Math.floor(30 * multiplier); // bonus for landing on obstacle
+                    continue;
+                }
+            }
+            // On ground and hitting obstacle → caught
+            if (!player.isJumping && player.jumpHeight < 10) {
+                if (playerBottom > obsTop + 5 && effectiveY < obsBottom - 5) {
+                    if (player.shield) {
+                        player.shield = false;
+                        emit(o.x, o.y, COLORS.shield, 20, 4, 25);
+                        shake(5);
+                        sfxShieldBreak();
+                        obstacles.splice(i, 1);
+                        continue;
+                    } else {
+                        gameOver();
+                        return;
+                    }
+                }
             }
         }
 
-        // Near-miss bonus (obstacle just passed player without collision)
+        // Riding on this obstacle
+        if (player.onObstacle === o) {
+            player.jumpHeight = (player.y - obsTop) + player.h / 2 + 5;
+            player.isJumping = false;
+            player.jumpVelocity = 0;
+            // Fall off if obstacle passed below or player changed lane
+            if (o.y > player.y + 20 || !playerInLane) {
+                player.onObstacle = null;
+                player.isJumping = true;
+                player.jumpVelocity = 0;
+                player.jumpHeight = Math.max(player.jumpHeight - 10, 30);
+            }
+        }
+
+        // Near-miss bonus
         if (!o.scored && o.y > player.y + player.h / 2 + 5) {
             o.scored = true;
-            // Check if it was close horizontally
             const laneMatch = Math.abs(o.x - player.x) < LANE_W * 0.7;
             if (laneMatch && player.jumpHeight > 15) {
-                // Jumped over something close — near miss!
                 score += Math.floor(25 * multiplier);
                 emit(player.x, player.y - player.jumpHeight, '#76ff03', 4, 1.5, 10);
             }
         }
 
-        if (o.y > H + 50) obstacles.splice(i, 1);
+        if (o.y > H + 50) {
+            if (player.onObstacle === o) player.onObstacle = null;
+            obstacles.splice(i, 1);
+        }
     }
 
     // Update trains
@@ -702,8 +733,8 @@ function update() {
             }
         }
 
-        // Ground collision with train (if not jumping over or on top)
-        if (!player.onTrain && player.lane === tr.lane) {
+        // Ground collision with train (if not jumping, on train, or on obstacle)
+        if (!player.onTrain && !player.onObstacle && player.lane === tr.lane) {
             const trainTop = tr.y;
             const trainBottom = tr.y + tr.totalH;
             const effectivePlayerY = player.y - player.jumpHeight;
@@ -958,34 +989,39 @@ function draw() {
         X.shadowBlur = 20;
         X.shadowColor = COLORS.obstacleGlow;
 
+        const riding = player.onObstacle === o;
         if (o.jumpable) {
-            // Jumpable: low barrier style — flat, orange-yellow (clearly different from tall)
-            const grad = X.createLinearGradient(o.x - o.w / 2, o.y - o.h / 4, o.x - o.w / 2, o.y + o.h / 4);
+            // Short obstacle — orange, easy to land on
+            const grad = X.createLinearGradient(o.x - o.w / 2, o.y - o.h * 0.2, o.x - o.w / 2, o.y + o.h * 0.2);
             grad.addColorStop(0, '#ff8a00');
             grad.addColorStop(1, '#e65100');
             X.fillStyle = grad;
             X.shadowColor = 'rgba(255,138,0,0.4)';
             roundRect(o.x - o.w / 2, o.y - o.h * 0.2, o.w, o.h * 0.4, 3);
-            // Top highlight
-            X.fillStyle = 'rgba(255,255,255,0.2)';
-            X.fillRect(o.x - o.w / 2 + 2, o.y - o.h * 0.2, o.w - 4, 2);
-            // Small "↑" hint above barrier
-            X.fillStyle = 'rgba(255,255,255,0.25)';
-            X.font = '10px JetBrains Mono';
-            X.textAlign = 'center';
-            X.textBaseline = 'bottom';
-            X.fillText('▲', o.x, o.y - o.h * 0.25);
+            // Bright top edge
+            X.fillStyle = 'rgba(255,255,255,0.3)';
+            X.fillRect(o.x - o.w / 2 + 2, o.y - o.h * 0.2, o.w - 4, 3);
         } else {
-            // Tall barrier — must dodge, not jumpable
+            // Tall obstacle — red, can land on top
             const grad = X.createLinearGradient(o.x - o.w / 2, o.y - o.h / 2, o.x + o.w / 2, o.y + o.h / 2);
             grad.addColorStop(0, '#ff1744');
             grad.addColorStop(0.5, '#d50000');
             grad.addColorStop(1, '#ff1744');
             X.fillStyle = grad;
             roundRect(o.x - o.w / 2, o.y - o.h / 2, o.w, o.h, 5);
-            // Neon edge top
-            X.fillStyle = 'rgba(255,82,82,0.5)';
-            X.fillRect(o.x - o.w / 2 + 3, o.y - o.h / 2, o.w - 6, 2);
+            // Bright top edge
+            X.fillStyle = 'rgba(255,255,255,0.25)';
+            X.fillRect(o.x - o.w / 2 + 3, o.y - o.h / 2, o.w - 6, 3);
+        }
+        // Green glow when riding
+        if (riding) {
+            X.strokeStyle = '#76ff03';
+            X.lineWidth = 2;
+            X.globalAlpha = 0.5 + Math.sin(gameTime * 0.1) * 0.2;
+            const ry = o.jumpable ? o.y - o.h * 0.2 : o.y - o.h / 2;
+            const rh = o.jumpable ? o.h * 0.4 : o.h;
+            X.strokeRect(o.x - o.w / 2 - 2, ry - 2, o.w + 4, rh + 4);
+            X.globalAlpha = 1;
         }
         X.shadowBlur = 0;
     });
