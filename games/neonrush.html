@@ -458,9 +458,11 @@ function startGame() {
     trains = [];
     trainSpawnTimer = 0;
 
-    // Police reset — starts well off screen
-    police.y = H + 200;
-    police.targetY = H + 200;
+    // Police reset
+    policeCatchAnim = false;
+    policeCatchTimer = 0;
+    police.y = player.y + 120; // start at cruise distance
+    police.targetY = player.y + 120;
     police.lane = 1;
     police.runAnim = 0;
     police.dogAnim = 0;
@@ -469,28 +471,66 @@ function startGame() {
     startSiren();
 }
 
+let policeCatchAnim = false;
+let policeCatchTimer = 0;
+
 function gameOver() {
+    // Don't end immediately — start police catch animation
+    if (!policeCatchAnim) {
+        policeCatchAnim = true;
+        policeCatchTimer = 0;
+        slowMo = 0.3; // slow-mo while police approaches
+        shake(10);
+        sfxCrash();
+        emit(player.x, player.y, '#ff1744', 25, 4, 35);
+        return; // don't set STATE.OVER yet
+    }
+    // Actually end the game (called after catch animation)
     state = STATE.OVER;
     gameOverTime = Date.now();
+    policeCatchAnim = false;
     stopSiren();
-    sfxCrash();
     if (score > highScore) {
         highScore = score;
         localStorage.setItem('neonrush_hi', highScore);
     }
     localStorage.setItem('neonrush_coins', totalCoins);
     shake(15);
-    emit(player.x, player.y, '#ff1744', 40, 6, 50);
-    emit(player.x, player.y, '#ff6e40', 30, 4, 40);
-
-    // Slow-mo death
-    slowMo = 0.2;
-    setTimeout(() => slowMo = 1, 600);
+    emit(player.x, player.y, '#ff1744', 30, 5, 40);
+    emit(player.x, player.y, '#2979ff', 20, 3, 30); // blue police particles
+    slowMo = 1;
 }
 
 // ======================== UPDATE ========================
 function update() {
     if (state !== STATE.PLAY) return;
+
+    // Police catch animation — police rushes to player
+    if (policeCatchAnim) {
+        policeCatchTimer++;
+        police.runAnim += 0.4; // fast run
+        police.dogAnim += 0.5;
+        // Rush police toward player
+        police.y += (player.y - police.y) * 0.12;
+        police.lane = player.lane; // lock onto player lane
+        // When close enough, end game
+        if (Math.abs(police.y - player.y) < 15 || policeCatchTimer > 60) {
+            gameOver(); // second call → actually ends
+        }
+        // Update particles during catch
+        for (let i = particles.length - 1; i >= 0; i--) {
+            const p = particles[i];
+            p.x += p.vx; p.y += p.vy; p.life--;
+            if (p.life <= 0) particles.splice(i, 1);
+        }
+        if (shakeDecay > 0) {
+            shakeX = (Math.random() - 0.5) * shakeDecay;
+            shakeY = (Math.random() - 0.5) * shakeDecay;
+            shakeDecay *= 0.92;
+            if (shakeDecay < 0.3) { shakeDecay = 0; shakeX = 0; shakeY = 0; }
+        }
+        return;
+    }
 
     const dt = slowMo;
     gameTime += dt;
@@ -822,42 +862,22 @@ function update() {
     police.runAnim += dt * 0.25;
     police.dogAnim += dt * 0.35;
 
-    // Police chase — starts far behind, very slowly approaches
-    // Only gets dangerously close after sustained play (60s+)
-    // Hitting obstacles slows YOU down, letting police gain ground
-    const chaseProgress = Math.min(gameTime / 3000, 1); // full approach takes ~3000 frames (~50s at 60fps)
-    const baseTarget = H * 1.15 - chaseProgress * H * 0.30; // starts well below screen, approaches to ~H*0.85
-    
-    // Police gains extra ground when player hits obstacle (shield break) or slows
-    if (!police.surgeTimer) police.surgeTimer = 0;
-    if (police.surgeTimer > 0) {
-        police.surgeTimer -= dt;
-        police.targetY = Math.min(police.targetY, baseTarget - 30); // surge closer
-    } else {
-        police.targetY = baseTarget;
-    }
-    
-    // Very slow lerp — police doesn't teleport
-    police.y += (police.targetY - police.y) * 0.005;
+    // Police always visible, cruising at fixed distance behind player
+    const cruiseY = player.y + 120; // always 120px behind (below) player
+    police.targetY = cruiseY;
+    police.y += (police.targetY - police.y) * 0.08; // smooth follow
 
-    // Police follows player lane with heavy delay
+    // Police follows player lane with slight delay
     police.laneTimer = (police.laneTimer || 0) + dt;
-    if (police.laneTimer > 40) { // reacts slowly
+    if (police.laneTimer > 15) {
         police.laneTimer = 0;
         if (player.lane !== police.lane) {
             police.lane += (player.lane > police.lane ? 1 : -1);
         }
     }
 
-    // Siren volume based on proximity
-    const policeProximity = Math.max(0, 1 - (police.y - player.y) / H);
-    setSirenVolume(0.015 + policeProximity * 0.04);
-
-    // Police catches player ONLY if very close
-    if (police.y <= player.y + 10 && police.y >= player.y - 10) {
-        gameOver();
-        return;
-    }
+    // Constant siren volume (always nearby)
+    setSirenVolume(0.035);
 
     // Screen shake
     if (shakeDecay > 0) {
@@ -1161,10 +1181,10 @@ function drawPlayer() {
 }
 
 function drawPolice() {
-    if (state !== STATE.PLAY && state !== STATE.OVER) return;
+    if (state !== STATE.PLAY && state !== STATE.OVER && !policeCatchAnim) return;
     const px = LANES[police.lane];
     const py = police.y;
-    if (py > H + 100) return; // off screen
+    if (py > H + 50) return; // off screen
 
     const legSwing = Math.sin(police.runAnim) * 5;
     const armSwing = Math.sin(police.runAnim + Math.PI) * 4;
@@ -1379,7 +1399,7 @@ function drawGameOver() {
     X.fillStyle = '#ff1744';
     X.font = 'bold 22px Press Start 2P';
     X.textAlign = 'center';
-    X.fillText('GAME OVER', W / 2, H * 0.30);
+    X.fillText('CAUGHT!', W / 2, H * 0.30);
     X.shadowBlur = 0;
 
     X.fillStyle = '#fff';
