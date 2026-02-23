@@ -333,10 +333,15 @@ function recalcFlow() {
     }
 }
 
+let clearCooldown = 0; // prevent rapid re-clears
+
 function triggerClear() {
+    if (clearCooldown > 0) return; // already cleared recently, wait for animation
+    clearCooldown = 30; // ~0.5s cooldown
+
     combo++;
     const pathLen = flowPaths.length;
-    const points = pathLen * 10 * combo;
+    const points = pathLen + combo * 2; // balanced: ~10-20 pts per clear
     score += points;
 
     if (score > highScore) {
@@ -344,14 +349,14 @@ function triggerClear() {
         setStore('flux_high', String(highScore));
     }
 
-    // Level up every 200 points
-    const newLevel = Math.floor(score / 200) + 1;
+    // Level up every 50 points (balanced with new scoring)
+    const newLevel = Math.floor(score / 50) + 1;
     if (newLevel > level) {
-        level = newLevel;
+        // Only advance 1 level at a time
+        level++;
         sfxLevelUp();
         flashColor = '#44ffaa'; flashAlpha = 0.25;
         floatText(W / 2, GY - 20, `LEVEL ${level}`, '#44ffaa', 16);
-        // Increase speed
         pushInterval = Math.max(MIN_PUSH, Math.round(BASE_PUSH - (level - 1) * 180));
     }
 
@@ -366,9 +371,9 @@ function triggerClear() {
         grid[r][c].clearing = 1;
     }
 
-    floatText(W / 2, GY + ROWS * CELL / 2, `+${points}`, '#00e5ff', combo > 1 ? 18 : 14);
-    if (combo >= 3) {
-        floatText(W / 2, GY + ROWS * CELL / 2 - 30, `${combo}x CHAIN!`, '#ffaa33', 16);
+    floatText(W / 2, GY + ROWS * CELL / 2, `+${points}`, '#00e5ff', 14);
+    if (combo >= 2) {
+        floatText(W / 2, GY + ROWS * CELL / 2 - 25, `${combo}x CHAIN`, '#ffaa33', 12);
     }
 
     // Particles along path
@@ -521,6 +526,7 @@ function update() {
 
     if (shakeTime > 0) shakeTime--;
     if (flashAlpha > 0) flashAlpha -= 0.012;
+    if (clearCooldown > 0) clearCooldown--;
 }
 
 function checkGameOver() {
