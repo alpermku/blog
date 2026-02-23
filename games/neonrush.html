@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Neon Rush - Arcade</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;700&display=swap');
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{background:#05050a;overflow:hidden;font-family:'JetBrains Mono',monospace;color:#fff;user-select:none;display:flex;justify-content:center;align-items:center;height:100vh;touch-action:none}
+        canvas{display:block;box-shadow:0 0 50px rgba(0,229,255,0.1)}
+        .back-btn{position:fixed;top:14px;left:18px;z-index:20;font-family:'JetBrains Mono',monospace;font-size:13px;color:rgba(255,255,255,0.3);text-decoration:none;transition:color .2s;z-index:100}
+        .back-btn:hover{color:#fff}
+    </style>
+</head>
+<body>
+    <a href="../games.html" class="back-btn">← Arcade</a>
+    <canvas id="c"></canvas>
+<script>
+// ============================================================
+//  N E O N   R U S H  —  Endless Runner
+//  Simplified Subway Surfers with neon aesthetic
+//  Features: 3 lanes, obstacles, coins, power-ups, combos,
+//  screen shake, particles, progressive difficulty, DDA
+// ============================================================
+
+const C = document.getElementById('c');
+const X = C.getContext('2d');
+
+// Responsive sizing
+let W, H, LANE_W, ROAD_W, ROAD_X, LANES;
+function resize() {
+    W = C.width = window.innerWidth;
+    H = C.height = window.innerHeight;
+    ROAD_W = Math.min(W * 0.85, 420);
+    ROAD_X = (W - ROAD_W) / 2;
+    LANE_W = ROAD_W / 3;
+    LANES = [ROAD_X + LANE_W * 0.5, ROAD_X + LANE_W * 1.5, ROAD_X + LANE_W * 2.5];
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ======================== GAME STATE ========================
+const STATE = { MENU: 0, PLAY: 1, OVER: 2 };
+let state = STATE.MENU;
+let score = 0;
+let highScore = parseInt(localStorage.getItem('neonrush_hi')) || 0;
+let totalCoins = parseInt(localStorage.getItem('neonrush_coins')) || 0;
+let distance = 0;
+let combo = 0;
+let maxCombo = 0;
+let comboTimer = 0;
+let multiplier = 1;
+let speed = 5;
+let baseSpeed = 5;
+let maxSpeed = 18;
+let speedRamp = 0.003;
+let gameTime = 0;
+let shakeX = 0, shakeY = 0, shakeDecay = 0;
+let slowMo = 1;
+let slowMoTimer = 0;
+
+// ======================== PLAYER ========================
+const player = {
+    lane: 1,
+    x: 0, y: 0,
+    targetX: 0,
+    w: 28, h: 50,
+    color: '#00e5ff',
+    trail: [],
+    shield: false,
+    shieldTimer: 0,
+    magnet: false,
+    magnetTimer: 0,
+    invincible: false,
+    invTimer: 0,
+    tilt: 0
+};
+
+// ======================== ENTITIES ========================
+let obstacles = [];
+let coins = [];
+let powerups = [];
+let particles = [];
+let roadLines = [];
+let stars = [];
+
+// Road lines
+for (let i = 0; i < 20; i++) {
+    roadLines.push({ y: i * (H / 10), speed: 1 });
+}
+
+// Stars
+for (let i = 0; i < 60; i++) {
+    stars.push({
+        x: Math.random() * W,
+        y: Math.random() * H,
+        size: Math.random() * 1.5 + 0.5,
+        speed: Math.random() * 0.5 + 0.2,
+        alpha: Math.random() * 0.5 + 0.3
+    });
+}
+
+// ======================== COLORS ========================
+const COLORS = {
+    road: '#0a0a18',
+    roadEdge: '#1a1a3a',
+    line: '#1a1a3a',
+    coin: '#ffd700',
+    obstacle: '#ff1744',
+    obstacleGlow: 'rgba(255,23,68,0.3)',
+    shield: '#00e5ff',
+    magnet: '#e040fb',
+    star2x: '#ffab00',
+    comboText: '#76ff03',
+    playerGlow: 'rgba(0,229,255,0.4)'
+};
+
+// ======================== SPAWN LOGIC ========================
+let spawnTimer = 0;
+let coinPatternTimer = 0;
+let powerupTimer = 0;
+let difficultyLevel = 1;
+
+function spawnObstacle() {
+    const lane = Math.floor(Math.random() * 3);
+    // Don't block all lanes — check recent obstacles
+    const recentLanes = obstacles.filter(o => o.y < -H * 0.2).map(o => o.lane);
+    if (recentLanes.length >= 2 && recentLanes.includes(lane)) return;
+
+    const types = ['block', 'wide', 'moving'];
+    let type = 'block';
+    if (difficultyLevel >= 3) type = types[Math.floor(Math.random() * (difficultyLevel >= 5 ? 3 : 2))];
+
+    const w = type === 'wide' ? LANE_W * 1.8 : LANE_W * 0.6;
+    const h = type === 'wide' ? 25 : 40 + Math.random() * 20;
+
+    obstacles.push({
+        lane, type, x: LANES[lane], y: -h,
+        w, h, color: COLORS.obstacle,
+        moveDir: type === 'moving' ? (Math.random() > 0.5 ? 1 : -1) : 0,
+        moveSpeed: 1.5 + Math.random()
+    });
+}
+
+function spawnCoinLine() {
+    const lane = Math.floor(Math.random() * 3);
+    const count = 3 + Math.floor(Math.random() * 4);
+    for (let i = 0; i < count; i++) {
+        coins.push({
+            lane, x: LANES[lane], y: -40 - i * 50,
+            r: 8, collected: false, alpha: 1,
+            bobOffset: Math.random() * Math.PI * 2
+        });
+    }
+}
+
+function spawnCoinArc() {
+    const startLane = Math.floor(Math.random() * 2);
+    for (let i = 0; i < 5; i++) {
+        const t = i / 4;
+        const lane = startLane + (t < 0.5 ? 0 : 1);
+        const laneX = LANES[Math.min(lane, 2)];
+        coins.push({
+            lane: Math.min(lane, 2),
+            x: laneX + (t - 0.5) * LANE_W * 0.5,
+            y: -40 - i * 45,
+            r: 8, collected: false, alpha: 1,
+            bobOffset: Math.random() * Math.PI * 2
+        });
+    }
+}
+
+function spawnPowerup() {
+    const lane = Math.floor(Math.random() * 3);
+    const types = ['shield', 'magnet', 'star2x'];
+    const type = types[Math.floor(Math.random() * types.length)];
+    const colors = { shield: COLORS.shield, magnet: COLORS.magnet, star2x: COLORS.star2x };
+    powerups.push({
+        lane, type, x: LANES[lane], y: -30,
+        r: 14, color: colors[type], pulse: 0
+    });
+}
+
+// ======================== PARTICLES ========================
+function emit(x, y, color, count, spread, life) {
+    for (let i = 0; i < count; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const spd = Math.random() * spread + 1;
+        particles.push({
+            x, y,
+            vx: Math.cos(angle) * spd,
+            vy: Math.sin(angle) * spd - 1,
+            life: life || 30 + Math.random() * 20,
+            maxLife: life || 30 + Math.random() * 20,
+            color, size: Math.random() * 3 + 1
+        });
+    }
+}
+
+function shake(intensity) {
+    shakeDecay = intensity;
+}
+
+// ======================== INPUT ========================
+let touchStartX = 0, touchStartY = 0, touchStartTime = 0;
+const keys = {};
+
+document.addEventListener('keydown', e => {
+    keys[e.key] = true;
+    if (state === STATE.MENU) { startGame(); return; }
+    if (state === STATE.OVER) { if (e.key === ' ' || e.key === 'Enter') startGame(); return; }
+    if (e.key === 'ArrowLeft' || e.key === 'a') moveLane(-1);
+    if (e.key === 'ArrowRight' || e.key === 'd') moveLane(1);
+});
+document.addEventListener('keyup', e => keys[e.key] = false);
+
+C.addEventListener('touchstart', e => {
+    e.preventDefault();
+    const t = e.touches[0];
+    touchStartX = t.clientX;
+    touchStartY = t.clientY;
+    touchStartTime = Date.now();
+    if (state === STATE.MENU) startGame();
+    if (state === STATE.OVER && Date.now() - gameOverTime > 500) startGame();
+});
+
+C.addEventListener('touchmove', e => e.preventDefault());
+
+C.addEventListener('touchend', e => {
+    e.preventDefault();
+    if (state !== STATE.PLAY) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - touchStartX;
+    const dy = t.clientY - touchStartY;
+    const dt = Date.now() - touchStartTime;
+    if (Math.abs(dx) > 30 && dt < 300) {
+        moveLane(dx > 0 ? 1 : -1);
+    }
+});
+
+// Tap left/right half for quick lane switch
+C.addEventListener('click', e => {
+    if (state === STATE.MENU) { startGame(); return; }
+    if (state !== STATE.PLAY) return;
+    const half = W / 2;
+    if (e.clientX < half) moveLane(-1);
+    else moveLane(1);
+});
+
+function moveLane(dir) {
+    const newLane = player.lane + dir;
+    if (newLane < 0 || newLane > 2) return;
+    player.lane = newLane;
+    player.targetX = LANES[player.lane];
+    player.tilt = dir * 0.3;
+}
+
+// ======================== GAME LIFECYCLE ========================
+let gameOverTime = 0;
+
+function startGame() {
+    state = STATE.PLAY;
+    score = 0;
+    distance = 0;
+    combo = 0;
+    maxCombo = 0;
+    comboTimer = 0;
+    multiplier = 1;
+    speed = baseSpeed;
+    gameTime = 0;
+    difficultyLevel = 1;
+    spawnTimer = 0;
+    coinPatternTimer = 0;
+    powerupTimer = 0;
+    slowMo = 1;
+    slowMoTimer = 0;
+    shakeX = 0; shakeY = 0; shakeDecay = 0;
+
+    player.lane = 1;
+    player.x = LANES[1];
+    player.y = H * 0.75;
+    player.targetX = LANES[1];
+    player.shield = false;
+    player.magnet = false;
+    player.invincible = false;
+    player.tilt = 0;
+    player.trail = [];
+
+    obstacles = [];
+    coins = [];
+    powerups = [];
+    particles = [];
+}
+
+function gameOver() {
+    state = STATE.OVER;
+    gameOverTime = Date.now();
+    if (score > highScore) {
+        highScore = score;
+        localStorage.setItem('neonrush_hi', highScore);
+    }
+    localStorage.setItem('neonrush_coins', totalCoins);
+    shake(15);
+    emit(player.x, player.y, '#ff1744', 40, 6, 50);
+    emit(player.x, player.y, '#ff6e40', 30, 4, 40);
+
+    // Slow-mo death
+    slowMo = 0.2;
+    setTimeout(() => slowMo = 1, 600);
+}
+
+// ======================== UPDATE ========================
+function update() {
+    if (state !== STATE.PLAY) return;
+
+    const dt = slowMo;
+    gameTime += dt;
+
+    // Progressive difficulty
+    speed = Math.min(baseSpeed + gameTime * speedRamp, maxSpeed);
+    difficultyLevel = Math.floor(gameTime / 500) + 1;
+
+    // DDA: if combo is low and player keeps dying, slow down a bit
+    if (maxCombo < 3 && gameTime > 300) {
+        speed *= 0.95;
+    }
+
+    distance += speed * dt;
+    score = Math.floor(distance * multiplier);
+
+    // Player movement (smooth lerp)
+    player.x += (player.targetX - player.x) * 0.18;
+    player.tilt *= 0.9;
+
+    // Trail
+    player.trail.push({ x: player.x, y: player.y, alpha: 1 });
+    if (player.trail.length > 15) player.trail.shift();
+    player.trail.forEach(t => t.alpha *= 0.92);
+
+    // Timers
+    if (player.shield) {
+        player.shieldTimer -= dt;
+        if (player.shieldTimer <= 0) player.shield = false;
+    }
+    if (player.magnet) {
+        player.magnetTimer -= dt;
+        if (player.magnetTimer <= 0) player.magnet = false;
+    }
+    if (player.invincible) {
+        player.invTimer -= dt;
+        if (player.invTimer <= 0) player.invincible = false;
+    }
+
+    // Combo decay
+    if (comboTimer > 0) {
+        comboTimer -= dt;
+        if (comboTimer <= 0) {
+            combo = 0;
+            multiplier = 1;
+        }
+    }
+
+    // Spawn obstacles
+    const spawnRate = Math.max(30, 80 - difficultyLevel * 5);
+    spawnTimer += dt;
+    if (spawnTimer >= spawnRate) {
+        spawnTimer = 0;
+        spawnObstacle();
+        // Sometimes double
+        if (difficultyLevel >= 4 && Math.random() > 0.6) {
+            spawnObstacle();
+        }
+    }
+
+    // Spawn coins
+    coinPatternTimer += dt;
+    if (coinPatternTimer >= 45) {
+        coinPatternTimer = 0;
+        if (Math.random() > 0.4) spawnCoinLine();
+        else spawnCoinArc();
+    }
+
+    // Spawn powerups
+    powerupTimer += dt;
+    if (powerupTimer >= 300 + Math.random() * 200) {
+        powerupTimer = 0;
+        spawnPowerup();
+    }
+
+    // Update obstacles
+    for (let i = obstacles.length - 1; i >= 0; i--) {
+        const o = obstacles[i];
+        o.y += speed * dt;
+
+        // Moving obstacles
+        if (o.moveDir) {
+            o.x += o.moveDir * o.moveSpeed * dt;
+            if (o.x < ROAD_X + o.w / 2 || o.x > ROAD_X + ROAD_W - o.w / 2) {
+                o.moveDir *= -1;
+            }
+        }
+
+        // Collision
+        if (!player.invincible && rectCollide(
+            player.x - player.w / 2, player.y - player.h / 2, player.w, player.h,
+            o.x - o.w / 2, o.y - o.h / 2, o.w, o.h
+        )) {
+            if (player.shield) {
+                player.shield = false;
+                emit(o.x, o.y, COLORS.shield, 20, 4, 25);
+                shake(5);
+                obstacles.splice(i, 1);
+                continue;
+            } else {
+                gameOver();
+                return;
+            }
+        }
+
+        if (o.y > H + 50) obstacles.splice(i, 1);
+    }
+
+    // Update coins
+    for (let i = coins.length - 1; i >= 0; i--) {
+        const c = coins[i];
+        c.y += speed * dt;
+
+        // Magnet pull
+        if (player.magnet && !c.collected) {
+            const dx = player.x - c.x;
+            const dy = player.y - c.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < 200) {
+                c.x += dx * 0.1;
+                c.y += dy * 0.1;
+            }
+        }
+
+        // Collect
+        if (!c.collected) {
+            const dx = player.x - c.x;
+            const dy = player.y - c.y;
+            if (Math.sqrt(dx * dx + dy * dy) < 22) {
+                c.collected = true;
+                combo++;
+                comboTimer = 60;
+                multiplier = 1 + Math.floor(combo / 5) * 0.5;
+                if (combo > maxCombo) maxCombo = combo;
+                totalCoins++;
+                score += Math.floor(10 * multiplier);
+                emit(c.x, c.y, COLORS.coin, 6, 2, 15);
+            }
+        }
+
+        if (c.collected) {
+            c.alpha -= 0.1;
+            if (c.alpha <= 0) { coins.splice(i, 1); continue; }
+        }
+        if (c.y > H + 30) coins.splice(i, 1);
+    }
+
+    // Update powerups
+    for (let i = powerups.length - 1; i >= 0; i--) {
+        const p = powerups[i];
+        p.y += speed * dt;
+        p.pulse += 0.05;
+
+        const dx = player.x - p.x;
+        const dy = player.y - p.y;
+        if (Math.sqrt(dx * dx + dy * dy) < 24) {
+            if (p.type === 'shield') {
+                player.shield = true;
+                player.shieldTimer = 300;
+            } else if (p.type === 'magnet') {
+                player.magnet = true;
+                player.magnetTimer = 400;
+            } else if (p.type === 'star2x') {
+                multiplier = Math.max(multiplier, 2);
+                comboTimer = 200;
+            }
+            emit(p.x, p.y, p.color, 15, 3, 20);
+            shake(3);
+            powerups.splice(i, 1);
+            continue;
+        }
+        if (p.y > H + 30) powerups.splice(i, 1);
+    }
+
+    // Update particles
+    for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        p.life--;
+        if (p.life <= 0) particles.splice(i, 1);
+    }
+
+    // Road lines
+    roadLines.forEach(l => {
+        l.y += speed * dt * 0.8;
+        if (l.y > H + 20) l.y -= H + H / 10 + 20;
+    });
+
+    // Stars
+    stars.forEach(s => {
+        s.y += s.speed * dt;
+        if (s.y > H) { s.y = 0; s.x = Math.random() * W; }
+    });
+
+    // Screen shake
+    if (shakeDecay > 0) {
+        shakeX = (Math.random() - 0.5) * shakeDecay;
+        shakeY = (Math.random() - 0.5) * shakeDecay;
+        shakeDecay *= 0.9;
+        if (shakeDecay < 0.3) { shakeDecay = 0; shakeX = 0; shakeY = 0; }
+    }
+}
+
+function rectCollide(x1, y1, w1, h1, x2, y2, w2, h2) {
+    return x1 < x2 + w2 && x1 + w1 > x2 && y1 < y2 + h2 && y1 + h1 > y2;
+}
+
+// ======================== DRAW ========================
+function draw() {
+    X.save();
+    X.translate(shakeX, shakeY);
+
+    // Background
+    X.fillStyle = '#05050a';
+    X.fillRect(0, 0, W, H);
+
+    // Stars
+    stars.forEach(s => {
+        X.globalAlpha = s.alpha;
+        X.fillStyle = '#fff';
+        X.fillRect(s.x, s.y, s.size, s.size);
+    });
+    X.globalAlpha = 1;
+
+    if (state === STATE.MENU) {
+        drawMenu();
+        X.restore();
+        return;
+    }
+
+    // Road
+    const roadGrad = X.createLinearGradient(ROAD_X, 0, ROAD_X + ROAD_W, 0);
+    roadGrad.addColorStop(0, '#0d0d20');
+    roadGrad.addColorStop(0.5, '#0a0a18');
+    roadGrad.addColorStop(1, '#0d0d20');
+    X.fillStyle = roadGrad;
+    X.fillRect(ROAD_X, 0, ROAD_W, H);
+
+    // Road edges (neon glow)
+    X.shadowBlur = 15;
+    X.shadowColor = '#00e5ff';
+    X.strokeStyle = '#00e5ff';
+    X.lineWidth = 2;
+    X.globalAlpha = 0.4;
+    X.beginPath(); X.moveTo(ROAD_X, 0); X.lineTo(ROAD_X, H); X.stroke();
+    X.beginPath(); X.moveTo(ROAD_X + ROAD_W, 0); X.lineTo(ROAD_X + ROAD_W, H); X.stroke();
+    X.shadowBlur = 0;
+    X.globalAlpha = 1;
+
+    // Lane dividers
+    roadLines.forEach(l => {
+        X.fillStyle = COLORS.line;
+        X.globalAlpha = 0.3;
+        for (let i = 1; i < 3; i++) {
+            X.fillRect(ROAD_X + LANE_W * i - 1, l.y, 2, 25);
+        }
+    });
+    X.globalAlpha = 1;
+
+    // Player trail
+    player.trail.forEach((t, idx) => {
+        X.globalAlpha = t.alpha * 0.3;
+        X.fillStyle = player.shield ? COLORS.shield : '#00e5ff';
+        const s = player.w * 0.5 * (idx / player.trail.length);
+        X.fillRect(t.x - s / 2, t.y, s, 3);
+    });
+    X.globalAlpha = 1;
+
+    // Obstacles
+    obstacles.forEach(o => {
+        // Glow
+        X.shadowBlur = 20;
+        X.shadowColor = COLORS.obstacleGlow;
+        X.fillStyle = COLORS.obstacle;
+
+        // Draw obstacle with slight bevel
+        const grad = X.createLinearGradient(o.x - o.w / 2, o.y, o.x + o.w / 2, o.y);
+        grad.addColorStop(0, '#ff1744');
+        grad.addColorStop(0.5, '#ff5252');
+        grad.addColorStop(1, '#ff1744');
+        X.fillStyle = grad;
+        roundRect(o.x - o.w / 2, o.y - o.h / 2, o.w, o.h, 4);
+
+        // Warning stripes
+        X.fillStyle = 'rgba(0,0,0,0.2)';
+        for (let s = 0; s < o.w; s += 12) {
+            X.fillRect(o.x - o.w / 2 + s, o.y - o.h / 2, 4, o.h);
+        }
+        X.shadowBlur = 0;
+    });
+
+    // Coins
+    coins.forEach(c => {
+        if (c.collected) { X.globalAlpha = c.alpha; }
+        const bob = Math.sin(gameTime * 0.05 + c.bobOffset) * 2;
+        X.shadowBlur = 10;
+        X.shadowColor = COLORS.coin;
+        X.fillStyle = COLORS.coin;
+        X.beginPath();
+        X.arc(c.x, c.y + bob, c.r, 0, Math.PI * 2);
+        X.fill();
+        // Inner shine
+        X.fillStyle = '#fff8e1';
+        X.beginPath();
+        X.arc(c.x - 2, c.y + bob - 2, c.r * 0.35, 0, Math.PI * 2);
+        X.fill();
+        X.shadowBlur = 0;
+        X.globalAlpha = 1;
+    });
+
+    // Powerups
+    powerups.forEach(p => {
+        const pulse = 1 + Math.sin(p.pulse) * 0.15;
+        X.shadowBlur = 20;
+        X.shadowColor = p.color;
+        X.fillStyle = p.color;
+        X.beginPath();
+        X.arc(p.x, p.y, p.r * pulse, 0, Math.PI * 2);
+        X.fill();
+
+        // Icon
+        X.fillStyle = '#fff';
+        X.font = 'bold 12px JetBrains Mono';
+        X.textAlign = 'center';
+        X.textBaseline = 'middle';
+        if (p.type === 'shield') X.fillText('🛡', p.x, p.y);
+        else if (p.type === 'magnet') X.fillText('🧲', p.x, p.y);
+        else if (p.type === 'star2x') X.fillText('⭐', p.x, p.y);
+        X.shadowBlur = 0;
+    });
+
+    // Player
+    drawPlayer();
+
+    // Particles
+    particles.forEach(p => {
+        X.globalAlpha = p.life / p.maxLife;
+        X.fillStyle = p.color;
+        X.fillRect(p.x, p.y, p.size, p.size);
+    });
+    X.globalAlpha = 1;
+
+    // HUD
+    drawHUD();
+
+    if (state === STATE.OVER) drawGameOver();
+
+    X.restore();
+}
+
+function drawPlayer() {
+    const px = player.x;
+    const py = player.y;
+    const pw = player.w;
+    const ph = player.h;
+
+    X.save();
+    X.translate(px, py);
+    X.rotate(player.tilt);
+
+    // Glow
+    X.shadowBlur = player.shield ? 30 : 15;
+    X.shadowColor = player.shield ? COLORS.shield : player.magnet ? COLORS.magnet : COLORS.playerGlow;
+
+    // Body
+    const bodyGrad = X.createLinearGradient(-pw / 2, -ph / 2, pw / 2, ph / 2);
+    bodyGrad.addColorStop(0, player.shield ? '#4dd0e1' : '#00e5ff');
+    bodyGrad.addColorStop(1, player.shield ? '#00838f' : '#0077b6');
+    X.fillStyle = bodyGrad;
+
+    // Runner shape (simplified human silhouette)
+    X.beginPath();
+    // Head
+    X.arc(0, -ph / 2 + 6, 6, 0, Math.PI * 2);
+    X.fill();
+    // Body
+    X.fillRect(-pw / 4, -ph / 2 + 12, pw / 2, ph * 0.4);
+    // Legs (animated)
+    const legAnim = Math.sin(gameTime * 0.3) * 4;
+    X.fillRect(-pw / 4 - 2, -ph / 2 + 12 + ph * 0.4, pw / 4, ph * 0.3);
+    X.fillRect(2, -ph / 2 + 12 + ph * 0.4 + legAnim, pw / 4, ph * 0.3);
+    // Arms
+    const armAnim = Math.sin(gameTime * 0.3 + Math.PI) * 3;
+    X.fillRect(-pw / 2, -ph / 2 + 16 + armAnim, pw / 5, ph * 0.2);
+    X.fillRect(pw / 2 - pw / 5, -ph / 2 + 16 - armAnim, pw / 5, ph * 0.2);
+
+    X.shadowBlur = 0;
+
+    // Shield bubble
+    if (player.shield) {
+        X.strokeStyle = COLORS.shield;
+        X.lineWidth = 2;
+        X.globalAlpha = 0.3 + Math.sin(gameTime * 0.1) * 0.15;
+        X.beginPath();
+        X.arc(0, 0, pw * 0.9, 0, Math.PI * 2);
+        X.stroke();
+        X.globalAlpha = 1;
+    }
+
+    // Magnet aura
+    if (player.magnet) {
+        X.strokeStyle = COLORS.magnet;
+        X.lineWidth = 1.5;
+        X.globalAlpha = 0.2 + Math.sin(gameTime * 0.15) * 0.1;
+        X.beginPath();
+        X.arc(0, 0, pw * 1.2 + Math.sin(gameTime * 0.08) * 5, 0, Math.PI * 2);
+        X.stroke();
+        X.globalAlpha = 1;
+    }
+
+    X.restore();
+}
+
+function drawHUD() {
+    // Score
+    X.fillStyle = '#fff';
+    X.font = 'bold 16px JetBrains Mono';
+    X.textAlign = 'left';
+    X.fillText(score.toLocaleString(), 20, 40);
+
+    // Coins
+    X.fillStyle = COLORS.coin;
+    X.font = '12px JetBrains Mono';
+    X.fillText('🪙 ' + totalCoins, 20, 62);
+
+    // Multiplier
+    if (multiplier > 1) {
+        X.fillStyle = COLORS.comboText;
+        X.font = 'bold 14px JetBrains Mono';
+        X.textAlign = 'right';
+        X.fillText('x' + multiplier.toFixed(1), W - 20, 40);
+    }
+
+    // Combo
+    if (combo > 0 && comboTimer > 0) {
+        X.fillStyle = COLORS.comboText;
+        X.globalAlpha = Math.min(comboTimer / 20, 1);
+        X.font = 'bold 20px Press Start 2P';
+        X.textAlign = 'center';
+        X.fillText(combo + ' COMBO', W / 2, H * 0.35);
+
+        // Combo bar
+        const barW = 120;
+        const barH = 4;
+        const barX = W / 2 - barW / 2;
+        const barY = H * 0.35 + 12;
+        X.fillStyle = 'rgba(255,255,255,0.1)';
+        X.fillRect(barX, barY, barW, barH);
+        X.fillStyle = COLORS.comboText;
+        X.fillRect(barX, barY, barW * (comboTimer / 60), barH);
+        X.globalAlpha = 1;
+    }
+
+    // Active power-up indicators
+    let iconY = 85;
+    if (player.shield) {
+        X.fillStyle = COLORS.shield;
+        X.font = '11px JetBrains Mono';
+        X.textAlign = 'left';
+        X.fillText('🛡 SHIELD', 20, iconY);
+        iconY += 18;
+    }
+    if (player.magnet) {
+        X.fillStyle = COLORS.magnet;
+        X.font = '11px JetBrains Mono';
+        X.textAlign = 'left';
+        X.fillText('🧲 MAGNET', 20, iconY);
+        iconY += 18;
+    }
+
+    // Speed indicator (subtle)
+    X.fillStyle = 'rgba(255,255,255,0.15)';
+    X.font = '10px JetBrains Mono';
+    X.textAlign = 'right';
+    X.fillText(Math.floor(speed * 10) + ' km/h', W - 20, H - 20);
+}
+
+function drawMenu() {
+    X.fillStyle = '#fff';
+    X.font = 'bold 28px Press Start 2P';
+    X.textAlign = 'center';
+    X.textBaseline = 'middle';
+
+    // Title glow
+    X.shadowBlur = 30;
+    X.shadowColor = '#00e5ff';
+    X.fillText('NEON', W / 2, H * 0.32);
+    X.fillStyle = '#00e5ff';
+    X.fillText('RUSH', W / 2, H * 0.32 + 40);
+    X.shadowBlur = 0;
+
+    // Runner icon
+    X.font = '48px sans-serif';
+    X.fillText('🏃', W / 2, H * 0.50);
+
+    X.fillStyle = 'rgba(255,255,255,0.5)';
+    X.font = '12px JetBrains Mono';
+    X.fillText('Tap or press any key', W / 2, H * 0.62);
+
+    // High score
+    if (highScore > 0) {
+        X.fillStyle = COLORS.coin;
+        X.font = '11px JetBrains Mono';
+        X.fillText('BEST: ' + highScore.toLocaleString(), W / 2, H * 0.70);
+    }
+
+    // Controls
+    X.fillStyle = 'rgba(255,255,255,0.25)';
+    X.font = '10px JetBrains Mono';
+    X.fillText('← → / Swipe / Tap sides', W / 2, H * 0.78);
+}
+
+function drawGameOver() {
+    X.fillStyle = 'rgba(5,5,10,0.7)';
+    X.fillRect(0, 0, W, H);
+
+    X.shadowBlur = 20;
+    X.shadowColor = '#ff1744';
+    X.fillStyle = '#ff1744';
+    X.font = 'bold 22px Press Start 2P';
+    X.textAlign = 'center';
+    X.fillText('GAME OVER', W / 2, H * 0.30);
+    X.shadowBlur = 0;
+
+    X.fillStyle = '#fff';
+    X.font = '14px JetBrains Mono';
+    X.fillText('Score: ' + score.toLocaleString(), W / 2, H * 0.42);
+
+    X.fillStyle = COLORS.coin;
+    X.fillText('Best: ' + highScore.toLocaleString(), W / 2, H * 0.48);
+
+    X.fillStyle = COLORS.comboText;
+    X.font = '12px JetBrains Mono';
+    X.fillText('Max Combo: ' + maxCombo, W / 2, H * 0.54);
+
+    // Stats
+    X.fillStyle = 'rgba(255,255,255,0.4)';
+    X.font = '11px JetBrains Mono';
+    X.fillText('Distance: ' + Math.floor(distance) + 'm', W / 2, H * 0.62);
+    X.fillText('Top Speed: ' + Math.floor(speed * 10) + ' km/h', W / 2, H * 0.67);
+
+    X.fillStyle = 'rgba(255,255,255,0.5)';
+    X.font = '11px JetBrains Mono';
+    X.fillText('Tap or press Enter to retry', W / 2, H * 0.78);
+}
+
+function roundRect(x, y, w, h, r) {
+    X.beginPath();
+    X.moveTo(x + r, y);
+    X.lineTo(x + w - r, y);
+    X.quadraticCurveTo(x + w, y, x + w, y + r);
+    X.lineTo(x + w, y + h - r);
+    X.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    X.lineTo(x + r, y + h);
+    X.quadraticCurveTo(x, y + h, x, y + h - r);
+    X.lineTo(x, y + r);
+    X.quadraticCurveTo(x, y, x + r, y);
+    X.closePath();
+    X.fill();
+}
+
+// ======================== LOOP ========================
+function loop() {
+    update();
+    draw();
+    requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+</body>
+</html>
