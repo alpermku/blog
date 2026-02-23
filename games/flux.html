@@ -9,14 +9,14 @@
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;700&display=swap');
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            background: #0a0a1a; overflow: hidden;
-            font-family: 'JetBrains Mono', monospace; color: #fff;
+            background: linear-gradient(180deg, #ffffff 0%, #f6f9ff 100%); overflow: hidden;
+            font-family: 'JetBrains Mono', monospace; color: #1f2937;
             user-select: none; display: flex; justify-content: center; align-items: center; height: 100vh;
             touch-action: manipulation;
         }
-        canvas { border: 2px solid rgba(0,200,255,0.2); border-radius: 4px; box-shadow: 0 0 40px rgba(0,200,255,0.06); }
-        .back-btn { position: fixed; top: 14px; left: 18px; z-index: 20; font-family: 'JetBrains Mono', monospace; font-size: 13px; color: rgba(255,255,255,0.35); text-decoration: none; transition: color 0.2s; }
-        .back-btn:hover { color: #fff; }
+        canvas { border: 2px solid #dbeafe; border-radius: 16px; box-shadow: 0 14px 42px rgba(59,130,246,0.12); background: #ffffff; }
+        .back-btn { position: fixed; top: 14px; left: 18px; z-index: 20; font-family: 'JetBrains Mono', monospace; font-size: 13px; color: rgba(31,41,55,0.55); text-decoration: none; transition: color 0.2s; }
+        .back-btn:hover { color: #111827; }
     </style>
 </head>
 <body>
@@ -355,8 +355,8 @@ function triggerClear() {
         // Only advance 1 level at a time
         level++;
         sfxLevelUp();
-        flashColor = '#44ffaa'; flashAlpha = 0.25;
-        floatText(W / 2, GY - 20, `LEVEL ${level}`, '#44ffaa', 16);
+        flashColor = '#34d399'; flashAlpha = 0.20;
+        floatText(W / 2, GY - 20, `LEVEL ${level}`, '#10b981', 16);
         pushInterval = Math.max(MIN_PUSH, Math.round(BASE_PUSH - (level - 1) * 180));
     }
 
@@ -546,7 +546,7 @@ function checkGameOver() {
         gameOver = true;
         sfxGameOver();
         shakeTime = 20;
-        flashColor = '#ff2d78'; flashAlpha = 0.4;
+        flashColor = '#fb7185'; flashAlpha = 0.25;
         if (score > highScore) {
             highScore = score;
             setStore('flux_high', String(highScore));
@@ -570,17 +570,17 @@ const origTriggerClear = triggerClear;
 function resetClearCounter() { pushesWithoutClear = 0; }
 
 // --- Drawing ---
-const ENERGY_COLOR = '#00e5ff';
-const ENERGY_GLOW = 'rgba(0,229,255,0.35)';
-const PIPE_COLOR = 'rgba(255,255,255,0.15)';
-const PIPE_CONNECTED = '#00e5ff';
-const BG_CELL = 'rgba(255,255,255,0.03)';
+const ENERGY_COLOR = '#2563eb';
+const ENERGY_GLOW = 'rgba(37,99,235,0.22)';
+const PIPE_COLOR = '#93c5fd';
+const PIPE_CONNECTED = '#f97316';
+const BG_CELL = '#eff6ff';
 
 function drawPipeSegment(cx, cy, openings, connected, clearing, justPlaced, energyPulse) {
     const half = CELL / 2;
     const pipeW = 8;
 
-    const baseColor = connected ? PIPE_CONNECTED : 'rgba(255,255,255,0.25)';
+    const baseColor = connected ? PIPE_CONNECTED : 'rgba(37,99,235,0.35)';
     const alpha = clearing > 0 ? clearing : 1;
 
     ctx.globalAlpha = alpha;
@@ -612,7 +612,7 @@ function drawPipeSegment(cx, cy, openings, connected, clearing, justPlaced, ener
     ctx.shadowBlur = 0;
 
     // Center node
-    ctx.fillStyle = connected ? PIPE_CONNECTED : 'rgba(255,255,255,0.3)';
+    ctx.fillStyle = connected ? PIPE_CONNECTED : 'rgba(59,130,246,0.45)';
     ctx.beginPath();
     ctx.arc(cx, cy, pipeW / 2 + 1, 0, Math.PI * 2);
     ctx.fill();
@@ -646,15 +646,18 @@ function draw() {
     }
 
     // Background
-    ctx.fillStyle = '#0a0a1a';
+    const bgGrad = ctx.createLinearGradient(0, 0, 0, H);
+    bgGrad.addColorStop(0, '#ffffff');
+    bgGrad.addColorStop(1, '#f8fbff');
+    ctx.fillStyle = bgGrad;
     ctx.fillRect(-10, -10, W + 20, H + 20);
 
     // Grid background
-    ctx.fillStyle = 'rgba(255,255,255,0.015)';
+    ctx.fillStyle = '#f1f5ff';
     ctx.fillRect(GX, GY, COLS * CELL, ROWS * CELL);
 
     // Grid lines
-    ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+    ctx.strokeStyle = 'rgba(37,99,235,0.15)';
     ctx.lineWidth = 1;
     for (let c = 0; c <= COLS; c++) {
         ctx.beginPath(); ctx.moveTo(GX + c * CELL, GY); ctx.lineTo(GX + c * CELL, GY + ROWS * CELL); ctx.stroke();
@@ -689,7 +692,7 @@ function draw() {
     ctx.globalAlpha = 1;
 
     // Drain indicator (bottom)
-    ctx.fillStyle = 'rgba(255,255,255,0.1)';
+    ctx.fillStyle = 'rgba(30,64,175,0.28)';
     const drainY = GY + ROWS * CELL;
     for (let c = 0; c < COLS; c++) {
         const dx = GX + c * CELL + CELL / 2;
@@ -741,16 +744,16 @@ function draw() {
     ctx.textAlign = 'center';
 
     // Score
-    ctx.fillStyle = '#fff';
+    ctx.fillStyle = '#0f172a';
     ctx.font = "bold 20px 'Press Start 2P', monospace";
     ctx.fillText(String(score), W / 2, 38);
 
     // High score + Level
-    ctx.fillStyle = 'rgba(255,255,255,0.3)';
+    ctx.fillStyle = 'rgba(30,41,59,0.55)';
     ctx.font = "8px 'Press Start 2P', monospace";
     ctx.fillText(`BEST ${highScore}`, W / 2, 56);
 
-    ctx.fillStyle = '#44ffaa';
+    ctx.fillStyle = '#10b981';
     ctx.font = "8px 'Press Start 2P', monospace";
     ctx.textAlign = 'right';
     ctx.fillText(`LV ${level}`, W - 16, 38);
@@ -761,10 +764,10 @@ function draw() {
         const barH = 3;
         const barY = GY - 3;
         const progress = pushTimer / pushInterval;
-        ctx.fillStyle = 'rgba(255,255,255,0.06)';
+        ctx.fillStyle = 'rgba(30,41,59,0.12)';
         ctx.fillRect(GX, barY, barW, barH);
 
-        const barColor = progress > 0.8 ? '#ff2d78' : progress > 0.5 ? '#ffaa33' : '#00e5ff';
+        const barColor = progress > 0.8 ? '#ef4444' : progress > 0.5 ? '#f59e0b' : '#3b82f6';
         ctx.fillStyle = barColor;
         ctx.fillRect(GX, barY, barW * progress, barH);
     }
@@ -772,25 +775,25 @@ function draw() {
     // Bottom hint
     if (started && !gameOver) {
         ctx.textAlign = 'center';
-        ctx.fillStyle = 'rgba(255,255,255,0.15)';
+        ctx.fillStyle = 'rgba(30,41,59,0.4)';
         ctx.font = "8px 'JetBrains Mono', monospace";
         ctx.fillText('Tap tiles to rotate • Connect source to drain', W / 2, H - 12);
     }
 
     // Start screen
     if (!started && !gameOver) {
-        ctx.fillStyle = 'rgba(6,8,18,0.7)';
+        ctx.fillStyle = 'rgba(255,255,255,0.82)';
         ctx.fillRect(0, 0, W, H);
 
         ctx.textAlign = 'center';
-        ctx.fillStyle = '#00e5ff';
+        ctx.fillStyle = '#2563eb';
         ctx.font = "bold 32px 'Press Start 2P', monospace";
-        ctx.shadowColor = 'rgba(0,229,255,0.5)';
+        ctx.shadowColor = 'rgba(37,99,235,0.25)';
         ctx.shadowBlur = 20;
         ctx.fillText('FLUX', W / 2, H * 0.3);
         ctx.shadowBlur = 0;
 
-        ctx.fillStyle = 'rgba(255,255,255,0.5)';
+        ctx.fillStyle = 'rgba(15,23,42,0.68)';
         ctx.font = "9px 'Press Start 2P', monospace";
         ctx.fillText('ROTATE PIPES', W / 2, H * 0.3 + 35);
         ctx.fillText('CONNECT SOURCE → DRAIN', W / 2, H * 0.3 + 55);
@@ -810,34 +813,34 @@ function draw() {
         }
         ctx.globalAlpha = 1;
 
-        ctx.fillStyle = 'rgba(255,255,255,0.35)';
+        ctx.fillStyle = 'rgba(15,23,42,0.55)';
         ctx.font = "9px 'Press Start 2P', monospace";
         ctx.fillText('TAP TO START', W / 2, H * 0.68);
     }
 
     // Game over
     if (gameOver) {
-        ctx.fillStyle = 'rgba(6,8,18,0.75)';
+        ctx.fillStyle = 'rgba(255,255,255,0.86)';
         ctx.fillRect(0, 0, W, H);
 
         ctx.textAlign = 'center';
-        ctx.fillStyle = '#ff2d78';
+        ctx.fillStyle = '#ef4444';
         ctx.font = "bold 18px 'Press Start 2P', monospace";
-        ctx.shadowColor = 'rgba(255,45,120,0.5)';
+        ctx.shadowColor = 'rgba(239,68,68,0.2)';
         ctx.shadowBlur = 15;
         ctx.fillText('GAME OVER', W / 2, H * 0.3);
         ctx.shadowBlur = 0;
 
-        ctx.fillStyle = '#fff';
+        ctx.fillStyle = '#0f172a';
         ctx.font = "bold 26px 'Press Start 2P', monospace";
         ctx.fillText(String(score), W / 2, H * 0.4);
 
-        ctx.fillStyle = 'rgba(255,255,255,0.4)';
+        ctx.fillStyle = 'rgba(15,23,42,0.62)';
         ctx.font = "9px 'Press Start 2P', monospace";
         ctx.fillText(`BEST: ${highScore}`, W / 2, H * 0.46);
         ctx.fillText(`LEVEL: ${level}`, W / 2, H * 0.51);
 
-        ctx.fillStyle = 'rgba(255,255,255,0.35)';
+        ctx.fillStyle = 'rgba(15,23,42,0.55)';
         ctx.fillText('TAP TO RETRY', W / 2, H * 0.63);
     }
 
