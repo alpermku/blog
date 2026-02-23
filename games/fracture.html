@@ -41,6 +41,310 @@
 <script>
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
+
+// ================================================================
+//  AUDIO ENGINE — SFX + Procedural Synthwave Music
+// ================================================================
+const AC = new (window.AudioContext || window.webkitAudioContext)();
+const masterGain = AC.createGain();
+masterGain.gain.value = 0.6;
+masterGain.connect(AC.destination);
+
+// Compressor for glue
+const comp = AC.createDynamicsCompressor();
+comp.threshold.value = -20; comp.ratio.value = 4;
+comp.connect(masterGain);
+
+// --- SFX Bus ---
+const sfxBus = AC.createGain();
+sfxBus.gain.value = 0.5;
+sfxBus.connect(comp);
+
+function tone(freq, dur, type, vol, dest, ramp) {
+    const t = AC.currentTime;
+    const o = AC.createOscillator();
+    const g = AC.createGain();
+    o.type = type || 'square';
+    o.frequency.setValueAtTime(freq, t);
+    if (ramp) o.frequency.exponentialRampToValueAtTime(ramp, t + dur);
+    g.gain.setValueAtTime(vol || 0.1, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    o.connect(g); g.connect(dest || sfxBus);
+    o.start(t); o.stop(t + dur);
+    return o;
+}
+
+function noise(dur, vol, dest) {
+    const t = AC.currentTime;
+    const buf = AC.createBuffer(1, AC.sampleRate * dur, AC.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    const s = AC.createBufferSource();
+    const g = AC.createGain();
+    s.buffer = buf;
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    s.connect(g); g.connect(dest || sfxBus);
+    s.start(t);
+}
+
+// --- Sound Effects ---
+function sfxPaddleHit() {
+    tone(300, 0.06, 'triangle', 0.12);
+    tone(600, 0.04, 'sine', 0.06);
+}
+function sfxWallBounce() {
+    tone(220, 0.04, 'sine', 0.06);
+}
+function sfxBrickHit() {
+    tone(400 + Math.random() * 200, 0.05, 'square', 0.06);
+    noise(0.03, 0.04);
+}
+function sfxBrickBreak(isGold) {
+    const base = isGold ? 800 : 500;
+    tone(base, 0.08, 'square', 0.08);
+    tone(base * 1.5, 0.06, 'square', 0.05);
+    noise(0.06, 0.06);
+    if (isGold) {
+        setTimeout(() => tone(1200, 0.1, 'sine', 0.06), 40);
+        setTimeout(() => tone(1600, 0.12, 'sine', 0.05), 80);
+    }
+}
+function sfxComboHit(c) {
+    const freq = 600 + Math.min(c, 10) * 80;
+    tone(freq, 0.1, 'sine', 0.07);
+    setTimeout(() => tone(freq * 1.25, 0.08, 'sine', 0.05), 50);
+}
+function sfxPowerup() {
+    tone(440, 0.06, 'sine', 0.07);
+    setTimeout(() => tone(660, 0.06, 'sine', 0.06), 50);
+    setTimeout(() => tone(880, 0.08, 'sine', 0.06), 100);
+    setTimeout(() => tone(1100, 0.1, 'sine', 0.05), 150);
+}
+function sfxLifeLost() {
+    tone(400, 0.15, 'sawtooth', 0.08, sfxBus, 100);
+    setTimeout(() => tone(200, 0.2, 'sawtooth', 0.06, sfxBus, 80), 100);
+}
+function sfxLevelClear() {
+    const notes = [523, 659, 784, 1047];
+    notes.forEach((n, i) => setTimeout(() => tone(n, 0.2, 'sine', 0.08), i * 100));
+}
+function sfxGameOver() {
+    tone(400, 0.3, 'sawtooth', 0.08, sfxBus, 60);
+    setTimeout(() => tone(300, 0.3, 'sawtooth', 0.06, sfxBus, 50), 200);
+    setTimeout(() => tone(200, 0.5, 'sawtooth', 0.05, sfxBus, 30), 400);
+}
+function sfxLaser() {
+    tone(1200, 0.08, 'sawtooth', 0.04, sfxBus, 400);
+}
+
+// ================================================================
+//  PROCEDURAL MUSIC — Synthwave Sequencer
+// ================================================================
+const musicBus = AC.createGain();
+musicBus.gain.value = 0.25;
+musicBus.connect(comp);
+
+// Reverb (convolution-like using delay feedback)
+const reverbDelay = AC.createDelay(0.5);
+reverbDelay.delayTime.value = 0.15;
+const reverbFb = AC.createGain();
+reverbFb.gain.value = 0.25;
+const reverbFilter = AC.createBiquadFilter();
+reverbFilter.type = 'lowpass';
+reverbFilter.frequency.value = 3000;
+musicBus.connect(reverbDelay);
+reverbDelay.connect(reverbFilter);
+reverbFilter.connect(reverbFb);
+reverbFb.connect(reverbDelay);
+reverbFb.connect(comp);
+
+const BPM = 128;
+const stepDur = 60 / BPM / 4; // 16th note duration
+let musicStep = 0;
+let musicPlaying = false;
+let musicTimer = null;
+
+// Note frequencies
+const NOTE = {};
+'C3 D3 E3 F3 G3 A3 B3 C4 D4 E4 F4 G4 A4 B4 C5 D5 E5 F5 G5'.split(' ').forEach((n, i) => {
+    const semitones = [0,2,4,5,7,9,11,12,14,16,17,19,21,23,24,26,28,29,31][i];
+    NOTE[n] = 130.81 * Math.pow(2, semitones / 12);
+});
+
+// Chord progressions (Am - F - C - G) in notes
+const CHORDS = [
+    [NOTE.A3, NOTE.C4, NOTE.E4],  // Am
+    [NOTE.F3, NOTE.A3, NOTE.C4],  // F
+    [NOTE.C3, NOTE.E3, NOTE.G3],  // C
+    [NOTE.G3, NOTE.B3, NOTE.D4],  // G
+];
+const BASS = [NOTE.A3 / 2, NOTE.F3 / 2, NOTE.C3, NOTE.G3 / 2];
+
+// Melody (16 steps per chord = 64 steps total)
+const MELODY = [
+    NOTE.E5, 0, NOTE.D5, 0, NOTE.C5, 0, NOTE.D5, NOTE.E5, NOTE.E5, 0, NOTE.G5, 0, NOTE.E5, 0, NOTE.D5, 0,
+    NOTE.C5, 0, NOTE.A4, 0, NOTE.C5, 0, NOTE.A4, 0, NOTE.F4, 0, NOTE.A4, NOTE.C5, NOTE.A4, 0, 0, 0,
+    NOTE.G4, 0, NOTE.E4, 0, NOTE.G4, 0, NOTE.C5, 0, NOTE.E5, 0, NOTE.D5, 0, NOTE.C5, 0, NOTE.G4, 0,
+    NOTE.G4, 0, NOTE.B4, 0, NOTE.D5, 0, NOTE.G5, 0, NOTE.F5, 0, NOTE.D5, 0, NOTE.B4, 0, NOTE.G4, 0
+];
+
+// Drum patterns (kick, snare, hihat) — 16 steps
+const KICK =  [1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0];
+const SNARE = [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,1];
+const HIHAT = [1,0,1,1, 1,0,1,1, 1,0,1,1, 1,0,1,1];
+
+function playKick(when) {
+    const o = AC.createOscillator();
+    const g = AC.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(150, when);
+    o.frequency.exponentialRampToValueAtTime(30, when + 0.12);
+    g.gain.setValueAtTime(0.35, when);
+    g.gain.exponentialRampToValueAtTime(0.001, when + 0.15);
+    o.connect(g); g.connect(musicBus);
+    o.start(when); o.stop(when + 0.15);
+}
+
+function playSnare(when) {
+    // Noise burst
+    const buf = AC.createBuffer(1, AC.sampleRate * 0.1, AC.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    const s = AC.createBufferSource();
+    const g = AC.createGain();
+    const f = AC.createBiquadFilter();
+    s.buffer = buf;
+    f.type = 'highpass'; f.frequency.value = 1500;
+    g.gain.setValueAtTime(0.2, when);
+    g.gain.exponentialRampToValueAtTime(0.001, when + 0.1);
+    s.connect(f); f.connect(g); g.connect(musicBus);
+    s.start(when); s.stop(when + 0.1);
+    // Body
+    const o = AC.createOscillator();
+    const g2 = AC.createGain();
+    o.type = 'triangle'; o.frequency.value = 180;
+    g2.gain.setValueAtTime(0.12, when);
+    g2.gain.exponentialRampToValueAtTime(0.001, when + 0.06);
+    o.connect(g2); g2.connect(musicBus);
+    o.start(when); o.stop(when + 0.06);
+}
+
+function playHihat(when) {
+    const buf = AC.createBuffer(1, AC.sampleRate * 0.04, AC.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    const s = AC.createBufferSource();
+    const g = AC.createGain();
+    const f = AC.createBiquadFilter();
+    s.buffer = buf;
+    f.type = 'highpass'; f.frequency.value = 7000;
+    g.gain.setValueAtTime(0.08, when);
+    g.gain.exponentialRampToValueAtTime(0.001, when + 0.04);
+    s.connect(f); f.connect(g); g.connect(musicBus);
+    s.start(when); s.stop(when + 0.04);
+}
+
+function playBass(freq, when) {
+    const o = AC.createOscillator();
+    const g = AC.createGain();
+    const f = AC.createBiquadFilter();
+    o.type = 'sawtooth';
+    o.frequency.setValueAtTime(freq, when);
+    f.type = 'lowpass'; f.frequency.setValueAtTime(400, when);
+    f.frequency.linearRampToValueAtTime(200, when + stepDur * 3);
+    g.gain.setValueAtTime(0.15, when);
+    g.gain.setValueAtTime(0.15, when + stepDur * 3.5);
+    g.gain.exponentialRampToValueAtTime(0.001, when + stepDur * 4);
+    o.connect(f); f.connect(g); g.connect(musicBus);
+    o.start(when); o.stop(when + stepDur * 4);
+}
+
+function playChord(notes, when) {
+    for (const freq of notes) {
+        for (const detune of [-6, 0, 6]) {
+            const o = AC.createOscillator();
+            const g = AC.createGain();
+            const f = AC.createBiquadFilter();
+            o.type = 'sawtooth';
+            o.frequency.value = freq;
+            o.detune.value = detune;
+            f.type = 'lowpass'; f.frequency.setValueAtTime(1200, when);
+            f.frequency.linearRampToValueAtTime(600, when + stepDur * 15);
+            g.gain.setValueAtTime(0.025, when);
+            g.gain.setValueAtTime(0.025, when + stepDur * 14);
+            g.gain.exponentialRampToValueAtTime(0.001, when + stepDur * 16);
+            o.connect(f); f.connect(g); g.connect(musicBus);
+            o.start(when); o.stop(when + stepDur * 16);
+        }
+    }
+}
+
+function playMelody(freq, when) {
+    if (!freq) return;
+    const o = AC.createOscillator();
+    const g = AC.createGain();
+    const vib = AC.createOscillator();
+    const vibG = AC.createGain();
+    o.type = 'square';
+    o.frequency.value = freq;
+    // Vibrato
+    vib.type = 'sine'; vib.frequency.value = 5;
+    vibG.gain.value = 3;
+    vib.connect(vibG); vibG.connect(o.frequency);
+    vib.start(when);
+    // Envelope
+    g.gain.setValueAtTime(0, when);
+    g.gain.linearRampToValueAtTime(0.06, when + 0.02);
+    g.gain.setValueAtTime(0.06, when + stepDur * 1.5);
+    g.gain.exponentialRampToValueAtTime(0.001, when + stepDur * 2);
+    const fl = AC.createBiquadFilter();
+    fl.type = 'lowpass'; fl.frequency.value = 2500;
+    o.connect(fl); fl.connect(g); g.connect(musicBus);
+    o.start(when); o.stop(when + stepDur * 2);
+    vib.stop(when + stepDur * 2);
+}
+
+function musicTick() {
+    const when = AC.currentTime + 0.05; // small lookahead
+    const s = musicStep % 16; // step within bar
+    const bar = Math.floor(musicStep / 16) % 4; // which chord
+
+    // Drums
+    if (KICK[s])  playKick(when);
+    if (SNARE[s]) playSnare(when);
+    if (HIHAT[s]) playHihat(when);
+
+    // Bass (plays on beat 1 of every 4 steps)
+    if (s % 4 === 0) playBass(BASS[bar], when);
+
+    // Chords (play once per bar)
+    if (s === 0) playChord(CHORDS[bar], when);
+
+    // Melody
+    const melIdx = musicStep % 64;
+    playMelody(MELODY[melIdx], when);
+
+    musicStep++;
+}
+
+function startMusic() {
+    if (musicPlaying) return;
+    if (AC.state === 'suspended') AC.resume();
+    musicPlaying = true;
+    musicStep = 0;
+    musicTimer = setInterval(musicTick, stepDur * 1000);
+}
+
+function stopMusic() {
+    musicPlaying = false;
+    if (musicTimer) { clearInterval(musicTimer); musicTimer = null; }
+}
+
+function setMusicIntensity(lvl) {
+    // Increase music volume with level for tension
+    musicBus.gain.linearRampToValueAtTime(0.2 + Math.min(lvl, 8) * 0.03, AC.currentTime + 0.1);
+}
 const scoreEl = document.getElementById('score');
 const livesEl = document.getElementById('lives');
 const comboEl = document.getElementById('combo');
@@ -151,8 +455,9 @@ document.addEventListener('keydown', e => {
 });
 document.addEventListener('keyup', e => { keys[e.key] = false; });
 canvas.addEventListener('click', () => {
-    if (paused && !gameOver && !gameWon) paused = false;
-    else if (gameOver || gameWon) restart();
+    if (AC.state === 'suspended') AC.resume();
+    if (paused && !gameOver && !gameWon) { paused = false; startMusic(); }
+    else if (gameOver || gameWon) { restart(); startMusic(); }
     if (activePowerups.laser) fireLaser();
 });
 canvas.addEventListener('touchmove', e => {
@@ -161,8 +466,9 @@ canvas.addEventListener('touchmove', e => {
     if (paused && !gameOver && !gameWon) paused = false;
 }, { passive: false });
 canvas.addEventListener('touchstart', e => {
-    if (gameOver || gameWon) restart();
-    if (paused) paused = false;
+    if (AC.state === 'suspended') AC.resume();
+    if (gameOver || gameWon) { restart(); startMusic(); }
+    if (paused) { paused = false; startMusic(); }
     if (activePowerups.laser) fireLaser();
 });
 
@@ -182,12 +488,14 @@ function floatText(x, y, text, color = '#fff', size = 14) {
 function fireLaser() {
     lasers.push({ x: paddle.x + 10, y: paddle.y, dy: -10, color: '#ffaa33' });
     lasers.push({ x: paddle.x + paddle.w - 10, y: paddle.y, dy: -10, color: '#ffaa33' });
+    sfxLaser();
 }
 
 function applyPowerup(pu) {
     const def = POWERUP_TYPES.find(p => p.type === pu.ptype);
     floatText(pu.x, pu.y, def.desc, def.color, 12);
     flashAlpha = 0.15;
+    sfxPowerup();
 
     switch (pu.ptype) {
         case 'wide':
@@ -258,9 +566,9 @@ function update() {
         ball.y += ball.dy * timeMul;
 
         // Walls
-        if (ball.x - ball.r < 0) { ball.x = ball.r; ball.dx = Math.abs(ball.dx); }
-        if (ball.x + ball.r > W) { ball.x = W - ball.r; ball.dx = -Math.abs(ball.dx); }
-        if (ball.y - ball.r < 0) { ball.y = ball.r; ball.dy = Math.abs(ball.dy); }
+        if (ball.x - ball.r < 0) { ball.x = ball.r; ball.dx = Math.abs(ball.dx); sfxWallBounce(); }
+        if (ball.x + ball.r > W) { ball.x = W - ball.r; ball.dx = -Math.abs(ball.dx); sfxWallBounce(); }
+        if (ball.y - ball.r < 0) { ball.y = ball.r; ball.dy = Math.abs(ball.dy); sfxWallBounce(); }
 
         // Paddle
         if (ball.dy > 0 && ball.y + ball.r >= paddle.y && ball.y + ball.r <= paddle.y + paddle.h + 6 &&
@@ -273,6 +581,7 @@ function update() {
             if (ball.dy > -1) ball.dy = -1;
             ball.y = paddle.y - ball.r;
             spawnParticles(ball.x, ball.y, paddle.color, 4);
+            sfxPaddleHit();
         }
 
         // Lost
@@ -283,7 +592,8 @@ function update() {
                 combo = 0;
                 shakeTime = 20;
                 floatText(W/2, H/2, lives > 0 ? `${lives} LIVES LEFT` : 'NO LIVES LEFT', '#ff6688', 16);
-                if (lives <= 0) { gameOver = true; return; }
+                sfxLifeLost();
+                if (lives <= 0) { gameOver = true; sfxGameOver(); stopMusic(); return; }
                 resetBall();
             }
         }
@@ -316,7 +626,8 @@ function update() {
                     score += pts;
                     
                     spawnParticles(b.x + b.w/2, b.y + b.h/2, b.color, 15);
-                    if (combo >= 3) floatText(b.x + b.w/2, b.y, `x${comboMul} COMBO!`, '#ffaa33', combo >= 7 ? 18 : 14);
+                    sfxBrickBreak(b.isGold);
+                    if (combo >= 3) { floatText(b.x + b.w/2, b.y, `x${comboMul} COMBO!`, '#ffaa33', combo >= 7 ? 18 : 14); sfxComboHit(combo); }
                     if (pts >= 100) floatText(b.x + b.w/2, b.y + 16, `+${pts}`, b.color, 11);
 
                     // Drop powerup
@@ -326,6 +637,7 @@ function update() {
                     }
                 } else {
                     spawnParticles(b.x + b.w/2, b.y + b.h/2, b.color, 5);
+                    sfxBrickHit();
                     shakeTime = 3;
                 }
                 if (!ball.fire) break;
@@ -374,9 +686,11 @@ function update() {
         score += clearBonus;
         floatText(W/2, H/2 - 40, `LEVEL ${level} CLEAR!`, '#44ffaa', 18);
         floatText(W/2, H/2, `+${clearBonus} BONUS`, '#ffaa33', 14);
+        sfxLevelClear();
         
         level++;
-        if (level > maxLevel) { gameWon = true; return; }
+        setMusicIntensity(level);
+        if (level > maxLevel) { gameWon = true; sfxLevelClear(); stopMusic(); return; }
         
         levelTransition = 1;
         levelTransText = LEVELS[level - 1].name;
