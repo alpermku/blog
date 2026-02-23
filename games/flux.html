@@ -389,15 +389,25 @@ function triggerClear() {
 
 function finishClear() {
     animatingClear = false;
-    // Replace cleared cells with new pipes
+    // Replace ALL cells with fresh random pipes (full board reset)
     for (let r = 0; r < grid.length; r++) {
         for (let c = 0; c < COLS; c++) {
-            if (grid[r][c].clearing > 0) {
-                grid[r][c] = randomPipe();
-            }
+            grid[r][c] = randomPipe();
         }
     }
-    // Reset flow — player must manually create new connections
+    // Randomize source position
+    sourceCol = Math.floor(Math.random() * COLS);
+    // Break any accidental pre-connections
+    let attempts = 0;
+    while (attempts < 50 && hasFullPath()) {
+        const rr = Math.floor(Math.random() * ROWS);
+        const cc = Math.floor(Math.random() * COLS);
+        const tile = grid[rr][cc];
+        const last = tile.openings.pop();
+        tile.openings.unshift(last);
+        attempts++;
+    }
+    // Reset flow state
     for (const row of grid) for (const cell of row) { cell.connected = false; cell.energyFlow = 0; }
     flowPaths = [];
 }
