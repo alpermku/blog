@@ -28,6 +28,66 @@
 const C = document.getElementById('c');
 const X = C.getContext('2d');
 
+// ======================== AUDIO ENGINE (Web Audio API) ========================
+const AudioCtx = window.AudioContext || window.webkitAudioContext;
+let audioCtx = null;
+function ensureAudio() { if (!audioCtx) audioCtx = new AudioCtx(); }
+
+function playTone(freq, dur, type, vol, ramp) {
+    ensureAudio();
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = type || 'square';
+    o.frequency.setValueAtTime(freq, audioCtx.currentTime);
+    if (ramp) o.frequency.exponentialRampToValueAtTime(ramp, audioCtx.currentTime + dur);
+    g.gain.setValueAtTime(vol || 0.1, audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(); o.stop(audioCtx.currentTime + dur);
+}
+
+function sfxCoin() { playTone(880, 0.08, 'square', 0.07); setTimeout(() => playTone(1320, 0.08, 'square', 0.06), 50); }
+function sfxJump() { playTone(200, 0.15, 'square', 0.08, 600); }
+function sfxCrash() {
+    ensureAudio();
+    const buf = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.3, audioCtx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 2);
+    const s = audioCtx.createBufferSource();
+    const g = audioCtx.createGain();
+    s.buffer = buf; g.gain.setValueAtTime(0.15, audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
+    s.connect(g); g.connect(audioCtx.destination); s.start();
+}
+function sfxPowerup() { playTone(440, 0.06, 'sine', 0.06); setTimeout(() => playTone(660, 0.06, 'sine', 0.06), 60); setTimeout(() => playTone(880, 0.1, 'sine', 0.06), 120); }
+function sfxShieldBreak() { playTone(300, 0.2, 'sawtooth', 0.08, 80); }
+function sfxCombo() { playTone(1000 + combo * 40, 0.06, 'sine', 0.05); }
+
+// Police siren (continuous, toggling pitch)
+let sirenOsc = null, sirenGain = null, sirenHi = true, sirenInterval = null;
+function startSiren() {
+    ensureAudio();
+    if (sirenOsc) return;
+    sirenOsc = audioCtx.createOscillator();
+    sirenGain = audioCtx.createGain();
+    sirenOsc.type = 'sine';
+    sirenOsc.frequency.setValueAtTime(600, audioCtx.currentTime);
+    sirenGain.gain.setValueAtTime(0.03, audioCtx.currentTime);
+    sirenOsc.connect(sirenGain); sirenGain.connect(audioCtx.destination);
+    sirenOsc.start();
+    sirenHi = true;
+    sirenInterval = setInterval(() => {
+        if (!sirenOsc) return;
+        sirenHi = !sirenHi;
+        sirenOsc.frequency.linearRampToValueAtTime(sirenHi ? 800 : 600, audioCtx.currentTime + 0.25);
+    }, 250);
+}
+function stopSiren() {
+    if (sirenInterval) { clearInterval(sirenInterval); sirenInterval = null; }
+    if (sirenOsc) { sirenOsc.stop(); sirenOsc = null; sirenGain = null; }
+}
+function setSirenVolume(vol) { if (sirenGain) sirenGain.gain.setValueAtTime(Math.min(vol, 0.08), audioCtx.currentTime); }
+
 // Responsive sizing
 let W, H, LANE_W, ROAD_W, ROAD_X, LANES;
 function resize() {
@@ -83,6 +143,19 @@ const player = {
     jumpPeak: 120,       // max jump height
     gravity: 0.45,
     jumpForce: -9.5
+};
+
+// ======================== POLICE CHASE ========================
+const police = {
+    y: H + 80,         // starts off screen bottom (behind player conceptually)
+    baseY: H + 80,
+    targetY: H * 0.92,  // cruising distance
+    lane: 1,
+    runAnim: 0,
+    catchDistance: 0,    // 0-1 how close (1 = caught)
+    dogOffsetX: 22,
+    dogOffsetY: -8,
+    dogAnim: 0
 };
 
 // ======================== ENTITIES ========================
@@ -276,6 +349,7 @@ function jump() {
     player.isJumping = true;
     player.jumpVelocity = player.jumpForce;
     emit(player.x, player.y + player.h / 2, '#00e5ff', 6, 2, 10);
+    sfxJump();
 }
 
 // ======================== GAME LIFECYCLE ========================
@@ -316,11 +390,20 @@ function startGame() {
     coins = [];
     powerups = [];
     particles = [];
+
+    // Police reset
+    police.y = H + 80;
+    police.lane = 1;
+    police.runAnim = 0;
+    police.dogAnim = 0;
+    startSiren();
 }
 
 function gameOver() {
     state = STATE.OVER;
     gameOverTime = Date.now();
+    stopSiren();
+    sfxCrash();
     if (score > highScore) {
         highScore = score;
         localStorage.setItem('neonrush_hi', highScore);
@@ -448,6 +531,7 @@ function update() {
                 player.shield = false;
                 emit(o.x, o.y, COLORS.shield, 20, 4, 25);
                 shake(5);
+                sfxShieldBreak();
                 obstacles.splice(i, 1);
                 continue;
             } else {
@@ -488,6 +572,8 @@ function update() {
                 totalCoins++;
                 score += Math.floor(10 * multiplier);
                 emit(c.x, c.y, COLORS.coin, 6, 2, 15);
+                sfxCoin();
+                if (combo > 0 && combo % 5 === 0) sfxCombo();
             }
         }
 
@@ -519,6 +605,7 @@ function update() {
             }
             emit(p.x, p.y, p.color, 15, 3, 20);
             shake(3);
+            sfxPowerup();
             powerups.splice(i, 1);
             continue;
         }
@@ -545,6 +632,31 @@ function update() {
         s.y += s.speed * dt;
         if (s.y > H) { s.y = 0; s.x = Math.random() * W; }
     });
+
+    // Police chase logic
+    police.runAnim += dt * 0.25;
+    police.dogAnim += dt * 0.35;
+
+    // Police approaches over time; gets closer the longer you play
+    const chaseProgress = Math.min(gameTime / 800, 1);
+    police.targetY = H * 0.92 - chaseProgress * H * 0.12; // gets closer
+    police.y += (police.targetY - police.y) * 0.01;
+
+    // Police follows player lane with delay
+    const policeLaneX = LANES[police.lane];
+    if (Math.abs(LANES[player.lane] - policeLaneX) > LANE_W * 0.8) {
+        police.lane += (player.lane > police.lane ? 1 : -1);
+    }
+
+    // Siren volume based on proximity
+    const policeProximity = 1 - (police.y - player.y) / H;
+    setSirenVolume(0.02 + policeProximity * 0.06);
+
+    // If police catches player = game over
+    if (police.y <= player.y + player.h) {
+        gameOver();
+        return;
+    }
 
     // Screen shake
     if (shakeDecay > 0) {
@@ -701,6 +813,9 @@ function draw() {
     });
     X.globalAlpha = 1;
 
+    // Police officer & dog
+    drawPolice();
+
     // HUD
     drawHUD();
 
@@ -782,6 +897,117 @@ function drawPlayer() {
     }
 
     X.restore();
+}
+
+function drawPolice() {
+    if (state !== STATE.PLAY && state !== STATE.OVER) return;
+    const px = LANES[police.lane];
+    const py = police.y;
+    if (py > H + 100) return; // off screen
+
+    const legSwing = Math.sin(police.runAnim) * 5;
+    const armSwing = Math.sin(police.runAnim + Math.PI) * 4;
+    const bobY = Math.abs(Math.sin(police.runAnim)) * 2;
+
+    X.save();
+    X.translate(px, py - bobY);
+
+    // === POLICE OFFICER ===
+    X.shadowBlur = 12;
+    X.shadowColor = 'rgba(255,0,0,0.4)';
+
+    // Body (dark blue uniform)
+    const bodyGrad = X.createLinearGradient(-10, -25, 10, 15);
+    bodyGrad.addColorStop(0, '#1a237e');
+    bodyGrad.addColorStop(1, '#0d1452');
+    X.fillStyle = bodyGrad;
+    X.fillRect(-8, -14, 16, 22);
+
+    // Head
+    X.fillStyle = '#e0a070';
+    X.beginPath();
+    X.arc(0, -20, 7, 0, Math.PI * 2);
+    X.fill();
+
+    // Police hat
+    X.fillStyle = '#1a237e';
+    X.fillRect(-9, -28, 18, 6);
+    X.fillRect(-6, -31, 12, 4);
+    // Hat badge
+    X.fillStyle = '#ffd700';
+    X.fillRect(-2, -30, 4, 3);
+
+    // Legs
+    X.fillStyle = '#0d1452';
+    X.fillRect(-7, 8, 5, 14 + legSwing);
+    X.fillRect(2, 8, 5, 14 - legSwing);
+
+    // Arms
+    X.fillStyle = '#1a237e';
+    X.fillRect(-13, -12 + armSwing, 5, 12);
+    X.fillRect(8, -12 - armSwing, 5, 12);
+
+    // Red/blue flasher on shoulder
+    const flashColor = Math.sin(gameTime * 0.3) > 0 ? '#ff1744' : '#2979ff';
+    X.fillStyle = flashColor;
+    X.globalAlpha = 0.8;
+    X.beginPath();
+    X.arc(-10, -14, 3, 0, Math.PI * 2);
+    X.fill();
+    X.globalAlpha = 1;
+
+    X.shadowBlur = 0;
+
+    // === POLICE DOG ===
+    const dogX = police.dogOffsetX;
+    const dogY = police.dogOffsetY;
+    const dogLeg = Math.sin(police.dogAnim) * 4;
+    const dogBob = Math.abs(Math.sin(police.dogAnim)) * 1.5;
+
+    X.save();
+    X.translate(dogX, dogY - dogBob);
+
+    // Dog body
+    X.fillStyle = '#5d4037';
+    X.fillRect(-10, -4, 20, 8);
+
+    // Dog head
+    X.fillStyle = '#6d4c41';
+    X.beginPath();
+    X.arc(-13, -5, 5, 0, Math.PI * 2);
+    X.fill();
+
+    // Ears
+    X.fillStyle = '#4e342e';
+    X.fillRect(-18, -10, 4, 5);
+    X.fillRect(-11, -10, 4, 5);
+
+    // Snout
+    X.fillStyle = '#8d6e63';
+    X.fillRect(-19, -5, 5, 3);
+
+    // Eye
+    X.fillStyle = '#fff';
+    X.fillRect(-15, -7, 2, 2);
+
+    // Legs
+    X.fillStyle = '#5d4037';
+    X.fillRect(-8, 4, 3, 7 + dogLeg);
+    X.fillRect(-3, 4, 3, 7 - dogLeg);
+    X.fillRect(4, 4, 3, 7 + dogLeg);
+    X.fillRect(9, 4, 3, 7 - dogLeg);
+
+    // Tail
+    X.fillStyle = '#4e342e';
+    const tailWag = Math.sin(police.dogAnim * 2) * 8;
+    X.save();
+    X.translate(10, -4);
+    X.rotate((-30 + tailWag) * Math.PI / 180);
+    X.fillRect(0, -1, 8, 2);
+    X.restore();
+
+    X.restore(); // dog
+    X.restore(); // police group
 }
 
 function drawHUD() {
