@@ -146,8 +146,8 @@ let flowPaths = []; // currently energized cells
 let sourceCol = -1; // which column has the source on top row
 
 // Difficulty
-const BASE_PUSH = 1500;
-const MIN_PUSH = 500;
+const BASE_PUSH = 3600; // ~60 saniye at 60fps
+const MIN_PUSH = 900;  // ~15 saniye minimum
 
 // localStorage
 function getStore(k, fb) { try { const v = localStorage.getItem(k); return v == null ? fb : v; } catch { return fb; } }
@@ -165,6 +165,63 @@ function initGrid() {
         grid.push(row);
     }
     sourceCol = Math.floor(COLS / 2);
+
+    // Break any pre-existing connections: rotate random tiles until
+    // there's no source-to-drain path at start
+    let attempts = 0;
+    while (attempts < 50) {
+        if (!hasFullPath()) break;
+        // Rotate a random tile to break the path
+        const rr = Math.floor(Math.random() * ROWS);
+        const cc = Math.floor(Math.random() * COLS);
+        const tile = grid[rr][cc];
+        const last = tile.openings.pop();
+        tile.openings.unshift(last);
+        attempts++;
+    }
+    // Reset all connection state
+    for (const row of grid) for (const cell of row) {
+        cell.connected = false;
+        cell.energyFlow = 0;
+    }
+    flowPaths = [];
+}
+
+// Check if a full source-to-drain path exists (without triggering clears)
+function hasFullPath() {
+    const startCell = grid[0][sourceCol];
+    if (!startCell || !startCell.openings[0]) return false;
+
+    const visited = new Set();
+    const queue = [{ r: 0, c: sourceCol, from: 0 }];
+    const key = (r, c) => `${r},${c}`;
+
+    while (queue.length > 0) {
+        const { r, c, from } = queue.shift();
+        const k = key(r, c);
+        if (visited.has(k)) continue;
+        const cell = grid[r][c];
+        if (!cell.openings[from]) continue;
+        visited.add(k);
+
+        // Reached bottom with bottom opening?
+        if (r === ROWS - 1 && cell.openings[2]) return true;
+
+        const dirs = [
+            { dr: -1, dc: 0, out: 0, neighborIn: 2 },
+            { dr: 0, dc: 1, out: 1, neighborIn: 3 },
+            { dr: 1, dc: 0, out: 2, neighborIn: 0 },
+            { dr: 0, dc: -1, out: 3, neighborIn: 1 },
+        ];
+        for (const d of dirs) {
+            if (!cell.openings[d.out]) continue;
+            const nr = r + d.dr, nc = c + d.dc;
+            if (nr < 0 || nr >= ROWS || nc < 0 || nc >= COLS) continue;
+            if (visited.has(key(nr, nc))) continue;
+            queue.push({ r: nr, c: nc, from: d.neighborIn });
+        }
+    }
+    return false;
 }
 
 function pushRow() {
@@ -295,7 +352,7 @@ function triggerClear() {
         flashColor = '#44ffaa'; flashAlpha = 0.25;
         floatText(W / 2, GY - 20, `LEVEL ${level}`, '#44ffaa', 16);
         // Increase speed
-        pushInterval = Math.max(MIN_PUSH, Math.round(BASE_PUSH - (level - 1) * 40));
+        pushInterval = Math.max(MIN_PUSH, Math.round(BASE_PUSH - (level - 1) * 180));
     }
 
     sfxChain(combo);
