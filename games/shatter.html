@@ -1,0 +1,1047 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SHATTER - Arcade</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;700&display=swap');
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #0a0a1a; overflow: hidden;
+            font-family: 'JetBrains Mono', monospace; color: #fff;
+            user-select: none; display: flex; justify-content: center; align-items: center; height: 100vh;
+        }
+        canvas { border: 2px solid rgba(0,200,255,0.25); border-radius: 4px; box-shadow: 0 0 50px rgba(0,200,255,0.08); }
+        .ui { position: fixed; z-index: 10; pointer-events: none; width: 100%; height: 100%; }
+        .hud { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); display: flex; gap: 20px; align-items: center; }
+        .game-title { font-family: 'Press Start 2P', cursive; font-size: 12px; color: #00c8ff; text-shadow: 0 0 10px rgba(0,200,255,0.5); }
+        .hud-item { font-family: 'Press Start 2P', cursive; font-size: 11px; color: #fff; }
+        .hud-lives { color: #ff6688; }
+        .hud-combo { color: #ffaa33; font-size: 10px; }
+        .hud-level { color: #44ffaa; font-size: 10px; }
+        .back-btn { position: fixed; top: 14px; left: 18px; z-index: 20; font-family: 'JetBrains Mono', monospace; font-size: 13px; color: rgba(255,255,255,0.35); text-decoration: none; transition: color 0.2s; }
+        .back-btn:hover { color: #fff; }
+        .pause-btn { position: fixed; top: 12px; right: 14px; z-index: 30; width: 34px; height: 34px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.25); background: rgba(10,10,26,0.75); color: #fff; cursor: pointer; font-size: 14px; pointer-events: auto; }
+        .pause-menu { position: fixed; inset: 0; z-index: 40; display: none; align-items: center; justify-content: center; background: rgba(6,8,18,0.75); pointer-events: auto; }
+        .pause-menu.open { display: flex; }
+        .pause-card { width: min(92vw, 360px); background: rgba(10,10,26,0.96); border: 1px solid rgba(0,200,255,0.25); border-radius: 12px; padding: 16px; box-shadow: 0 0 30px rgba(0,200,255,0.08); }
+        .pause-title { font-family: 'Press Start 2P', cursive; font-size: 12px; color: #00c8ff; margin-bottom: 14px; text-align: center; }
+        .pause-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 10px 0; font-size: 12px; color: rgba(255,255,255,0.85); }
+        .pause-row input[type=range] { width: 140px; accent-color: #00c8ff; }
+        .pause-actions { display: flex; gap: 8px; margin-top: 14px; }
+        .pause-actions button { flex: 1; padding: 9px 8px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.06); color: #fff; cursor: pointer; }
+        .pause-actions button.primary { border-color: rgba(0,200,255,0.5); background: rgba(0,200,255,0.12); }
+    </style>
+</head>
+<body>
+    <a href="../games.html" class="back-btn">← Arcade</a>
+    <button class="pause-btn" id="pauseBtn">⏸</button>
+    <div class="pause-menu" id="pauseMenu">
+        <div class="pause-card">
+            <div class="pause-title">PAUSED</div>
+            <div class="pause-row"><span>Müzik</span><input id="musicSlider" type="range" min="0" max="1" step="0.01" value="0.25"></div>
+            <div class="pause-row"><span>Efekt</span><input id="sfxSlider" type="range" min="0" max="1" step="0.01" value="0.5"></div>
+            <div class="pause-row"><span>Ekran Sarsıntısı</span><input id="shakeToggle" type="checkbox" checked></div>
+            <div class="pause-actions">
+                <button id="restartBtn">Yeniden Başlat</button>
+                <button id="resumeBtn" class="primary">Devam</button>
+            </div>
+        </div>
+    </div>
+    <div class="ui">
+        <div class="hud">
+            <span class="hud-item" id="score">0</span>
+            <span class="hud-item hud-combo" id="combo"></span>
+            <span class="hud-item hud-level" id="lvl">LV 1</span>
+            <span class="hud-item hud-lives" id="lives">♥♥♥</span>
+        </div>
+    </div>
+    <canvas id="c"></canvas>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+// ================================================================
+//  AUDIO ENGINE — SFX + Procedural Synthwave Music
+// ================================================================
+const AC = new (window.AudioContext || window.webkitAudioContext)();
+const masterGain = AC.createGain();
+masterGain.gain.value = 0.6;
+masterGain.connect(AC.destination);
+
+// Compressor for glue
+const comp = AC.createDynamicsCompressor();
+comp.threshold.value = -20; comp.ratio.value = 4;
+comp.connect(masterGain);
+
+// --- SFX Bus ---
+const sfxBus = AC.createGain();
+sfxBus.gain.value = 0.5;
+sfxBus.connect(comp);
+
+function getStore(key, fallback) {
+    try { const v = localStorage.getItem(key); return v == null ? fallback : v; } catch { return fallback; }
+}
+function setStore(key, value) {
+    try { localStorage.setItem(key, value); } catch {}
+}
+const initialMusicVol = Math.min(1, Math.max(0, parseFloat(getStore('fracture_music_vol', '0.25'))));
+const initialSfxVol = Math.min(1, Math.max(0, parseFloat(getStore('fracture_sfx_vol', '0.5'))));
+const initialShake = getStore('fracture_shake', '1') === '1';
+
+function tone(freq, dur, type, vol, dest, ramp) {
+    const t = AC.currentTime;
+    const o = AC.createOscillator();
+    const g = AC.createGain();
+    o.type = type || 'square';
+    o.frequency.setValueAtTime(freq, t);
+    if (ramp) o.frequency.exponentialRampToValueAtTime(ramp, t + dur);
+    g.gain.setValueAtTime(vol || 0.1, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    o.connect(g); g.connect(dest || sfxBus);
+    o.start(t); o.stop(t + dur);
+    return o;
+}
+
+function noise(dur, vol, dest) {
+    const t = AC.currentTime;
+    const buf = AC.createBuffer(1, AC.sampleRate * dur, AC.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    const s = AC.createBufferSource();
+    const g = AC.createGain();
+    s.buffer = buf;
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    s.connect(g); g.connect(dest || sfxBus);
+    s.start(t);
+}
+
+// --- Sound Effects ---
+function sfxPaddleHit() {
+    tone(300, 0.06, 'triangle', 0.12);
+    tone(600, 0.04, 'sine', 0.06);
+}
+function sfxWallBounce() {
+    tone(220, 0.04, 'sine', 0.06);
+}
+function sfxBrickHit() {
+    tone(400 + Math.random() * 200, 0.05, 'square', 0.06);
+    noise(0.03, 0.04);
+}
+function sfxBrickBreak(isGold) {
+    const base = isGold ? 800 : 500;
+    tone(base, 0.08, 'square', 0.08);
+    tone(base * 1.5, 0.06, 'square', 0.05);
+    noise(0.06, 0.06);
+    if (isGold) {
+        setTimeout(() => tone(1200, 0.1, 'sine', 0.06), 40);
+        setTimeout(() => tone(1600, 0.12, 'sine', 0.05), 80);
+    }
+}
+function sfxComboHit(c) {
+    const freq = 600 + Math.min(c, 10) * 80;
+    tone(freq, 0.1, 'sine', 0.07);
+    setTimeout(() => tone(freq * 1.25, 0.08, 'sine', 0.05), 50);
+}
+function sfxPowerup() {
+    tone(440, 0.06, 'sine', 0.07);
+    setTimeout(() => tone(660, 0.06, 'sine', 0.06), 50);
+    setTimeout(() => tone(880, 0.08, 'sine', 0.06), 100);
+    setTimeout(() => tone(1100, 0.1, 'sine', 0.05), 150);
+}
+function sfxLifeLost() {
+    tone(400, 0.15, 'sawtooth', 0.08, sfxBus, 100);
+    setTimeout(() => tone(200, 0.2, 'sawtooth', 0.06, sfxBus, 80), 100);
+}
+function sfxLevelClear() {
+    const notes = [523, 659, 784, 1047];
+    notes.forEach((n, i) => setTimeout(() => tone(n, 0.2, 'sine', 0.08), i * 100));
+}
+function sfxGameOver() {
+    tone(400, 0.3, 'sawtooth', 0.08, sfxBus, 60);
+    setTimeout(() => tone(300, 0.3, 'sawtooth', 0.06, sfxBus, 50), 200);
+    setTimeout(() => tone(200, 0.5, 'sawtooth', 0.05, sfxBus, 30), 400);
+}
+function sfxLaser() {
+    tone(1200, 0.08, 'sawtooth', 0.04, sfxBus, 400);
+}
+
+// ================================================================
+//  PROCEDURAL MUSIC — Synthwave Sequencer
+// ================================================================
+const musicBus = AC.createGain();
+musicBus.gain.value = initialMusicVol;
+musicBus.connect(comp);
+sfxBus.gain.value = initialSfxVol;
+
+// Reverb (convolution-like using delay feedback)
+const reverbDelay = AC.createDelay(0.5);
+reverbDelay.delayTime.value = 0.15;
+const reverbFb = AC.createGain();
+reverbFb.gain.value = 0.25;
+const reverbFilter = AC.createBiquadFilter();
+reverbFilter.type = 'lowpass';
+reverbFilter.frequency.value = 3000;
+musicBus.connect(reverbDelay);
+reverbDelay.connect(reverbFilter);
+reverbFilter.connect(reverbFb);
+reverbFb.connect(reverbDelay);
+reverbFb.connect(comp);
+
+const BPM = 128;
+const stepDur = 60 / BPM / 4; // 16th note duration
+let musicStep = 0;
+let musicPlaying = false;
+let musicTimer = null;
+
+// Note frequencies
+const NOTE = {};
+'C3 D3 E3 F3 G3 A3 B3 C4 D4 E4 F4 G4 A4 B4 C5 D5 E5 F5 G5'.split(' ').forEach((n, i) => {
+    const semitones = [0,2,4,5,7,9,11,12,14,16,17,19,21,23,24,26,28,29,31][i];
+    NOTE[n] = 130.81 * Math.pow(2, semitones / 12);
+});
+
+// Long-form music material (4 sections x 64 steps = 256-step loop)
+const PROGRESSIONS = [
+    // Keep original beloved harmonic identity across all sections
+    { chords: [[NOTE.A3, NOTE.C4, NOTE.E4], [NOTE.F3, NOTE.A3, NOTE.C4], [NOTE.C3, NOTE.E3, NOTE.G3], [NOTE.G3, NOTE.B3, NOTE.D4]], bass: [NOTE.A3 / 2, NOTE.F3 / 2, NOTE.C3, NOTE.G3 / 2] },
+    { chords: [[NOTE.A3, NOTE.C4, NOTE.E4], [NOTE.F3, NOTE.A3, NOTE.C4], [NOTE.C3, NOTE.E3, NOTE.G3], [NOTE.G3, NOTE.B3, NOTE.D4]], bass: [NOTE.A3 / 2, NOTE.F3 / 2, NOTE.C3, NOTE.G3 / 2] },
+    { chords: [[NOTE.A3, NOTE.C4, NOTE.E4], [NOTE.F3, NOTE.A3, NOTE.C4], [NOTE.C3, NOTE.E3, NOTE.G3], [NOTE.G3, NOTE.B3, NOTE.D4]], bass: [NOTE.A3 / 2, NOTE.F3 / 2, NOTE.C3, NOTE.G3 / 2] },
+    { chords: [[NOTE.A3, NOTE.C4, NOTE.E4], [NOTE.F3, NOTE.A3, NOTE.C4], [NOTE.C3, NOTE.E3, NOTE.G3], [NOTE.G3, NOTE.B3, NOTE.D4]], bass: [NOTE.A3 / 2, NOTE.F3 / 2, NOTE.C3, NOTE.G3 / 2] }
+];
+
+const MELODY_A = [
+    NOTE.E5,0,NOTE.D5,0, NOTE.C5,0,NOTE.D5,NOTE.E5, NOTE.E5,0,NOTE.G5,0, NOTE.E5,0,NOTE.D5,0,
+    NOTE.C5,0,NOTE.A4,0, NOTE.C5,0,NOTE.A4,0, NOTE.F4,0,NOTE.A4,NOTE.C5, NOTE.A4,0,0,0,
+    NOTE.G4,0,NOTE.E4,0, NOTE.G4,0,NOTE.C5,0, NOTE.E5,0,NOTE.D5,0, NOTE.C5,0,NOTE.G4,0,
+    NOTE.G4,0,NOTE.B4,0, NOTE.D5,0,NOTE.G5,0, NOTE.F5,0,NOTE.D5,0, NOTE.B4,0,NOTE.G4,0
+];
+
+const MELODY_B = [
+    // Variation 1: same motif, gentle octave/suspension touches
+    NOTE.E5,0,NOTE.D5,0, NOTE.C5,0,NOTE.D5,NOTE.E5, NOTE.G5,0,NOTE.E5,0, NOTE.D5,0,NOTE.C5,0,
+    NOTE.C5,0,NOTE.A4,0, NOTE.C5,0,NOTE.D5,0, NOTE.F4,0,NOTE.A4,NOTE.C5, NOTE.A4,0,0,0,
+    NOTE.G4,0,NOTE.E4,0, NOTE.G4,0,NOTE.C5,0, NOTE.E5,0,NOTE.G5,0, NOTE.E5,0,NOTE.D5,0,
+    NOTE.G4,0,NOTE.B4,0, NOTE.D5,0,NOTE.G5,0, NOTE.F5,0,NOTE.E5,0, NOTE.D5,0,NOTE.G4,0
+];
+
+const MELODY_C = [
+    // Variation 2: calmer mid section, preserves original emotional contour
+    NOTE.E5,0,NOTE.D5,0, NOTE.C5,0,NOTE.B4,0, NOTE.C5,0,NOTE.D5,0, NOTE.E5,0,0,0,
+    NOTE.C5,0,NOTE.A4,0, NOTE.C5,0,NOTE.A4,0, NOTE.F4,0,NOTE.A4,0, NOTE.C5,0,0,0,
+    NOTE.G4,0,NOTE.E4,0, NOTE.G4,0,NOTE.C5,0, NOTE.E5,0,NOTE.D5,0, NOTE.C5,0,NOTE.G4,0,
+    NOTE.G4,0,NOTE.B4,0, NOTE.D5,0,NOTE.G5,0, NOTE.F5,0,NOTE.D5,0, NOTE.B4,0,NOTE.G4,0
+];
+
+const SECTION_MELODIES = [MELODY_A, MELODY_B, MELODY_C, MELODY_A];
+
+// Drum patterns (kick, snare, hihat) — 16 steps
+const KICK =  [1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0];
+const SNARE = [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,1];
+const HIHAT = [1,0,1,1, 1,0,1,1, 1,0,1,1, 1,0,1,1];
+
+function playKick(when) {
+    const o = AC.createOscillator();
+    const g = AC.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(150, when);
+    o.frequency.exponentialRampToValueAtTime(30, when + 0.12);
+    g.gain.setValueAtTime(0.35, when);
+    g.gain.exponentialRampToValueAtTime(0.001, when + 0.15);
+    o.connect(g); g.connect(musicBus);
+    o.start(when); o.stop(when + 0.15);
+}
+
+function playSnare(when) {
+    // Noise burst
+    const buf = AC.createBuffer(1, AC.sampleRate * 0.1, AC.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    const s = AC.createBufferSource();
+    const g = AC.createGain();
+    const f = AC.createBiquadFilter();
+    s.buffer = buf;
+    f.type = 'highpass'; f.frequency.value = 1500;
+    g.gain.setValueAtTime(0.2, when);
+    g.gain.exponentialRampToValueAtTime(0.001, when + 0.1);
+    s.connect(f); f.connect(g); g.connect(musicBus);
+    s.start(when); s.stop(when + 0.1);
+    // Body
+    const o = AC.createOscillator();
+    const g2 = AC.createGain();
+    o.type = 'triangle'; o.frequency.value = 180;
+    g2.gain.setValueAtTime(0.12, when);
+    g2.gain.exponentialRampToValueAtTime(0.001, when + 0.06);
+    o.connect(g2); g2.connect(musicBus);
+    o.start(when); o.stop(when + 0.06);
+}
+
+function playHihat(when) {
+    const buf = AC.createBuffer(1, AC.sampleRate * 0.04, AC.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    const s = AC.createBufferSource();
+    const g = AC.createGain();
+    const f = AC.createBiquadFilter();
+    s.buffer = buf;
+    f.type = 'highpass'; f.frequency.value = 7000;
+    g.gain.setValueAtTime(0.08, when);
+    g.gain.exponentialRampToValueAtTime(0.001, when + 0.04);
+    s.connect(f); f.connect(g); g.connect(musicBus);
+    s.start(when); s.stop(when + 0.04);
+}
+
+function playBass(freq, when) {
+    const o = AC.createOscillator();
+    const g = AC.createGain();
+    const f = AC.createBiquadFilter();
+    o.type = 'sawtooth';
+    o.frequency.setValueAtTime(freq, when);
+    f.type = 'lowpass'; f.frequency.setValueAtTime(400, when);
+    f.frequency.linearRampToValueAtTime(200, when + stepDur * 3);
+    g.gain.setValueAtTime(0.15, when);
+    g.gain.setValueAtTime(0.15, when + stepDur * 3.5);
+    g.gain.exponentialRampToValueAtTime(0.001, when + stepDur * 4);
+    o.connect(f); f.connect(g); g.connect(musicBus);
+    o.start(when); o.stop(when + stepDur * 4);
+}
+
+function playChord(notes, when) {
+    for (const freq of notes) {
+        for (const detune of [-6, 0, 6]) {
+            const o = AC.createOscillator();
+            const g = AC.createGain();
+            const f = AC.createBiquadFilter();
+            o.type = 'sawtooth';
+            o.frequency.value = freq;
+            o.detune.value = detune;
+            f.type = 'lowpass'; f.frequency.setValueAtTime(1200, when);
+            f.frequency.linearRampToValueAtTime(600, when + stepDur * 15);
+            g.gain.setValueAtTime(0.025, when);
+            g.gain.setValueAtTime(0.025, when + stepDur * 14);
+            g.gain.exponentialRampToValueAtTime(0.001, when + stepDur * 16);
+            o.connect(f); f.connect(g); g.connect(musicBus);
+            o.start(when); o.stop(when + stepDur * 16);
+        }
+    }
+}
+
+function playMelody(freq, when) {
+    if (!freq) return;
+    const o = AC.createOscillator();
+    const g = AC.createGain();
+    const vib = AC.createOscillator();
+    const vibG = AC.createGain();
+    o.type = 'square';
+    o.frequency.value = freq;
+    // Vibrato
+    vib.type = 'sine'; vib.frequency.value = 5;
+    vibG.gain.value = 3;
+    vib.connect(vibG); vibG.connect(o.frequency);
+    vib.start(when);
+    // Envelope
+    g.gain.setValueAtTime(0, when);
+    g.gain.linearRampToValueAtTime(0.06, when + 0.02);
+    g.gain.setValueAtTime(0.06, when + stepDur * 1.5);
+    g.gain.exponentialRampToValueAtTime(0.001, when + stepDur * 2);
+    const fl = AC.createBiquadFilter();
+    fl.type = 'lowpass'; fl.frequency.value = 2500;
+    o.connect(fl); fl.connect(g); g.connect(musicBus);
+    o.start(when); o.stop(when + stepDur * 2);
+    vib.stop(when + stepDur * 2);
+}
+
+function musicTick() {
+    const when = AC.currentTime + 0.05;
+    const s = musicStep % 16;
+    const bar = Math.floor(musicStep / 16) % 4;
+    const section = Math.floor(musicStep / 64) % 4;
+    const prog = PROGRESSIONS[section];
+
+    // Drums (keep original groove feel)
+    if (KICK[s]) playKick(when);
+    if (SNARE[s]) playSnare(when);
+    if (HIHAT[s]) playHihat(when);
+
+    // Very subtle fill only at section boundary
+    if (musicStep % 64 === 63) playSnare(when);
+
+    if (s % 4 === 0) playBass(prog.bass[bar], when);
+    if (s === 0) playChord(prog.chords[bar], when);
+
+    const melPattern = SECTION_MELODIES[section];
+    const melIdx = musicStep % 64;
+    playMelody(melPattern[melIdx], when);
+
+    musicStep = (musicStep + 1) % 256;
+}
+
+function startMusic() {
+    if (musicPlaying) return;
+    if (AC.state === 'suspended') AC.resume();
+    musicPlaying = true;
+    musicStep = 0;
+    musicTimer = setInterval(musicTick, stepDur * 1000);
+}
+
+function stopMusic() {
+    musicPlaying = false;
+    if (musicTimer) { clearInterval(musicTimer); musicTimer = null; }
+}
+
+function setMusicIntensity(lvl) {
+    // Increase music volume with level for tension
+    musicBus.gain.linearRampToValueAtTime(0.2 + Math.min(lvl, 8) * 0.03, AC.currentTime + 0.1);
+}
+const scoreEl = document.getElementById('score');
+const livesEl = document.getElementById('lives');
+const comboEl = document.getElementById('combo');
+const lvlEl = document.getElementById('lvl');
+const pauseBtn = document.getElementById('pauseBtn');
+const pauseMenu = document.getElementById('pauseMenu');
+const resumeBtn = document.getElementById('resumeBtn');
+const restartBtn = document.getElementById('restartBtn');
+const musicSlider = document.getElementById('musicSlider');
+const sfxSlider = document.getElementById('sfxSlider');
+const shakeToggle = document.getElementById('shakeToggle');
+
+const W = Math.min(window.innerWidth - 40, 800);
+const H = Math.min(window.innerHeight - 40, 600);
+canvas.width = W; canvas.height = H;
+
+const COLORS = ['#00c8ff','#ff6688','#44ffaa','#ffaa33','#c864ff','#ff4466','#33ddff','#88ff44'];
+const POWERUP_TYPES = [
+    { type: 'wide',    icon: '⬛', color: '#00c8ff', desc: 'WIDE PADDLE',   duration: 8000 },
+    { type: 'multi',   icon: '◉',  color: '#c864ff', desc: 'MULTI BALL',    duration: 0 },
+    { type: 'fire',    icon: '🔥', color: '#ff4422', desc: 'FIRE BALL',     duration: 6000 },
+    { type: 'slow',    icon: '⏳', color: '#44ffaa', desc: 'SLOW MOTION',   duration: 5000 },
+    { type: 'life',    icon: '♥',  color: '#ff6688', desc: 'EXTRA LIFE',    duration: 0 },
+    { type: 'laser',   icon: '⚡', color: '#ffaa33', desc: 'LASER PADDLE',  duration: 7000 },
+];
+
+// --- State ---
+let score = 0, lives = 3, level = 1, maxLevel = 8;
+let gameOver = false, gameWon = false, paused = false;
+let shakeEnabled = initialShake;
+let particles = [], floatingTexts = [], powerups = [], lasers = [];
+let shakeTime = 0, flashAlpha = 0;
+let combo = 0, maxCombo = 0, comboTimer = 0;
+let levelTransition = 0, levelTransText = '';
+let activePowerups = {}; // type -> expireTime
+
+// --- Paddle ---
+const paddle = { w: 100, h: 12, x: W/2 - 50, y: H - 40, baseW: 100, speed: 8, color: '#00c8ff' };
+
+// --- Balls ---
+let balls = [];
+function makeBall(x, y, dx, dy) {
+    return { x, y, r: 6, dx, dy, color: '#fff', trail: [], fire: false };
+}
+
+// --- Bricks ---
+const BRICK = { rows: 0, cols: 10, w: 0, h: 20, pad: 4, top: 60 };
+BRICK.w = (W - BRICK.pad * (BRICK.cols + 1)) / BRICK.cols;
+let bricks = [];
+
+// Level configs: rows, brick HP multiplier, special patterns
+const LEVELS = [
+    { rows: 4, hpMul: 1, name: 'GENESIS', ballSpeed: 4.5 },
+    { rows: 5, hpMul: 1, name: 'PRESSURE', ballSpeed: 5 },
+    { rows: 5, hpMul: 1.5, name: 'FORTIFY', ballSpeed: 5.2 },
+    { rows: 6, hpMul: 1.5, name: 'CHAOS', ballSpeed: 5.5 },
+    { rows: 6, hpMul: 2, name: 'INFERNO', ballSpeed: 5.8 },
+    { rows: 7, hpMul: 2, name: 'ABYSS', ballSpeed: 6 },
+    { rows: 7, hpMul: 2.5, name: 'ECLIPSE', ballSpeed: 6.3 },
+    { rows: 8, hpMul: 3, name: 'SHATTER', ballSpeed: 6.5 },
+];
+
+function initBricks() {
+    bricks = [];
+    const cfg = LEVELS[level - 1];
+    BRICK.rows = cfg.rows;
+    for (let r = 0; r < BRICK.rows; r++) {
+        for (let c = 0; c < BRICK.cols; c++) {
+            // Pattern: diamond void in center for higher levels
+            if (level >= 4) {
+                const cr = BRICK.rows / 2, cc = BRICK.cols / 2;
+                const dist = Math.abs(r - cr) + Math.abs(c - cc);
+                if (dist < 2 && level >= 6) continue; // hollow center
+            }
+            
+            let hp = r < 2 ? Math.ceil(2 * cfg.hpMul) : Math.ceil(1 * cfg.hpMul);
+            // Gold bricks (rare, high HP, high reward)
+            const isGold = Math.random() < 0.05 * level;
+            if (isGold) hp = Math.ceil(3 * cfg.hpMul);
+            
+            bricks.push({
+                x: BRICK.pad + c * (BRICK.w + BRICK.pad),
+                y: BRICK.top + r * (BRICK.h + BRICK.pad),
+                w: BRICK.w, h: BRICK.h,
+                color: isGold ? '#ffd700' : COLORS[(r + level) % COLORS.length],
+                hp, maxHp: hp, alive: true, isGold,
+                dropChance: isGold ? 0.8 : 0.12 + level * 0.02
+            });
+        }
+    }
+}
+
+let ballStuck = true; // ball stuck on paddle, waiting for launch
+
+function resetBall() {
+    const cfg = LEVELS[level - 1];
+    // Ball starts stuck on paddle center
+    balls = [makeBall(paddle.x + paddle.w / 2, paddle.y - 8, 0, 0)];
+    ballStuck = true;
+    paused = false; // don't pause — let player move paddle freely
+}
+
+function launchBall() {
+    if (!ballStuck || balls.length === 0) return;
+    ballStuck = false;
+    const cfg = LEVELS[level - 1];
+    const spd = cfg.ballSpeed;
+    // Angle based on ball position on paddle (left = left, right = right)
+    const ball = balls[0];
+    const offset = (ball.x - (paddle.x + paddle.w / 2)) / (paddle.w / 2); // -1 to 1
+    const angle = -Math.PI / 2 + offset * 0.5; // max ±28° from vertical
+    ball.dx = Math.cos(angle) * spd;
+    ball.dy = Math.sin(angle) * spd;
+    if (ball.dy > -1.5) ball.dy = -1.5; // ensure it goes upward
+    sfxPaddleHit();
+}
+
+function restart() {
+    score = 0; lives = 3; level = 1; combo = 0; maxCombo = 0;
+    gameOver = false; gameWon = false;
+    particles = []; floatingTexts = []; powerups = []; lasers = [];
+    activePowerups = {};
+    paddle.w = paddle.baseW;
+    paddle.x = W / 2 - paddle.w / 2;
+    initBricks(); resetBall();
+}
+
+// --- Input ---
+let mouseX = W/2, keys = {};
+canvas.addEventListener('mousemove', e => { mouseX = e.clientX - canvas.getBoundingClientRect().left; });
+document.addEventListener('keydown', e => {
+    keys[e.key] = true;
+    if (e.key === 'Escape' && !gameOver && !gameWon) {
+        setPaused(!paused);
+        return;
+    }
+    if (paused) return;
+    if (e.key === ' ') {
+        if (ballStuck) { launchBall(); startMusic(); }
+        else if (activePowerups.laser) fireLaser();
+    }
+});
+document.addEventListener('keyup', e => { keys[e.key] = false; });
+canvas.addEventListener('click', () => {
+    if (AC.state === 'suspended') AC.resume();
+    if (gameOver || gameWon) { restart(); startMusic(); return; }
+    if (paused) return;
+    if (ballStuck) { launchBall(); startMusic(); return; }
+    if (activePowerups.laser) fireLaser();
+});
+let touchMoved = false;
+canvas.addEventListener('touchstart', e => {
+    if (AC.state === 'suspended') AC.resume();
+    touchMoved = false;
+    mouseX = e.touches[0].clientX - canvas.getBoundingClientRect().left;
+    if (gameOver || gameWon) { restart(); startMusic(); return; }
+    if (paused) return;
+}, { passive: true });
+canvas.addEventListener('touchmove', e => {
+    e.preventDefault();
+    touchMoved = true;
+    mouseX = e.touches[0].clientX - canvas.getBoundingClientRect().left;
+}, { passive: false });
+canvas.addEventListener('touchend', e => {
+    if (gameOver || gameWon || paused) return;
+    // Short tap (no significant drag) → launch ball or fire laser
+    if (!touchMoved) {
+        if (ballStuck) { launchBall(); startMusic(); return; }
+        if (activePowerups.laser) fireLaser();
+    }
+    touchMoved = false;
+});
+
+// --- Pause / Settings ---
+musicSlider.value = String(initialMusicVol);
+sfxSlider.value = String(initialSfxVol);
+shakeToggle.checked = initialShake;
+
+function setPaused(v) {
+    paused = v;
+    pauseMenu.classList.toggle('open', v);
+    pauseBtn.textContent = v ? '▶' : '⏸';
+}
+
+pauseBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (gameOver || gameWon) return;
+    setPaused(!paused);
+});
+resumeBtn.addEventListener('click', () => setPaused(false));
+restartBtn.addEventListener('click', () => { restart(); setPaused(false); });
+
+musicSlider.addEventListener('input', () => {
+    const v = parseFloat(musicSlider.value);
+    musicBus.gain.setValueAtTime(v, AC.currentTime);
+    setStore('fracture_music_vol', String(v));
+});
+sfxSlider.addEventListener('input', () => {
+    const v = parseFloat(sfxSlider.value);
+    sfxBus.gain.setValueAtTime(v, AC.currentTime);
+    setStore('fracture_sfx_vol', String(v));
+});
+shakeToggle.addEventListener('change', () => {
+    shakeEnabled = !!shakeToggle.checked;
+    setStore('fracture_shake', shakeEnabled ? '1' : '0');
+});
+
+// --- Effects ---
+function spawnParticles(x, y, color, count = 8) {
+    for (let i = 0; i < count; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const spd = 1 + Math.random() * 4;
+        particles.push({ x, y, dx: Math.cos(a)*spd, dy: Math.sin(a)*spd, life: 1, decay: 0.02 + Math.random()*0.03, size: 2 + Math.random()*4, color });
+    }
+}
+
+function floatText(x, y, text, color = '#fff', size = 14) {
+    floatingTexts.push({ x, y, text, color, size, life: 1, dy: -1.5 });
+}
+
+function fireLaser() {
+    lasers.push({ x: paddle.x + 10, y: paddle.y, dy: -10, color: '#ffaa33' });
+    lasers.push({ x: paddle.x + paddle.w - 10, y: paddle.y, dy: -10, color: '#ffaa33' });
+    sfxLaser();
+}
+
+function applyPowerup(pu) {
+    const def = POWERUP_TYPES.find(p => p.type === pu.ptype);
+    floatText(pu.x, pu.y, def.desc, def.color, 12);
+    flashAlpha = 0.15;
+    sfxPowerup();
+
+    switch (pu.ptype) {
+        case 'wide':
+            paddle.w = paddle.baseW * 1.6;
+            activePowerups.wide = Date.now() + def.duration;
+            break;
+        case 'multi':
+            const newBalls = [];
+            for (const b of balls) {
+                if (newBalls.length + balls.length >= 8) break;
+                newBalls.push(makeBall(b.x, b.y, b.dx * 0.8 + 1, b.dy));
+                newBalls.push(makeBall(b.x, b.y, b.dx * 0.8 - 1, b.dy));
+            }
+            balls.push(...newBalls);
+            break;
+        case 'fire':
+            balls.forEach(b => b.fire = true);
+            activePowerups.fire = Date.now() + def.duration;
+            break;
+        case 'slow':
+            balls.forEach(b => { b.dx *= 0.6; b.dy *= 0.6; });
+            activePowerups.slow = Date.now() + def.duration;
+            break;
+        case 'life':
+            lives = Math.min(lives + 1, 5);
+            break;
+        case 'laser':
+            activePowerups.laser = Date.now() + def.duration;
+            break;
+    }
+}
+
+// --- Update ---
+function update() {
+    if (levelTransition > 0) { levelTransition -= 0.02; return; }
+    if (gameOver || gameWon || paused) return;
+
+    const now = Date.now();
+    const slowActive = activePowerups.slow && now < activePowerups.slow;
+    const timeMul = slowActive ? 0.5 : 1;
+
+    // Expire powerups
+    if (activePowerups.wide && now > activePowerups.wide) { paddle.w = paddle.baseW; delete activePowerups.wide; }
+    if (activePowerups.fire && now > activePowerups.fire) { balls.forEach(b => b.fire = false); delete activePowerups.fire; }
+    if (activePowerups.slow && now > activePowerups.slow) { delete activePowerups.slow; }
+    if (activePowerups.laser && now > activePowerups.laser) { delete activePowerups.laser; }
+
+    // Combo decay
+    if (combo > 0) {
+        comboTimer -= 16;
+        if (comboTimer <= 0) { combo = 0; }
+    }
+
+    // Paddle
+    const targetX = mouseX - paddle.w / 2;
+    paddle.x += (targetX - paddle.x) * 0.3;
+    if (keys['ArrowLeft'] || keys['a']) paddle.x -= paddle.speed;
+    if (keys['ArrowRight'] || keys['d']) paddle.x += paddle.speed;
+    paddle.x = Math.max(0, Math.min(W - paddle.w, paddle.x));
+
+    // Balls
+    for (let bi = balls.length - 1; bi >= 0; bi--) {
+        const ball = balls[bi];
+
+        // Stuck on paddle — follow paddle position
+        if (ballStuck && bi === 0) {
+            ball.x = paddle.x + paddle.w / 2;
+            ball.y = paddle.y - ball.r - 2;
+            ball.dx = 0;
+            ball.dy = 0;
+            continue; // skip all physics for stuck ball
+        }
+
+        ball.trail.push({ x: ball.x, y: ball.y });
+        if (ball.trail.length > 12) ball.trail.shift();
+
+        ball.x += ball.dx * timeMul;
+        ball.y += ball.dy * timeMul;
+
+        // Walls
+        if (ball.x - ball.r < 0) { ball.x = ball.r; ball.dx = Math.abs(ball.dx); sfxWallBounce(); }
+        if (ball.x + ball.r > W) { ball.x = W - ball.r; ball.dx = -Math.abs(ball.dx); sfxWallBounce(); }
+        if (ball.y - ball.r < 0) { ball.y = ball.r; ball.dy = Math.abs(ball.dy); sfxWallBounce(); }
+
+        // Paddle
+        if (ball.dy > 0 && ball.y + ball.r >= paddle.y && ball.y + ball.r <= paddle.y + paddle.h + 6 &&
+            ball.x >= paddle.x - ball.r && ball.x <= paddle.x + paddle.w + ball.r) {
+            const hit = (ball.x - (paddle.x + paddle.w/2)) / (paddle.w/2);
+            const angle = hit * Math.PI/3 - Math.PI/2;
+            const spd = Math.sqrt(ball.dx*ball.dx + ball.dy*ball.dy);
+            ball.dx = Math.cos(angle) * spd;
+            ball.dy = Math.sin(angle) * spd;
+            if (ball.dy > -1) ball.dy = -1;
+            ball.y = paddle.y - ball.r;
+            spawnParticles(ball.x, ball.y, paddle.color, 4);
+            sfxPaddleHit();
+        }
+
+        // Lost
+        if (ball.y > H + 20) {
+            balls.splice(bi, 1);
+            if (balls.length === 0) {
+                lives--;
+                combo = 0;
+                shakeTime = 20;
+                floatText(W/2, H/2, lives > 0 ? `${lives} LIVES LEFT` : 'NO LIVES LEFT', '#ff6688', 16);
+                sfxLifeLost();
+                if (lives <= 0) { gameOver = true; sfxGameOver(); stopMusic(); return; }
+                resetBall();
+            }
+        }
+
+        // Brick collision
+        for (let b of bricks) {
+            if (!b.alive) continue;
+            if (ball.x + ball.r > b.x && ball.x - ball.r < b.x + b.w &&
+                ball.y + ball.r > b.y && ball.y - ball.r < b.y + b.h) {
+                
+                if (!ball.fire) {
+                    const ol = (ball.x + ball.r) - b.x;
+                    const or2 = (b.x + b.w) - (ball.x - ball.r);
+                    const ot = (ball.y + ball.r) - b.y;
+                    const ob = (b.y + b.h) - (ball.y - ball.r);
+                    const mn = Math.min(ol, or2, ot, ob);
+                    if (mn === ot || mn === ob) ball.dy = -ball.dy;
+                    else ball.dx = -ball.dx;
+                }
+
+                b.hp--;
+                if (b.hp <= 0) {
+                    b.alive = false;
+                    combo++;
+                    comboTimer = 2000;
+                    if (combo > maxCombo) maxCombo = combo;
+                    
+                    const comboMul = Math.min(combo, 10);
+                    const pts = (b.isGold ? 50 : 10) * level * comboMul;
+                    score += pts;
+                    
+                    spawnParticles(b.x + b.w/2, b.y + b.h/2, b.color, 15);
+                    sfxBrickBreak(b.isGold);
+                    if (combo >= 3) { floatText(b.x + b.w/2, b.y, `x${comboMul} COMBO!`, '#ffaa33', combo >= 7 ? 18 : 14); sfxComboHit(combo); }
+                    if (pts >= 100) floatText(b.x + b.w/2, b.y + 16, `+${pts}`, b.color, 11);
+
+                    // Drop powerup
+                    if (Math.random() < b.dropChance) {
+                        const pu = POWERUP_TYPES[Math.floor(Math.random() * POWERUP_TYPES.length)];
+                        powerups.push({ x: b.x + b.w/2, y: b.y + b.h/2, dy: 1.5, ptype: pu.type, icon: pu.icon, color: pu.color, r: 10 });
+                    }
+                } else {
+                    spawnParticles(b.x + b.w/2, b.y + b.h/2, b.color, 5);
+                    sfxBrickHit();
+                    shakeTime = 3;
+                }
+                if (!ball.fire) break;
+            }
+        }
+    }
+
+    // Lasers
+    for (let li = lasers.length - 1; li >= 0; li--) {
+        const l = lasers[li];
+        l.y += l.dy;
+        if (l.y < 0) { lasers.splice(li, 1); continue; }
+        for (let b of bricks) {
+            if (!b.alive) continue;
+            if (l.x > b.x && l.x < b.x + b.w && l.y > b.y && l.y < b.y + b.h) {
+                b.hp--;
+                if (b.hp <= 0) {
+                    b.alive = false;
+                    combo++; comboTimer = 2000;
+                    const comboMul = Math.min(combo, 10);
+                    score += (b.isGold ? 50 : 10) * level * comboMul;
+                    spawnParticles(b.x + b.w/2, b.y + b.h/2, b.color, 10);
+                }
+                lasers.splice(li, 1);
+                break;
+            }
+        }
+    }
+
+    // Powerups fall
+    for (let pi = powerups.length - 1; pi >= 0; pi--) {
+        const p = powerups[pi];
+        p.y += p.dy;
+        if (p.y > H + 20) { powerups.splice(pi, 1); continue; }
+        // Catch
+        if (p.y + p.r >= paddle.y && p.y - p.r <= paddle.y + paddle.h &&
+            p.x >= paddle.x && p.x <= paddle.x + paddle.w) {
+            applyPowerup(p);
+            powerups.splice(pi, 1);
+        }
+    }
+
+    // Level clear
+    if (bricks.every(b => !b.alive)) {
+        const clearBonus = level * 100 + combo * 20;
+        score += clearBonus;
+        floatText(W/2, H/2 - 40, `LEVEL ${level} CLEAR!`, '#44ffaa', 18);
+        floatText(W/2, H/2, `+${clearBonus} BONUS`, '#ffaa33', 14);
+        sfxLevelClear();
+        
+        level++;
+        setMusicIntensity(level);
+        if (level > maxLevel) { gameWon = true; sfxLevelClear(); stopMusic(); return; }
+        
+        levelTransition = 1;
+        levelTransText = LEVELS[level - 1].name;
+        activePowerups = {};
+        paddle.w = paddle.baseW;
+        initBricks();
+        resetBall();
+    }
+
+    // Particles
+    particles = particles.filter(p => { p.x += p.dx; p.y += p.dy; p.dy += 0.05; p.life -= p.decay; return p.life > 0; });
+    floatingTexts = floatingTexts.filter(f => { f.y += f.dy; f.life -= 0.015; return f.life > 0; });
+    if (shakeTime > 0) shakeTime--;
+    if (flashAlpha > 0) flashAlpha -= 0.01;
+}
+
+// --- Draw ---
+function draw() {
+    ctx.save();
+    if (shakeEnabled && shakeTime > 0) {
+        const i = shakeTime * 0.6;
+        ctx.translate((Math.random()-0.5)*i, (Math.random()-0.5)*i);
+    }
+
+    // BG
+    ctx.fillStyle = '#0a0a1a';
+    ctx.fillRect(0, 0, W, H);
+
+    // Grid
+    ctx.strokeStyle = 'rgba(0,200,255,0.03)'; ctx.lineWidth = 1;
+    for (let x = 0; x < W; x += 40) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+    for (let y = 0; y < H; y += 40) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+
+    // Flash
+    if (flashAlpha > 0) {
+        ctx.fillStyle = `rgba(255,255,255,${flashAlpha})`;
+        ctx.fillRect(0, 0, W, H);
+    }
+
+    // Bricks
+    for (let b of bricks) {
+        if (!b.alive) continue;
+        const alpha = 0.3 + (b.hp / b.maxHp) * 0.7;
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = b.color;
+        ctx.shadowColor = b.color; ctx.shadowBlur = 8 + (b.hp/b.maxHp) * 10;
+        ctx.fillRect(b.x, b.y, b.w, b.h);
+        ctx.shadowBlur = 0;
+        ctx.globalAlpha = 1;
+
+        // Gold shimmer
+        if (b.isGold) {
+            ctx.fillStyle = `rgba(255,215,0,${0.15 + Math.sin(Date.now()/200 + b.x)*0.1})`;
+            ctx.fillRect(b.x, b.y, b.w, b.h);
+        }
+
+        // Cracks
+        if (b.hp < b.maxHp) {
+            const cracks = b.maxHp - b.hp;
+            ctx.strokeStyle = `rgba(255,255,255,${0.15 + cracks * 0.1})`; ctx.lineWidth = 1;
+            for (let i = 0; i < Math.min(cracks, 3); i++) {
+                ctx.beginPath();
+                ctx.moveTo(b.x + b.w * (0.2 + i*0.25), b.y);
+                ctx.lineTo(b.x + b.w * (0.3 + i*0.15), b.y + b.h * 0.5);
+                ctx.lineTo(b.x + b.w * (0.5 + i*0.1), b.y + b.h);
+                ctx.stroke();
+            }
+        }
+
+        // HP indicator for tough bricks
+        if (b.maxHp >= 3) {
+            ctx.fillStyle = 'rgba(255,255,255,0.7)';
+            ctx.font = '9px "Press Start 2P"';
+            ctx.textAlign = 'center';
+            ctx.fillText(b.hp, b.x + b.w/2, b.y + b.h/2 + 3);
+        }
+    }
+
+    // Powerups
+    for (const p of powerups) {
+        ctx.save();
+        ctx.shadowColor = p.color; ctx.shadowBlur = 12;
+        ctx.fillStyle = p.color;
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2); ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = '#000';
+        ctx.font = '12px sans-serif'; ctx.textAlign = 'center';
+        ctx.fillText(p.icon, p.x, p.y + 4);
+        ctx.restore();
+    }
+
+    // Lasers
+    for (const l of lasers) {
+        ctx.fillStyle = l.color;
+        ctx.shadowColor = l.color; ctx.shadowBlur = 8;
+        ctx.fillRect(l.x - 2, l.y, 4, 12);
+        ctx.shadowBlur = 0;
+    }
+
+    // Paddle
+    ctx.fillStyle = activePowerups.laser ? '#ffaa33' : paddle.color;
+    ctx.shadowColor = activePowerups.laser ? '#ffaa33' : paddle.color;
+    ctx.shadowBlur = 15;
+    ctx.beginPath(); ctx.roundRect(paddle.x, paddle.y, paddle.w, paddle.h, 6); ctx.fill();
+    ctx.shadowBlur = 0;
+
+    // Active powerup indicators on paddle
+    const activeKeys = Object.keys(activePowerups);
+    if (activeKeys.length) {
+        ctx.font = '8px sans-serif'; ctx.textAlign = 'center';
+        activeKeys.forEach((k, i) => {
+            const remaining = Math.max(0, activePowerups[k] - Date.now());
+            if (remaining > 0) {
+                const pct = remaining / POWERUP_TYPES.find(p => p.type === k).duration;
+                ctx.fillStyle = `rgba(255,255,255,${0.3 + pct * 0.5})`;
+                ctx.fillRect(paddle.x + i * 20 + 5, paddle.y + paddle.h + 4, 15 * pct, 2);
+            }
+        });
+    }
+
+    // Balls
+    for (const ball of balls) {
+        // Trail
+        for (let i = 0; i < ball.trail.length; i++) {
+            const t = ball.trail[i];
+            const a = (i / ball.trail.length) * 0.3;
+            ctx.fillStyle = ball.fire ? `rgba(255,68,34,${a})` : `rgba(255,255,255,${a})`;
+            ctx.beginPath(); ctx.arc(t.x, t.y, ball.r * (i/ball.trail.length), 0, Math.PI*2); ctx.fill();
+        }
+        // Ball
+        ctx.fillStyle = ball.fire ? '#ff4422' : '#fff';
+        ctx.shadowColor = ball.fire ? '#ff4422' : '#fff';
+        ctx.shadowBlur = ball.fire ? 20 : 12;
+        ctx.beginPath(); ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI*2); ctx.fill();
+        ctx.shadowBlur = 0;
+    }
+
+    // Particles
+    for (const p of particles) {
+        ctx.globalAlpha = p.life; ctx.fillStyle = p.color;
+        ctx.fillRect(p.x - p.size/2, p.y - p.size/2, p.size, p.size);
+    }
+    ctx.globalAlpha = 1;
+
+    // Floating texts
+    for (const f of floatingTexts) {
+        ctx.globalAlpha = f.life;
+        ctx.fillStyle = f.color;
+        ctx.font = `${f.size}px "Press Start 2P"`;
+        ctx.textAlign = 'center';
+        ctx.shadowColor = f.color; ctx.shadowBlur = 10;
+        ctx.fillText(f.text, f.x, f.y);
+        ctx.shadowBlur = 0;
+    }
+    ctx.globalAlpha = 1;
+
+    // HUD
+    scoreEl.textContent = score;
+    livesEl.textContent = '♥'.repeat(Math.max(0, lives));
+    comboEl.textContent = combo >= 2 ? `x${Math.min(combo, 10)} COMBO` : '';
+    lvlEl.textContent = `LV ${level}`;
+
+    // Level transition overlay
+    if (levelTransition > 0) {
+        ctx.fillStyle = `rgba(10,10,26,${levelTransition})`;
+        ctx.fillRect(0, 0, W, H);
+        ctx.fillStyle = `rgba(0,200,255,${levelTransition})`;
+        ctx.font = '32px "Press Start 2P"'; ctx.textAlign = 'center';
+        ctx.shadowColor = '#00c8ff'; ctx.shadowBlur = 30;
+        ctx.fillText(`LEVEL ${level}`, W/2, H/2 - 20);
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = `rgba(255,255,255,${levelTransition * 0.6})`;
+        ctx.font = '14px "Press Start 2P"';
+        ctx.fillText(levelTransText, W/2, H/2 + 20);
+    }
+
+    // Paused / Game Over / Win
+    if (paused && !gameOver && !gameWon) {
+        drawOverlay('PAUSED', 'Menüden devam edebilirsin');
+    } else if (ballStuck && !gameOver && !gameWon && levelTransition <= 0) {
+        drawOverlay('CLICK TO LAUNCH', `Level ${level}: ${LEVELS[level-1].name}`);
+    }
+    if (gameOver) {
+        drawOverlay('GAME OVER', `Score: ${score}  •  Max Combo: ${maxCombo}x`);
+        ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.font = '10px "Press Start 2P"'; ctx.textAlign = 'center';
+        ctx.fillText('Click to restart', W/2, H/2 + 55);
+    }
+    if (gameWon) {
+        drawOverlay('⭐ SHATTER COMPLETE ⭐', `Score: ${score}  •  Max Combo: ${maxCombo}x`);
+        ctx.fillStyle = 'rgba(255,215,0,0.5)'; ctx.font = '10px "Press Start 2P"'; ctx.textAlign = 'center';
+        ctx.fillText('You shattered them all', W/2, H/2 + 55);
+    }
+
+    ctx.restore();
+}
+
+function drawOverlay(title, sub) {
+    ctx.fillStyle = 'rgba(10,10,26,0.75)'; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#00c8ff'; ctx.font = '22px "Press Start 2P"'; ctx.textAlign = 'center';
+    ctx.shadowColor = '#00c8ff'; ctx.shadowBlur = 20;
+    ctx.fillText(title, W/2, H/2 - 10);
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.font = '10px "Press Start 2P"';
+    ctx.fillText(sub, W/2, H/2 + 25);
+}
+
+// --- Loop ---
+function loop() { update(); draw(); requestAnimationFrame(loop); }
+initBricks(); resetBall(); loop();
+</script>
+</body>
+</html>
