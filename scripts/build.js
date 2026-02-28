@@ -22,7 +22,8 @@ const CONFIG = {
         rorschachTemplate: 'rorschach_template.html',
     },
     nav: ['journal', 'article', 'radar', 'gallery', 'games', 'about'],
-    perPage: 20
+    perPage: 20,
+    ga4MeasurementId: process.env.GA4_MEASUREMENT_ID || process.env.GA4_ID || ''
 };
 
 // --- Helpers ---
@@ -41,11 +42,27 @@ const ensureDir = (dirPath) => {
  * Standardized Layout Renderer
  * Replaces common placeholders in the layout template.
  */
+const getGa4Snippet = () => {
+    const id = CONFIG.ga4MeasurementId.trim();
+    if (!id) return '';
+
+    return `
+    <!-- Google Analytics (GA4) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=${id}"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);} 
+      gtag('js', new Date());
+      gtag('config', '${id}');
+    </script>`;
+};
+
 const renderLayout = (template, { title, content, activeNav, rootPath = '.' }) => {
     let html = template
         .replace(/{{ROOT}}/g, rootPath)
         .replace(/{{TITLE}}/g, title)
-        .replace(/{{CONTENT}}/g, content);
+        .replace(/{{CONTENT}}/g, content)
+        .replace(/{{GA4_SNIPPET}}/g, getGa4Snippet());
 
     // Handle Active Navigation State
     CONFIG.nav.forEach(cat => {
