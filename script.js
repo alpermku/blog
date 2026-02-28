@@ -1,6 +1,102 @@
 document.addEventListener('DOMContentLoaded', () => {
     const synth = window.speechSynthesis;
-    
+    const hasSynth = !!synth;
+
+    // --- Analytics (GA4) ---
+    const analyticsState = {
+        scroll50Sent: false,
+        scroll90Sent: false
+    };
+
+    const trackEvent = (eventName, params = {}) => {
+        if (typeof window.gtag !== 'function') return;
+        window.gtag('event', eventName, params);
+    };
+
+    const setupAnalytics = () => {
+        // Outbound click tracking
+        document.addEventListener('click', (event) => {
+            const link = event.target.closest('a[href]');
+            if (!link) return;
+
+            const href = link.getAttribute('href') || '';
+            if (!href || href.startsWith('#') || href.startsWith('javascript:')) return;
+
+            let url;
+            try {
+                url = new URL(link.href, window.location.origin);
+            } catch {
+                return;
+            }
+
+            const isOutbound = url.hostname && url.hostname !== window.location.hostname;
+            if (isOutbound) {
+                trackEvent('outbound_click', {
+                    link_url: url.href,
+                    link_domain: url.hostname,
+                    link_text: (link.textContent || '').trim().slice(0, 120)
+                });
+            }
+
+            const isGameLink = url.pathname.includes('/games/') && url.pathname.endsWith('.html');
+            if (isGameLink) {
+                const gameSlug = url.pathname.split('/').pop().replace('.html', '');
+                trackEvent('game_start', {
+                    game_slug: gameSlug,
+                    source_path: window.location.pathname
+                });
+            }
+        });
+
+        // Scroll depth tracking (50% / 90%)
+        const onScroll = () => {
+            const doc = document.documentElement;
+            const maxScroll = doc.scrollHeight - window.innerHeight;
+            if (maxScroll <= 0) return;
+
+            const progress = (window.scrollY / maxScroll) * 100;
+
+            if (!analyticsState.scroll50Sent && progress >= 50) {
+                analyticsState.scroll50Sent = true;
+                trackEvent('scroll_depth', { percent: 50, page_path: window.location.pathname });
+            }
+
+            if (!analyticsState.scroll90Sent && progress >= 90) {
+                analyticsState.scroll90Sent = true;
+                trackEvent('scroll_depth', { percent: 90, page_path: window.location.pathname });
+                window.removeEventListener('scroll', onScroll);
+            }
+        };
+
+        window.addEventListener('scroll', onScroll, { passive: true });
+
+        // Site search tracking (query params + search forms)
+        const queryParams = new URLSearchParams(window.location.search);
+        const searchTerm = queryParams.get('q') || queryParams.get('s') || queryParams.get('query') || queryParams.get('search');
+        if (searchTerm) {
+            trackEvent('site_search', {
+                search_term: searchTerm,
+                page_path: window.location.pathname
+            });
+        }
+
+        document.querySelectorAll('form').forEach((form) => {
+            form.addEventListener('submit', () => {
+                const input = form.querySelector('input[type="search"], input[name="q"], input[name="query"], input[name="s"], input[name="search"]');
+                if (!input) return;
+                const term = (input.value || '').trim();
+                if (!term) return;
+
+                trackEvent('site_search', {
+                    search_term: term,
+                    page_path: window.location.pathname
+                });
+            });
+        });
+    };
+
+    setupAnalytics();
+
     // State management
     const state = {
         speaking: false,
@@ -19,15 +115,15 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    if (!synth) {
+    if (!hasSynth) {
         console.warn('SpeechSynthesis API not supported.');
         document.querySelectorAll('.tts-btn').forEach(btn => btn.style.display = 'none');
-        return;
     }
 
     // --- Voice Management ---
 
     const loadVoices = () => {
+        if (!hasSynth) return;
         state.voices = synth.getVoices();
     };
 
@@ -35,7 +131,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadVoices();
     
     // Chrome requires this event to load voices asynchronously
-    if (synth.onvoiceschanged !== undefined) {
+    if (hasSynth && synth.onvoiceschanged !== undefined) {
         synth.onvoiceschanged = loadVoices;
     }
 
@@ -92,6 +188,8 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const stopSpeaking = () => {
+        if (!hasSynth) return;
+
         if (synth.speaking || state.speaking) {
             synth.cancel();
         }
@@ -121,6 +219,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Main Interface ---
 
     window.toggleSpeech = function(btn, lang) {
+        if (!hasSynth) return;
+
         // 1. If clicking the currently playing button, stop.
         if (state.currentBtn === btn && state.speaking) {
             stopSpeaking();
