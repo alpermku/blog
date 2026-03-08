@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mamihlapinatapai — The Last Gift of a Dying Language</title>
+    <link rel="icon" type="image/jpeg" href="./assets/avatar.jpg">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Inter:wght@200;300;400&display=swap');
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: #0a0a0c;
+            color: #d4c5a9;
+            font-family: 'Inter', sans-serif;
+            overflow-x: hidden;
+            cursor: default;
+        }
+
+        canvas#bg {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .back-link {
+            position: fixed;
+            top: 20px; left: 24px;
+            z-index: 100;
+            color: #8a7e6b;
+            text-decoration: none;
+            font-size: 0.85em;
+            font-family: 'Inter', sans-serif;
+            font-weight: 300;
+            letter-spacing: 0.05em;
+            transition: color 0.3s;
+        }
+        .back-link:hover { color: #d4c5a9; }
+
+        .container {
+            position: relative;
+            z-index: 1;
+            max-width: 720px;
+            margin: 0 auto;
+            padding: 80px 24px 120px;
+        }
+
+        /* — Hero — */
+        .hero {
+            text-align: center;
+            padding: 60px 0 80px;
+        }
+
+        .origin-label {
+            font-family: 'Inter', sans-serif;
+            font-weight: 200;
+            font-size: 0.7em;
+            letter-spacing: 0.35em;
+            text-transform: uppercase;
+            color: #6b5e4a;
+            margin-bottom: 32px;
+        }
+
+        .the-word {
+            font-family: 'Cormorant Garamond', serif;
+            font-weight: 300;
+            font-size: clamp(2rem, 6vw, 3.8rem);
+            letter-spacing: 0.08em;
+            color: #e8d5b0;
+            line-height: 1.2;
+            margin-bottom: 24px;
+            text-shadow: 0 0 60px rgba(232,213,176,0.15);
+            transition: text-shadow 1.5s ease;
+        }
+        .the-word:hover {
+            text-shadow: 0 0 80px rgba(232,213,176,0.35);
+        }
+
+        .phonetic {
+            font-family: 'Inter', sans-serif;
+            font-weight: 200;
+            font-size: 0.85em;
+            color: #8a7e6b;
+            letter-spacing: 0.12em;
+            margin-bottom: 40px;
+        }
+
+        .definition {
+            font-family: 'Cormorant Garamond', serif;
+            font-weight: 400;
+            font-style: italic;
+            font-size: clamp(1.05rem, 2.5vw, 1.35rem);
+            line-height: 1.8;
+            color: #c4b592;
+            max-width: 560px;
+            margin: 0 auto;
+        }
+
+        /* — Divider — */
+        .divider {
+            text-align: center;
+            padding: 48px 0;
+            color: #3d3628;
+            font-size: 1.2em;
+            letter-spacing: 1.2em;
+            user-select: none;
+        }
+
+        /* — Sections — */
+        .section {
+            margin-bottom: 64px;
+            opacity: 0;
+            transform: translateY(30px);
+            transition: opacity 1.2s ease, transform 1.2s ease;
+        }
+        .section.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .section h2 {
+            font-family: 'Cormorant Garamond', serif;
+            font-weight: 300;
+            font-size: 1.1em;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: #8a7e6b;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #1e1a14;
+            padding-bottom: 8px;
+        }
+
+        .section p {
+            font-family: 'Cormorant Garamond', serif;
+            font-weight: 400;
+            font-size: 1.15em;
+            line-height: 2;
+            color: #b8a88a;
+            margin-bottom: 16px;
+        }
+
+        .section p em {
+            color: #d4c5a9;
+            font-style: italic;
+        }
+
+        .section p strong {
+            color: #e8d5b0;
+            font-weight: 600;
+        }
+
+        /* — Etymology Box — */
+        .etymology {
+            background: rgba(30,26,20,0.6);
+            border: 1px solid #2a2418;
+            border-radius: 8px;
+            padding: 28px 32px;
+            margin: 32px 0;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .etymology .morph {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+
+        .etymology .morph span {
+            background: rgba(232,213,176,0.08);
+            border: 1px solid #3d3628;
+            border-radius: 6px;
+            padding: 8px 14px;
+            font-size: 0.85em;
+            color: #c4b592;
+            font-weight: 300;
+            transition: background 0.3s, color 0.3s;
+            cursor: default;
+        }
+        .etymology .morph span:hover {
+            background: rgba(232,213,176,0.15);
+            color: #e8d5b0;
+        }
+
+        .etymology .morph .plus {
+            background: none;
+            border: none;
+            color: #4a3f30;
+            font-size: 1em;
+            padding: 0 2px;
+        }
+        .etymology .morph .plus:hover { background: none; color: #4a3f30; }
+
+        .etymology .literal {
+            text-align: center;
+            font-size: 0.8em;
+            color: #6b5e4a;
+            font-weight: 200;
+            letter-spacing: 0.05em;
+        }
+
+        /* — Portrait — */
+        .portrait {
+            text-align: center;
+            padding: 20px 0;
+        }
+
+        .portrait .name {
+            font-family: 'Cormorant Garamond', serif;
+            font-weight: 600;
+            font-size: 1.3em;
+            color: #e8d5b0;
+            margin-bottom: 4px;
+        }
+
+        .portrait .dates {
+            font-family: 'Inter', sans-serif;
+            font-weight: 200;
+            font-size: 0.8em;
+            color: #6b5e4a;
+            letter-spacing: 0.15em;
+            margin-bottom: 16px;
+        }
+
+        .portrait .epitaph {
+            font-family: 'Cormorant Garamond', serif;
+            font-style: italic;
+            font-size: 1em;
+            color: #8a7e6b;
+            line-height: 1.8;
+        }
+
+        /* — Quote — */
+        blockquote {
+            border-left: 2px solid #3d3628;
+            padding: 12px 24px;
+            margin: 24px 0;
+            font-family: 'Cormorant Garamond', serif;
+            font-style: italic;
+            font-size: 1.1em;
+            color: #a89872;
+            line-height: 1.9;
+        }
+
+        /* — Final — */
+        .final {
+            text-align: center;
+            padding: 40px 0 0;
+        }
+
+        .final .closing-word {
+            font-family: 'Cormorant Garamond', serif;
+            font-weight: 300;
+            font-size: clamp(1.6rem, 4vw, 2.4rem);
+            color: #e8d5b0;
+            letter-spacing: 0.1em;
+            margin-bottom: 20px;
+            text-shadow: 0 0 50px rgba(232,213,176,0.1);
+        }
+
+        .final p {
+            font-family: 'Inter', sans-serif;
+            font-weight: 200;
+            font-size: 0.8em;
+            color: #4a3f30;
+            letter-spacing: 0.1em;
+            line-height: 2.2;
+        }
+
+        /* — Floating particles — */
+        .particle {
+            position: fixed;
+            width: 2px; height: 2px;
+            background: rgba(232,213,176,0.15);
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 0;
+            animation: drift linear infinite;
+        }
+
+        @keyframes drift {
+            0% { transform: translateY(100vh) scale(1); opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { transform: translateY(-10vh) scale(0.3); opacity: 0; }
+        }
+
+        /* — Responsive — */
+        @media (max-width: 480px) {
+            .container { padding: 60px 18px 80px; }
+            .etymology { padding: 20px 18px; }
+            .etymology .morph span { font-size: 0.75em; padding: 6px 10px; }
+        }
+    </style>
+</head>
+<body>
+
+<a href="./gallery.html" class="back-link">← Gallery</a>
+
+<canvas id="bg"></canvas>
+
+<div class="container">
+
+    <div class="hero section">
+        <div class="origin-label">Yaghan · Tierra del Fuego · Extinct 2022</div>
+        <div class="the-word">mamihlapinatapai</div>
+        <div class="phonetic">/mamiɬapinatapai/</div>
+        <div class="definition">
+            "İki kişinin birbirinden bir şey beklediği ama ikisinin de başlatmaya cesaret edemediği o bakışma anı."
+        </div>
+    </div>
+
+    <div class="divider">· · ·</div>
+
+    <div class="section">
+        <h2>Kelime</h2>
+        <p>Guinness Rekorlar Kitabı bu kelimeyi <em>"dünyanın en yoğun anlamlı kelimesi"</em> olarak kayıt altına aldı. Başka hiçbir dilde tek kelimeyle karşılığı yok.</p>
+        <p>İngilizce'de en yakın girişim şu: <em>"a look that without words is shared by two people who want to initiate something, but that neither will start."</em> Ama bu bir tanım, bir kelime değil. Yaghan dilinde bunu tek bir nefeste söyleyebiliyordunuz.</p>
+        <p>Artık söyleyemiyorsunuz.</p>
+    </div>
+
+    <div class="section">
+        <h2>Anatomi</h2>
+        <div class="etymology">
+            <div class="morph">
+                <span>ma(m)-<br><small>dönüşlü / edilgen</small></span>
+                <span class="plus">+</span>
+                <span>ihlapi<br><small>"ne yapacağını bilememek"</small></span>
+                <span class="plus">+</span>
+                <span>-n<br><small>durum eki</small></span>
+                <span class="plus">+</span>
+                <span>-ata<br><small>başarı eki</small></span>
+                <span class="plus">+</span>
+                <span>-apai<br><small>ikil (karşılıklılık)</small></span>
+            </div>
+            <div class="literal">Kelimesi kelimesine: "birbirini ne yapacağını bilemez hale getirmek"</div>
+        </div>
+        <p>Dönüşlü önek <strong>ma-</strong>, ikil son ek <strong>-apai</strong> ile birleşince karşılıklılık anlamı kazanıyor. İki kişi birbirini aynı anda aynı çaresizliğe düşürüyor. Dilbilgisi, duyguyu <em>yapısal olarak</em> kodluyor — bu sadece bir sözcük değil, bir mimari.</p>
+    </div>
+
+    <div class="divider">· · ·</div>
+
+    <div class="section">
+        <h2>Son Konuşan</h2>
+        <div class="portrait">
+            <div class="name">Cristina Calderón Harban</div>
+            <div class="dates">1928 · Robalo, Navarino Adası — 2022 · Punta Arenas</div>
+            <div class="epitaph">
+                "Abuela" — Büyükanne.<br>
+                Son akıcı Yaghan konuşanı.<br>
+                Son saf kan Yaghan insanı.
+            </div>
+        </div>
+        <p>Cristina, dört yaşında yetim kaldı. Büyükannesi ve büyükbabası onu aldı ve Yaghan kültürünü öğretti. Dokuz yaşına kadar <em>sadece</em> Yaghan dilini biliyordu. İspanyolca'yı akranlarından, İngilizce'yi bir Anglikan misyonunda kalan teyzesinden öğrendi.</p>
+        <p>2005'te kız kardeşi Úrsula öldüğünde, Cristina dünyadaki son saf kan Yaghan oldu. 2004'ten itibaren ana dili olarak Yaghan konuşan son iki kişiden biriydi — diğeri baldızı Emelinda Acuña'ydı.</p>
+        <p>Torunuyla birlikte <em>"Hai Kur Mamashu Shis"</em> (Sana Bir Hikaye Anlatmak İstiyorum) adlı Yaghan efsaneleri kitabını yayımladı. Dilin son sözlüğünün hazırlanmasına katkıda bulundu.</p>
+        <p>16 Şubat 2022'de 93 yaşında öldüğünde, Yaghan diliyle birlikte bir evren kapandı.</p>
+    </div>
+
+    <div class="divider">· · ·</div>
+
+    <div class="section">
+        <h2>Bir Dilin Ölümü</h2>
+        <p>Dünyada şu an yaklaşık <strong>7.000 dil</strong> konuşuluyor. UNESCO'ya göre bunların <strong>2.500'ü</strong> yok olmak üzere. Her iki haftada bir dil ölüyor. Her birinin içinde başka hiçbir dile aktarılamayan düşünce biçimleri, algı çerçeveleri, duygu mimarileri var.</p>
+        <p>Yaghan bir <em>dil izolatı</em>ydı — bilinen hiçbir dil ailesiyle akraba değildi. Dünya üzerinde tamamen yalnız, tamamen benzersiz bir dilsel evren. Diğer tüm dillerin paralel çizgiler boyunca evrimleştiği bir dünyada, Yaghan kendi başına bir kıta gibiydi.</p>
+        <p>Bir kelime öldüğünde, sadece bir ses dizisi kaybolmaz. O kelimenin taşıdığı <em>kavram</em> — başka hiçbir dilin tam olarak yakalayamadığı o spesifik düşünce biçimi — yok olur. Mamihlapinatapai'nin İngilizce veya Türkçe "çevirisi" bir çeviri değil, bir <em>tasvir</em>dir. Aradaki fark, bir şiiri okumakla o şiirin konusunu açıklamak arasındaki fark kadardır.</p>
+        <blockquote>Bir dil öldüğünde, bir düşünme biçimi ölür. İnsanlığın hayal gücü bir parça küçülür.</blockquote>
+    </div>
+
+    <div class="section">
+        <h2>Neden Bu Kelime</h2>
+        <p>Mamihlapinatapai evrenseldir çünkü insani bir durumu — <em>karşılıklı tereddüdü</em> — kristalize eder. Oyun teorisinde buna <strong>"gönüllü ikilemi"</strong> (volunteer's dilemma) deniyor: herkesin bir şeyin yapılmasını istediği ama kimsenin ilk adımı atmak istemediği durum.</p>
+        <p>Ama kelimenin gücü akademik değil, <em>samimi</em>. Hepimiz o bakışmayı tanıyoruz. O anı yaşadık — karşısındakinin gözlerinde aynı isteği görüp, ikimizin de yerinden kıpırdamadığı o birkaç saniyelik sonsuzluğu. Yaghan halkı bu ana bir isim verdi. Biz veremedik.</p>
+        <p>Ve artık o isim, onu yaratan son insanla birlikte toprağa karıştı.</p>
+    </div>
+
+    <div class="divider">· · ·</div>
+
+    <div class="section final">
+        <div class="closing-word">mamihlapinatapai</div>
+        <p>
+            Yaghan dili · Tierra del Fuego, Şili<br>
+            ~10.000 yıllık bir dilin son hediyesi<br>
+            Bir bakışmaya verilmiş tek kelime<br><br>
+            <span style="color:#3d3628;">Bir kelime daha sessizce yok oldu.<br>
+            Kimse başlatmadı. Kimse durduramadı.<br>
+            Mamihlapinatapai.</span>
+        </p>
+    </div>
+
+</div>
+
+<script>
+// Subtle background: slow-moving fog/particles
+(function() {
+    const canvas = document.getElementById('bg');
+    const ctx = canvas.getContext('2d');
+    let w, h;
+    const particles = [];
+    const PARTICLE_COUNT = 40;
+
+    function resize() {
+        w = canvas.width = window.innerWidth;
+        h = canvas.height = window.innerHeight;
+    }
+    resize();
+    window.addEventListener('resize', resize);
+
+    for (let i = 0; i < PARTICLE_COUNT; i++) {
+        particles.push({
+            x: Math.random() * w,
+            y: Math.random() * h,
+            r: Math.random() * 1.5 + 0.5,
+            vx: (Math.random() - 0.5) * 0.15,
+            vy: -Math.random() * 0.2 - 0.05,
+            alpha: Math.random() * 0.12 + 0.03
+        });
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, w, h);
+        for (const p of particles) {
+            p.x += p.vx;
+            p.y += p.vy;
+            if (p.y < -10) { p.y = h + 10; p.x = Math.random() * w; }
+            if (p.x < -10) p.x = w + 10;
+            if (p.x > w + 10) p.x = -10;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(200,185,150,${p.alpha})`;
+            ctx.fill();
+        }
+        requestAnimationFrame(draw);
+    }
+    draw();
+
+    // Scroll reveal
+    const sections = document.querySelectorAll('.section');
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(e => {
+            if (e.isIntersecting) e.target.classList.add('visible');
+        });
+    }, { threshold: 0.15 });
+    sections.forEach(s => observer.observe(s));
+})();
+</script>
+
+</body>
+</html>
