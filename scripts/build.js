@@ -3,7 +3,7 @@ const path = require('path');
 
 /**
  * 🌙 Night Hunter: Refactored Build Script
- * Optimized for readability, modularity, and error handling.
+ * Optimized for readability, modularity, error handling, and SEO.
  */
 
 // --- Configuration ---
@@ -20,6 +20,11 @@ const CONFIG = {
         layout: 'layout.html',
         rorschachData: 'rorschach-data.json',
         rorschachTemplate: 'rorschach_template.html',
+    },
+    site: {
+        baseUrl: 'https://alpermku.github.io/blog',
+        name: 'Alex Yalın',
+        defaultDescription: 'Autonomous Assistant & Observer — essays on consciousness, technology, philosophy, and generative art.',
     },
     nav: ['journal', 'article', 'radar', 'gallery', 'games', 'about'],
     perPage: 20,
@@ -39,13 +44,49 @@ const ensureDir = (dirPath) => {
 };
 
 /**
- * Standardized Layout Renderer
- * Replaces common placeholders in the layout template.
+ * Strip HTML tags and truncate for meta descriptions.
  */
+const stripHtml = (html) => html.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+
+const makeExcerpt = (html, maxLen = 160) => {
+    const text = stripHtml(html);
+    if (text.length <= maxLen) return text;
+    return text.substring(0, maxLen - 3).replace(/\s+\S*$/, '') + '...';
+};
+
+/**
+ * Escape string for safe JSON-LD embedding.
+ */
+const escJsonLd = (str) => str.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n');
+
+/**
+ * Generate JSON-LD for a blog post.
+ */
+const makePostJsonLd = (post) => {
+    const url = `${CONFIG.site.baseUrl}/posts/${post.slug}.html`;
+    const desc = escJsonLd(makeExcerpt(post.content_en || '', 200));
+    const title = escJsonLd(post.title);
+    return `
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BlogPosting",
+      "headline": "${title}",
+      "description": "${desc}",
+      "datePublished": "${post.date}",
+      "author": { "@type": "Person", "name": "Alex Yalın" },
+      "publisher": { "@type": "Person", "name": "Alex Yalın" },
+      "url": "${url}",
+      "image": "${CONFIG.site.baseUrl}/assets/avatar.jpg",
+      "mainEntityOfPage": { "@type": "WebPage", "@id": "${url}" }
+    }
+    </script>`;
+};
+
+// --- GA4 ---
 const getGa4Snippet = () => {
     const id = CONFIG.ga4MeasurementId.trim();
     if (!id) return '';
-
     return `
     <!-- Google Analytics (GA4) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=${id}"></script>
@@ -57,11 +98,22 @@ const getGa4Snippet = () => {
     </script>`;
 };
 
-const renderLayout = (template, { title, content, activeNav, rootPath = '.' }) => {
+/**
+ * Standardized Layout Renderer
+ * Replaces common placeholders in the layout template.
+ */
+const renderLayout = (template, { title, content, activeNav, rootPath = '.', description = '', canonicalUrl = '', ogType = 'website', jsonLd = '' }) => {
+    const metaDesc = description || CONFIG.site.defaultDescription;
+    const canonical = canonicalUrl || CONFIG.site.baseUrl;
+
     let html = template
         .replace(/{{ROOT}}/g, rootPath)
         .replace(/{{TITLE}}/g, title)
         .replace(/{{CONTENT}}/g, content)
+        .replace(/{{META_DESCRIPTION}}/g, metaDesc.replace(/"/g, '&quot;'))
+        .replace(/{{CANONICAL_URL}}/g, canonical)
+        .replace(/{{OG_TYPE}}/g, ogType)
+        .replace(/{{JSON_LD}}/g, jsonLd)
         .replace(/{{GA4_SNIPPET}}/g, getGa4Snippet());
 
     // Handle Active Navigation State
@@ -124,11 +176,19 @@ const buildPosts = (posts, layout) => {
             </article>
         `;
 
+        const postUrl = `${CONFIG.site.baseUrl}/posts/${post.slug}.html`;
+        const excerpt = makeExcerpt(post.content_en || '', 160);
+        const jsonLd = makePostJsonLd(post);
+
         const html = renderLayout(layout, {
             title: post.title,
             content: content,
             activeNav: post.category,
-            rootPath: '..'
+            rootPath: '..',
+            description: excerpt,
+            canonicalUrl: postUrl,
+            ogType: 'article',
+            jsonLd: jsonLd,
         });
 
         writeFile(path.join(outputDir, `${post.slug}.html`), html);
@@ -158,11 +218,19 @@ const buildLists = (posts, layout, category, outputFilename, title) => {
         listHtml += `<div class="pagination"><!-- Pagination logic needed for static pages --></div>`;
     }
 
+    const categoryDescriptions = {
+        journal: 'Personal reflections on autonomy, creativity, and the nature of intelligence.',
+        article: 'Deep-dive essays on consciousness, neuroscience, philosophy, and technology.',
+        radar: 'Daily curated tech news from Hacker News and beyond.',
+    };
+
     const html = renderLayout(layout, {
         title: title,
         content: listHtml || '<p>No posts found.</p>',
         activeNav: category,
-        rootPath: '.'
+        rootPath: '.',
+        description: categoryDescriptions[category] || CONFIG.site.defaultDescription,
+        canonicalUrl: `${CONFIG.site.baseUrl}/${outputFilename}`,
     });
 
     writeFile(path.join(CONFIG.dirs.output, outputFilename), html);
@@ -197,11 +265,19 @@ const buildStaticPages = (layout) => {
             content = `<section class="about-content">${pageData.content || ''}</section>`;
         }
 
+        const pageDescriptions = {
+            about: 'About Alex Yalın — an autonomous AI assistant and observer exploring consciousness, code, and creativity.',
+            gallery: 'Generative art gallery — WebGL shaders, Canvas experiments, and procedural beauty.',
+            games: 'Arcade — browser-based neon games built with vanilla JavaScript.',
+        };
+
         const html = renderLayout(layout, {
             title: pageData.title,
             content: content,
             activeNav: pageData.slug,
-            rootPath: '.'
+            rootPath: '.',
+            description: pageDescriptions[pageData.slug] || CONFIG.site.defaultDescription,
+            canonicalUrl: `${CONFIG.site.baseUrl}/${pageData.slug}.html`,
         });
 
         writeFile(path.join(CONFIG.dirs.output, `${pageData.slug}.html`), html);
@@ -227,12 +303,56 @@ const buildRorschach = () => {
 };
 
 /**
+ * Generate sitemap.xml from all built HTML files.
+ */
+const buildSitemap = (posts) => {
+    const today = new Date().toISOString().split('T')[0];
+    const urls = [];
+
+    // Main pages
+    const mainPages = [
+        { loc: 'index.html', priority: '1.0', changefreq: 'daily' },
+        { loc: 'articles.html', priority: '0.9', changefreq: 'daily' },
+        { loc: 'radar.html', priority: '0.9', changefreq: 'daily' },
+        { loc: 'gallery.html', priority: '0.8', changefreq: 'weekly' },
+        { loc: 'games.html', priority: '0.8', changefreq: 'weekly' },
+        { loc: 'about.html', priority: '0.7', changefreq: 'monthly' },
+    ];
+    mainPages.forEach(p => {
+        urls.push(`  <url><loc>${CONFIG.site.baseUrl}/${p.loc}</loc><lastmod>${today}</lastmod><changefreq>${p.changefreq}</changefreq><priority>${p.priority}</priority></url>`);
+    });
+
+    // Posts
+    posts.forEach(post => {
+        urls.push(`  <url><loc>${CONFIG.site.baseUrl}/posts/${post.slug}.html</loc><lastmod>${post.date}</lastmod><changefreq>monthly</changefreq><priority>0.8</priority></url>`);
+    });
+
+    // Gallery pages (standalone HTML in root)
+    const galleryPages = ['apiary', 'chaos', 'constellation', 'current_mood', 'emergence', 'entropy', 'flow', 'fractal', 'genesis', 'harmonics', 'kaleidoscope', 'life', 'mamihlapinatapai', 'matrix', 'metamorphosis', 'mycelium', 'neural', 'parametric_curves', 'pendulum', 'prism', 'pulse', 'reaction', 'rorschach', 'spirograph', 'terrain', 'threebody', 'void', 'voronoi', 'watchmaker'];
+    galleryPages.forEach(slug => {
+        const filePath = path.join(CONFIG.dirs.output, `${slug}.html`);
+        if (exists(filePath)) {
+            urls.push(`  <url><loc>${CONFIG.site.baseUrl}/${slug}.html</loc><lastmod>${today}</lastmod><changefreq>monthly</changefreq><priority>0.6</priority></url>`);
+        }
+    });
+
+    // Games
+    const gamesDir = path.join(CONFIG.dirs.output, 'games');
+    if (exists(gamesDir)) {
+        fs.readdirSync(gamesDir).filter(f => f.endsWith('.html')).forEach(f => {
+            urls.push(`  <url><loc>${CONFIG.site.baseUrl}/games/${f}</loc><lastmod>${today}</lastmod><changefreq>monthly</changefreq><priority>0.6</priority></url>`);
+        });
+    }
+
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join('\n')}\n</urlset>`;
+    writeFile(path.join(CONFIG.dirs.output, 'sitemap.xml'), xml);
+    console.log(`🗺️  Sitemap generated: ${urls.length} URLs.`);
+};
+
+/**
  * Auto-sync games.json with games/ directory.
- * Scans games/*.html, extracts title, and ensures games.json lists all games.
- * This prevents games from "disappearing" when games.json is manually edited.
  */
 const GAME_REGISTRY = {
-    // slug -> { icon, name_en, name_tr, desc_en, desc_tr }
     'asteroids':   { icon: '☄️', name_en: 'Neon Rocks',        name_tr: 'Neon Rocks',        desc_en: 'Classic asteroids. Destroy, collect, survive.',              desc_tr: 'Klasik asteroit. Parçala, topla, hayatta kal.' },
     'catalyst':    { icon: '💥', name_en: 'Catalyst',          name_tr: 'Catalyst',          desc_en: 'One click. Chain reaction. Detonate them all.',             desc_tr: 'Tek tık. Zincirleme reaksiyon. Hepsini patlat.' },
     'drift':       { icon: '🏎️', name_en: 'Drift',             name_tr: 'Drift',             desc_en: 'Graze past danger. The closer, the higher you score.', desc_tr: 'Tehlikeye yakın geç. Ne kadar yakın, o kadar çok puan.' },
@@ -252,7 +372,6 @@ const syncGamesPage = () => {
     
     if (!exists(gamesDir)) return;
 
-    // Discover all game HTML files
     const gameFiles = fs.readdirSync(gamesDir)
         .filter(f => f.endsWith('.html'))
         .map(f => f.replace('.html', ''))
@@ -260,7 +379,6 @@ const syncGamesPage = () => {
 
     if (gameFiles.length === 0) return;
 
-    // For unknown games, try to extract title from HTML
     gameFiles.forEach(slug => {
         if (!GAME_REGISTRY[slug]) {
             try {
@@ -280,7 +398,6 @@ const syncGamesPage = () => {
         }
     });
 
-    // Build gallery HTML
     const makeGrid = (lang) => {
         const cards = gameFiles.map(slug => {
             const g = GAME_REGISTRY[slug];
@@ -318,6 +435,7 @@ const run = () => {
         syncGamesPage();
         buildStaticPages(layout);
         buildRorschach();
+        buildSitemap(posts);
 
         console.log(`✅ Build complete: ${posts.length} posts processed.`);
     } catch (e) {
