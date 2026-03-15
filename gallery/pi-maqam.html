@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pi'nin Makamı — The Maqam of Pi</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a0f;color:#e0d8cc;font-family:'Courier New',monospace;overflow-x:hidden;min-height:100vh;display:flex;flex-direction:column;align-items:center}
+h1{font-size:clamp(1.4rem,4vw,2.4rem);text-align:center;margin:20px 10px 4px;background:linear-gradient(135deg,#ff6b35,#f7c948,#ff6b35);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;letter-spacing:2px}
+h2{font-size:clamp(0.8rem,2vw,1rem);text-align:center;color:#8a7a6a;margin-bottom:16px;font-weight:300;letter-spacing:1px}
+#main{width:100%;max-width:900px;padding:0 16px;display:flex;flex-direction:column;align-items:center}
+canvas{border:1px solid #1a1a2e;border-radius:12px;background:#06060c;margin:8px 0;max-width:100%;cursor:crosshair}
+.controls{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:center;margin:12px 0;width:100%}
+.btn{background:linear-gradient(135deg,#1a1a2e,#16213e);border:1px solid #ff6b35;color:#ff6b35;padding:10px 28px;border-radius:8px;cursor:pointer;font-family:inherit;font-size:1rem;transition:all .2s;letter-spacing:1px}
+.btn:hover{background:#ff6b35;color:#0a0a0f;box-shadow:0 0 20px rgba(255,107,53,.4)}
+.btn.active{background:#ff6b35;color:#0a0a0f;box-shadow:0 0 15px rgba(255,107,53,.3)}
+.slider-group{display:flex;flex-direction:column;align-items:center;gap:4px}
+.slider-group label{font-size:.75rem;color:#8a7a6a;text-transform:uppercase;letter-spacing:1px}
+input[type=range]{-webkit-appearance:none;width:160px;height:6px;border-radius:3px;background:linear-gradient(90deg,#1a1a2e,#ff6b35);outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:#f7c948;cursor:pointer;box-shadow:0 0 8px rgba(247,201,72,.5)}
+input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:#f7c948;cursor:pointer;border:none}
+.info-panel{display:flex;flex-wrap:wrap;gap:16px;justify-content:center;margin:8px 0;width:100%}
+.info-box{background:#0d0d18;border:1px solid #1a1a2e;border-radius:8px;padding:10px 18px;text-align:center;min-width:100px}
+.info-box .label{font-size:.65rem;color:#6a5a4a;text-transform:uppercase;letter-spacing:2px;margin-bottom:4px}
+.info-box .value{font-size:1.6rem;font-weight:bold;background:linear-gradient(135deg,#ff6b35,#f7c948);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.digit-stream{width:100%;max-width:900px;height:180px;overflow:hidden;position:relative;margin:8px 0;border:1px solid #1a1a2e;border-radius:8px;background:#06060c;font-size:clamp(1rem,2.5vw,1.3rem);line-height:1.8;padding:12px;font-family:'Courier New',monospace}
+.digit-stream .digit{display:inline-block;width:1.1ch;text-align:center;color:#3a3a4a;transition:color .15s,text-shadow .15s}
+.digit-stream .digit.active{color:#ff6b35;text-shadow:0 0 12px rgba(255,107,53,.8)}
+.digit-stream .digit.played{color:#6a5a4a}
+.digit-stream .dot{color:#f7c948;display:inline-block;width:0.6ch}
+.note-map{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin:12px 0;width:100%;max-width:500px}
+.note-map .nm{text-align:center;padding:6px 2px;border-radius:4px;font-size:.7rem;background:#0d0d18;border:1px solid #1a1a2e;transition:all .2s}
+.note-map .nm.highlight{border-color:#ff6b35;box-shadow:0 0 10px rgba(255,107,53,.3)}
+.note-map .nm .nd{font-size:1.1rem;font-weight:bold}
+footer{text-align:center;padding:20px;color:#4a4a5a;font-size:.7rem;margin-top:auto}
+footer a{color:#ff6b35;text-decoration:none}
+@media(max-width:600px){
+canvas{height:280px!important}
+.digit-stream{height:140px;font-size:.9rem}
+.note-map{grid-template-columns:repeat(5,1fr);gap:3px}
+.info-box .value{font-size:1.2rem}
+.btn{padding:8px 20px;font-size:.9rem}
+input[type=range]{width:120px}
+}
+</style>
+</head>
+<body>
+<div id="main">
+<h1>π'nin Makamı — The Maqam of Pi</h1>
+<h2>When Mathematics Sings in Hijaz / Matematik Hicaz'da Şarkı Söylediğinde</h2>
+
+<canvas id="spiral" width="800" height="400"></canvas>
+
+<div class="controls">
+<button class="btn" id="playBtn" onclick="togglePlay()">▶ Play</button>
+<div class="slider-group">
+<label>BPM: <span id="bpmVal">140</span></label>
+<input type="range" id="bpmSlider" min="40" max="400" value="140" oninput="setBpm(this.value)">
+</div>
+<div class="slider-group">
+<label>Volume</label>
+<input type="range" id="volSlider" min="0" max="100" value="60" oninput="setVol(this.value)">
+</div>
+</div>
+
+<div class="info-panel">
+<div class="info-box"><div class="label">Digit / Rakam</div><div class="value" id="curDigit">—</div></div>
+<div class="info-box"><div class="label">Note / Nota</div><div class="value" id="curNote">—</div></div>
+<div class="info-box"><div class="label">Position / Konum</div><div class="value" id="curPos">0</div></div>
+<div class="info-box"><div class="label">Frequency / Frekans</div><div class="value" id="curFreq">—</div></div>
+</div>
+
+<div class="digit-stream" id="digitStream"></div>
+
+<div class="note-map" id="noteMap"></div>
+
+<footer>
+<p>π × Hicaz Makamı — Interactive Sonification</p>
+<p><a href="../articles.html">← Blog</a></p>
+</footer>
+</div>
+
+<script>
+// Pi digits (1200+)
+const PI_STR = "3.14159265358979323846264338327950288419716939937510"+
+"58209749445923078164062862089986280348253421170679"+
+"82148086513282306647093844609550582231725359408128"+
+"48111745028410270193852110555964462294895493038196"+
+"44288109756659334461284756482337867831652712019091"+
+"45648566923460348610454326648213393607260249141273"+
+"72458700660631558817488152092096282925409171536436"+
+"78925903600113305305488204665213841469519415116094"+
+"33057270365759591953092186117381932611793105118548"+
+"07446237996274956735188575272489122793818301194912"+
+"98336733624406566430860213949463952247371907021798"+
+"60943702770539217176293176752384674818467669405132"+
+"00056812714526356082778577134275778960917363717872"+
+"14684409012249534301465495853710507922796892589235"+
+"42019956112129021960864034418159813629774771309960"+
+"51870721134999999837297804995105973173281609631859"+
+"50244594553469083026425223082533446850352619311881"+
+"71010003137838752886587533208381420617177669147303"+
+"59825349042875546873115956286388235378759375195778"+
+"18577805321712268066130019278766111959092164201989"+
+"38095257201065485863278865936153381827968230301952"+
+"03530185296899577362259941389124972177528347913151"+
+"55748572424541506959508295331168617278558890750983"+
+"81754637464939319255060400927701671139009848824012"+
+"85836160356370766010471018194295559619894676783744"+
+"94482553797747268471040475346462080466842590694912";
+
+const PI_DIGITS = PI_STR.replace('.','').split('').map(Number);
+
+// Hijaz maqam frequencies
+// 0→Re4, 1→Mi♭4, 2→Fa#4, 3→Sol4, 4→La4, 5→Si♭4, 6→Do#5, 7→Re5, 8→Mi♭5, 9→Fa#5
+const NOTE_NAMES = ['Re4','Mi♭4','Fa#4','Sol4','La4','Si♭4','Do#5','Re5','Mi♭5','Fa#5'];
+const NOTE_FREQS = [293.66, 311.13, 369.99, 392.00, 440.00, 466.16, 554.37, 587.33, 622.25, 739.99];
+const NOTE_COLORS = [
+  '#e63946','#f4845f','#f7b267','#f7d070','#f7c948',
+  '#e8a838','#ff6b35','#d62828','#c1121f','#ff9f1c'
+];
+
+let audioCtx = null;
+let playing = false;
+let currentIndex = 0;
+let bpm = 140;
+let volume = 0.6;
+let animFrame = null;
+let nextNoteTime = 0;
+let spiralAngle = 0;
+let spiralPoints = [];
+let masterGain = null;
+
+// Canvas setup
+const canvas = document.getElementById('spiral');
+const ctx = canvas.getContext('2d');
+let W, H;
+
+function resizeCanvas() {
+  const rect = canvas.parentElement.getBoundingClientRect();
+  const w = Math.min(rect.width - 32, 900);
+  canvas.width = w;
+  canvas.height = Math.min(400, w * 0.5);
+  W = canvas.width;
+  H = canvas.height;
+}
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
+
+// Build digit stream display
+const streamEl = document.getElementById('digitStream');
+function buildStream() {
+  streamEl.innerHTML = '';
+  // Show "3." then digits
+  const dotSpan = document.createElement('span');
+  dotSpan.className = 'dot';
+  dotSpan.textContent = '3.';
+  streamEl.appendChild(dotSpan);
+  for (let i = 1; i < Math.min(PI_DIGITS.length, 1200); i++) {
+    const sp = document.createElement('span');
+    sp.className = 'digit';
+    sp.dataset.idx = i;
+    sp.textContent = PI_DIGITS[i];
+    streamEl.appendChild(sp);
+  }
+}
+buildStream();
+
+// Build note map
+const noteMapEl = document.getElementById('noteMap');
+NOTE_NAMES.forEach((name, i) => {
+  const d = document.createElement('div');
+  d.className = 'nm';
+  d.id = 'nm' + i;
+  d.innerHTML = `<div class="nd">${i}</div><div>${name}</div>`;
+  noteMapEl.appendChild(d);
+});
+
+// Audio
+function initAudio() {
+  if (audioCtx) return;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  masterGain = audioCtx.createGain();
+  masterGain.gain.value = volume;
+  masterGain.connect(audioCtx.destination);
+}
+
+function playNote(freq, time, dur) {
+  if (!audioCtx) return;
+  const t = time;
+  const d = dur * 0.85;
+
+  // Main sine
+  const osc1 = audioCtx.createOscillator();
+  osc1.type = 'sine';
+  osc1.frequency.value = freq;
+
+  // 2nd harmonic (oud character)
+  const osc2 = audioCtx.createOscillator();
+  osc2.type = 'sine';
+  osc2.frequency.value = freq * 2;
+
+  // 3rd harmonic (saz brightness)
+  const osc3 = audioCtx.createOscillator();
+  osc3.type = 'triangle';
+  osc3.frequency.value = freq * 3;
+
+  // Slight detune for warmth
+  const osc4 = audioCtx.createOscillator();
+  osc4.type = 'sine';
+  osc4.frequency.value = freq * 1.002;
+
+  const g1 = audioCtx.createGain();
+  const g2 = audioCtx.createGain();
+  const g3 = audioCtx.createGain();
+  const g4 = audioCtx.createGain();
+
+  // Envelope - plucked string feel
+  g1.gain.setValueAtTime(0, t);
+  g1.gain.linearRampToValueAtTime(0.35, t + 0.008);
+  g1.gain.exponentialRampToValueAtTime(0.15, t + d * 0.3);
+  g1.gain.exponentialRampToValueAtTime(0.001, t + d);
+
+  g2.gain.setValueAtTime(0, t);
+  g2.gain.linearRampToValueAtTime(0.12, t + 0.005);
+  g2.gain.exponentialRampToValueAtTime(0.001, t + d * 0.6);
+
+  g3.gain.setValueAtTime(0, t);
+  g3.gain.linearRampToValueAtTime(0.04, t + 0.003);
+  g3.gain.exponentialRampToValueAtTime(0.001, t + d * 0.4);
+
+  g4.gain.setValueAtTime(0, t);
+  g4.gain.linearRampToValueAtTime(0.08, t + 0.01);
+  g4.gain.exponentialRampToValueAtTime(0.001, t + d * 0.8);
+
+  osc1.connect(g1); g1.connect(masterGain);
+  osc2.connect(g2); g2.connect(masterGain);
+  osc3.connect(g3); g3.connect(masterGain);
+  osc4.connect(g4); g4.connect(masterGain);
+
+  osc1.start(t); osc1.stop(t + d + 0.05);
+  osc2.start(t); osc2.stop(t + d + 0.05);
+  osc3.start(t); osc3.stop(t + d + 0.05);
+  osc4.start(t); osc4.stop(t + d + 0.05);
+}
+
+function scheduleNotes() {
+  if (!playing || !audioCtx) return;
+  const interval = 60 / bpm;
+  const lookAhead = 0.1;
+
+  while (nextNoteTime < audioCtx.currentTime + lookAhead) {
+    if (currentIndex >= PI_DIGITS.length) {
+      currentIndex = 1; // loop back (skip first "3")
+      spiralPoints = [];
+      spiralAngle = 0;
+    }
+    const digit = PI_DIGITS[currentIndex];
+    const freq = NOTE_FREQS[digit];
+
+    playNote(freq, nextNoteTime, interval);
+
+    // Schedule UI update
+    const idx = currentIndex;
+    const schedTime = nextNoteTime;
+    setTimeout(() => updateUI(idx, digit, freq), Math.max(0, (schedTime - audioCtx.currentTime) * 1000));
+
+    nextNoteTime += interval;
+    currentIndex++;
+  }
+  setTimeout(scheduleNotes, 50);
+}
+
+function updateUI(idx, digit, freq) {
+  document.getElementById('curDigit').textContent = digit;
+  document.getElementById('curNote').textContent = NOTE_NAMES[digit];
+  document.getElementById('curPos').textContent = idx;
+  document.getElementById('curFreq').textContent = freq.toFixed(1) + ' Hz';
+
+  // Highlight digit in stream
+  const allDigits = streamEl.querySelectorAll('.digit');
+  allDigits.forEach(d => {
+    const di = parseInt(d.dataset.idx);
+    if (di === idx) {
+      d.className = 'digit active';
+    } else if (di < idx) {
+      d.className = 'digit played';
+    } else {
+      d.className = 'digit';
+    }
+  });
+
+  // Scroll stream
+  const activeEl = streamEl.querySelector('.digit.active');
+  if (activeEl) {
+    const offset = activeEl.offsetTop - streamEl.offsetTop - 60;
+    streamEl.scrollTop = offset;
+  }
+
+  // Highlight note map
+  document.querySelectorAll('.nm').forEach((el, i) => {
+    el.classList.toggle('highlight', i === digit);
+    if (i === digit) el.style.borderColor = NOTE_COLORS[digit];
+    else el.style.borderColor = '#1a1a2e';
+  });
+
+  // Add spiral point
+  addSpiralPoint(idx, digit);
+}
+
+function addSpiralPoint(idx, digit) {
+  const cx = W / 2;
+  const cy = H / 2;
+  const maxR = Math.min(W, H) * 0.42;
+  const growth = maxR / 200;
+  const step = idx - 1;
+  const angle = step * 0.15;
+  const r = Math.min(growth * step * 0.5, maxR);
+  const x = cx + r * Math.cos(angle);
+  const y = cy + r * Math.sin(angle);
+
+  spiralPoints.push({ x, y, digit, alpha: 1, size: 4 + digit * 0.6 });
+
+  // Limit points
+  if (spiralPoints.length > 500) {
+    spiralPoints = spiralPoints.slice(-500);
+  }
+}
+
+function drawSpiral() {
+  ctx.fillStyle = 'rgba(6,6,12,0.12)';
+  ctx.fillRect(0, 0, W, H);
+
+  // Draw connecting lines
+  for (let i = 1; i < spiralPoints.length; i++) {
+    const p = spiralPoints[i - 1];
+    const q = spiralPoints[i];
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y);
+    ctx.lineTo(q.x, q.y);
+    ctx.strokeStyle = NOTE_COLORS[q.digit] + '40';
+    ctx.lineWidth = 0.8;
+    ctx.stroke();
+  }
+
+  // Draw points
+  spiralPoints.forEach((p, i) => {
+    const isLast = i === spiralPoints.length - 1;
+    const size = isLast ? p.size * 2.5 : p.size * 0.7;
+    const alpha = isLast ? 1 : Math.max(0.15, 1 - (spiralPoints.length - i) / spiralPoints.length);
+
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, size, 0, Math.PI * 2);
+
+    if (isLast) {
+      // Glowing current note
+      const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, size * 2);
+      grad.addColorStop(0, NOTE_COLORS[p.digit]);
+      grad.addColorStop(0.5, NOTE_COLORS[p.digit] + '80');
+      grad.addColorStop(1, 'transparent');
+      ctx.fillStyle = grad;
+      ctx.fill();
+
+      // Outer glow
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, size * 3, 0, Math.PI * 2);
+      const grad2 = ctx.createRadialGradient(p.x, p.y, size, p.x, p.y, size * 3);
+      grad2.addColorStop(0, NOTE_COLORS[p.digit] + '30');
+      grad2.addColorStop(1, 'transparent');
+      ctx.fillStyle = grad2;
+      ctx.fill();
+    } else {
+      ctx.fillStyle = NOTE_COLORS[p.digit] + Math.floor(alpha * 200).toString(16).padStart(2, '0');
+      ctx.fill();
+    }
+  });
+
+  // Center label
+  if (playing && spiralPoints.length > 0) {
+    const last = spiralPoints[spiralPoints.length - 1];
+    ctx.font = 'bold 14px Courier New';
+    ctx.fillStyle = '#e0d8cc';
+    ctx.textAlign = 'center';
+    ctx.fillText(NOTE_NAMES[last.digit], last.x, last.y - 20);
+  }
+
+  animFrame = requestAnimationFrame(drawSpiral);
+}
+
+function togglePlay() {
+  if (playing) {
+    playing = false;
+    document.getElementById('playBtn').textContent = '▶ Play';
+    document.getElementById('playBtn').classList.remove('active');
+  } else {
+    initAudio();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    playing = true;
+    nextNoteTime = audioCtx.currentTime + 0.05;
+    document.getElementById('playBtn').textContent = '⏸ Pause';
+    document.getElementById('playBtn').classList.add('active');
+    scheduleNotes();
+  }
+}
+
+function setBpm(val) {
+  bpm = parseInt(val);
+  document.getElementById('bpmVal').textContent = bpm;
+}
+
+function setVol(val) {
+  volume = val / 100;
+  if (masterGain) masterGain.gain.value = volume;
+}
+
+// Initial draw
+function drawIdle() {
+  ctx.fillStyle = '#06060c';
+  ctx.fillRect(0, 0, W, H);
+
+  // Draw decorative spiral placeholder
+  const cx = W / 2, cy = H / 2;
+  ctx.beginPath();
+  for (let i = 0; i < 600; i++) {
+    const angle = i * 0.08;
+    const r = i * 0.3;
+    const x = cx + r * Math.cos(angle);
+    const y = cy + r * Math.sin(angle);
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.strokeStyle = '#1a1a2e';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // Center text
+  ctx.font = 'bold ' + Math.max(16, W * 0.025) + 'px Courier New';
+  ctx.fillStyle = '#3a3a4a';
+  ctx.textAlign = 'center';
+  ctx.fillText('Press Play to hear π in Hijaz', cx, cy - 10);
+  ctx.font = Math.max(12, W * 0.018) + 'px Courier New';
+  ctx.fillText("π'yi Hicaz'da dinlemek için Play'e basın", cx, cy + 15);
+}
+drawIdle();
+drawSpiral();
+
+// Keyboard shortcut
+document.addEventListener('keydown', e => {
+  if (e.code === 'Space') { e.preventDefault(); togglePlay(); }
+});
+</script>
+</body>
+</html>
