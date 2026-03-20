@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Equinox Code — Light vs Dark</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a0f;color:#e0e0e0;font-family:'Courier New',monospace;display:flex;flex-direction:column;align-items:center;min-height:100vh;overflow-x:hidden}
+h1{margin:20px 0 5px;font-size:1.4em;background:linear-gradient(90deg,#f0c040,#e0e0e0,#4060f0);-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:2px}
+.subtitle{font-size:.75em;color:#666;margin-bottom:15px;letter-spacing:1px}
+canvas{border:1px solid #222;border-radius:4px;image-rendering:pixelated;max-width:95vw}
+.controls{display:flex;gap:12px;margin:15px 0;flex-wrap:wrap;justify-content:center;align-items:center}
+button{background:#1a1a2e;color:#ccc;border:1px solid #333;padding:8px 18px;border-radius:4px;cursor:pointer;font-family:inherit;font-size:.85em;transition:all .2s}
+button:hover{background:#2a2a4e;border-color:#555}
+button.active{background:#2a2a4e;border-color:#f0c040;color:#f0c040}
+.info{display:flex;gap:20px;margin:10px 0;font-size:.8em;flex-wrap:wrap;justify-content:center}
+.info span{padding:4px 10px;border-radius:3px;background:#111}
+.light-count{color:#f0c040}.dark-count{color:#4060f0}.step-count{color:#888}
+.legend{font-size:.7em;color:#555;margin:10px 0 20px;text-align:center;max-width:600px;line-height:1.6}
+</style>
+</head>
+<body>
+<h1>☀ EQUINOX CODE ☾</h1>
+<p class="subtitle">Spring Equinox 2026 — Light vs Dark — Seeded from "ALPER"</p>
+<canvas id="c"></canvas>
+<div class="info">
+<span class="light-count" id="lc">☀ Light: 0</span>
+<span class="dark-count" id="dc">☾ Dark: 0</span>
+<span class="step-count" id="sc">Step: 0 / 180</span>
+</div>
+<div class="controls">
+<button id="playBtn" class="active">▶ Play</button>
+<button id="resetBtn">↺ Reset</button>
+<button id="stepBtn">→ Step</button>
+<button id="saveBtn">💾 Save PNG</button>
+</div>
+<p class="legend">
+Conway's Game of Life with a twist: two forces — ☀ Light (gold) and ☾ Dark (blue) — begin in perfect balance,
+seeded from the pixel map of "ALPER". They compete, consume, and create for exactly 180 steps
+(one for each day until the autumn equinox). Whatever survives is your 2026 spring talisman.
+</p>
+
+<script>
+// --- PIXEL FONT for "ALPER" (5x7 grid per char) ---
+const FONT={
+A:[[0,1,1,1,0],[1,0,0,0,1],[1,0,0,0,1],[1,1,1,1,1],[1,0,0,0,1],[1,0,0,0,1],[1,0,0,0,1]],
+L:[[1,0,0,0,0],[1,0,0,0,0],[1,0,0,0,0],[1,0,0,0,0],[1,0,0,0,0],[1,0,0,0,0],[1,1,1,1,1]],
+P:[[1,1,1,1,0],[1,0,0,0,1],[1,0,0,0,1],[1,1,1,1,0],[1,0,0,0,0],[1,0,0,0,0],[1,0,0,0,0]],
+E:[[1,1,1,1,1],[1,0,0,0,0],[1,0,0,0,0],[1,1,1,1,0],[1,0,0,0,0],[1,0,0,0,0],[1,1,1,1,1]],
+R:[[1,1,1,1,0],[1,0,0,0,1],[1,0,0,0,1],[1,1,1,1,0],[1,0,0,1,0],[1,0,0,0,1],[1,0,0,0,1]]
+};
+
+const W=120,H=80,CELL=6,MAX_STEPS=180;
+const canvas=document.getElementById('c');
+const ctx=canvas.getContext('2d');
+canvas.width=W*CELL;canvas.height=H*CELL;
+
+// 0=dead, 1=light, 2=dark
+let grid=new Uint8Array(W*H);
+let step=0,playing=false,animId=null,speed=90;
+
+function idx(x,y){return y*W+x}
+
+function seedGrid(){
+  grid.fill(0);step=0;
+  const word="ALPER";
+  const charW=5,charH=7,gap=1;
+  const totalW=word.length*charW+(word.length-1)*gap;
+  const ox=Math.floor((W-totalW)/2);
+  const oy=Math.floor((H-charH)/2);
+  // Place ALPER as light cells
+  for(let ci=0;ci<word.length;ci++){
+    const ch=FONT[word[ci]];
+    if(!ch)continue;
+    const sx=ox+ci*(charW+gap);
+    for(let r=0;r<charH;r++){
+      for(let c=0;c<charW;c++){
+        if(ch[r][c]){
+          grid[idx(sx+c,oy+r)]=1;
+        }
+      }
+    }
+  }
+  // Mirror as dark cells (offset below)
+  const oy2=oy+charH+3;
+  for(let ci=0;ci<word.length;ci++){
+    const ch=FONT[word[ci]];
+    if(!ch)continue;
+    const sx=ox+ci*(charW+gap);
+    for(let r=0;r<charH;r++){
+      for(let c=0;c<charW;c++){
+        if(ch[r][c]){
+          grid[idx(sx+c,oy2+r)]=2;
+        }
+      }
+    }
+  }
+  // Scatter random cells for chaos
+  const rng=mulberry32(20260320);
+  for(let i=0;i<300;i++){
+    const x=Math.floor(rng()*W),y=Math.floor(rng()*H);
+    if(grid[idx(x,y)]===0) grid[idx(x,y)]=rng()>.5?1:2;
+  }
+}
+
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);t^=t+Math.imul(t^t>>>7,61|t);return((t^t>>>14)>>>0)/4294967296}}
+
+function countNeighbors(x,y){
+  let light=0,dark=0;
+  for(let dy=-1;dy<=1;dy++){
+    for(let dx=-1;dx<=1;dx++){
+      if(dx===0&&dy===0)continue;
+      const nx=(x+dx+W)%W,ny=(y+dy+H)%H;
+      const v=grid[idx(nx,ny)];
+      if(v===1)light++;
+      else if(v===2)dark++;
+    }
+  }
+  return[light,dark];
+}
+
+function tick(){
+  const next=new Uint8Array(W*H);
+  for(let y=0;y<H;y++){
+    for(let x=0;x<W;x++){
+      const i=idx(x,y);
+      const cell=grid[i];
+      const[ln,dn]=countNeighbors(x,y);
+      const total=ln+dn;
+      if(cell===0){
+        // Birth: exactly 3 neighbors — dominant color wins
+        if(total===3){
+          next[i]=ln>dn?1:dn>ln?2:(Math.random()>.5?1:2);
+        }
+      }else{
+        // Survival: 2 or 3 neighbors of same type keep alive
+        const same=cell===1?ln:dn;
+        const enemy=cell===1?dn:ln;
+        if(same+enemy>=2&&same+enemy<=3){
+          // If enemies outnumber allies, convert
+          if(enemy>same)next[i]=cell===1?2:1;
+          else next[i]=cell;
+        }
+        // else dies (underpopulation/overpopulation)
+      }
+    }
+  }
+  grid=next;
+  step++;
+}
+
+function draw(){
+  ctx.fillStyle='#0a0a0f';
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+  let lc=0,dc=0;
+  for(let y=0;y<H;y++){
+    for(let x=0;x<W;x++){
+      const v=grid[idx(x,y)];
+      if(v===0)continue;
+      if(v===1){
+        // Light: gold gradient based on neighbors
+        const[ln]=countNeighbors(x,y);
+        const b=Math.min(255,180+ln*15);
+        ctx.fillStyle=`rgb(${b},${Math.floor(b*.75)},${Math.floor(b*.25)})`;
+        lc++;
+      }else{
+        const[,dn]=countNeighbors(x,y);
+        const b=Math.min(255,140+dn*20);
+        ctx.fillStyle=`rgb(${Math.floor(b*.25)},${Math.floor(b*.4)},${b})`;
+        dc++;
+      }
+      ctx.fillRect(x*CELL,y*CELL,CELL-1,CELL-1);
+    }
+  }
+  // Glow pass
+  ctx.globalCompositeOperation='screen';
+  ctx.filter='blur(3px)';
+  for(let y=0;y<H;y++){
+    for(let x=0;x<W;x++){
+      const v=grid[idx(x,y)];
+      if(v===0)continue;
+      ctx.fillStyle=v===1?'rgba(240,192,64,.15)':'rgba(64,96,240,.15)';
+      ctx.fillRect(x*CELL-1,y*CELL-1,CELL+2,CELL+2);
+    }
+  }
+  ctx.filter='none';
+  ctx.globalCompositeOperation='source-over';
+
+  document.getElementById('lc').textContent=`☀ Light: ${lc}`;
+  document.getElementById('dc').textContent=`☾ Dark: ${dc}`;
+  document.getElementById('sc').textContent=`Step: ${step} / ${MAX_STEPS}`;
+}
+
+function loop(){
+  if(!playing)return;
+  if(step>=MAX_STEPS){playing=false;document.getElementById('playBtn').textContent='▶ Play';draw();return}
+  tick();draw();
+  animId=setTimeout(loop,speed);
+}
+
+document.getElementById('playBtn').addEventListener('click',()=>{
+  playing=!playing;
+  document.getElementById('playBtn').textContent=playing?'⏸ Pause':'▶ Play';
+  document.getElementById('playBtn').classList.toggle('active',playing);
+  if(playing)loop();
+});
+document.getElementById('resetBtn').addEventListener('click',()=>{
+  playing=false;document.getElementById('playBtn').textContent='▶ Play';
+  seedGrid();draw();
+});
+document.getElementById('stepBtn').addEventListener('click',()=>{
+  if(step<MAX_STEPS){tick();draw()}
+});
+document.getElementById('saveBtn').addEventListener('click',()=>{
+  const a=document.createElement('a');
+  a.download=`equinox-step-${step}.png`;
+  a.href=canvas.toDataURL('image/png');
+  a.click();
+});
+
+seedGrid();draw();
+</script>
+</body>
+</html>
