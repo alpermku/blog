@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>CyberSpin</title>
+<style>
+    body {
+        margin: 0;
+        padding: 0;
+        background-color: #0a0a0a;
+        color: #fff;
+        font-family: 'Courier New', Courier, monospace;
+        overflow: hidden;
+        touch-action: none;
+    }
+    canvas {
+        display: block;
+        width: 100vw;
+        height: 100vh;
+    }
+    #ui {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+    }
+    .header {
+        padding: 20px;
+        display: flex;
+        justify-content: space-between;
+        font-size: 24px;
+        text-shadow: 0 0 10px #fff;
+    }
+    .center-msg {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        text-align: center;
+    }
+    h1 {
+        font-size: 48px;
+        margin: 0;
+        text-shadow: 0 0 20px #0ff;
+        color: #0ff;
+    }
+    p {
+        font-size: 18px;
+        color: #ccc;
+    }
+    .hidden {
+        display: none !important;
+    }
+    .score-popup {
+        position: absolute;
+        color: #ff0;
+        font-size: 20px;
+        font-weight: bold;
+        pointer-events: none;
+        animation: floatUp 1s ease-out forwards;
+        text-shadow: 0 0 10px #ff0;
+    }
+    @keyframes floatUp {
+        0% { transform: translateY(0) scale(1); opacity: 1; }
+        100% { transform: translateY(-50px) scale(1.5); opacity: 0; }
+    }
+</style>
+</head>
+<body>
+    <canvas id="gameCanvas"></canvas>
+    <div id="ui">
+        <div class="header">
+            <div id="scoreDisplay">Score: 0</div>
+            <div id="highScoreDisplay">Best: 0</div>
+        </div>
+        <div id="startScreen" class="center-msg">
+            <h1>CyberSpin</h1>
+            <p>Tap to switch direction</p>
+            <p>Dodge RED, Collect YELLOW</p>
+        </div>
+        <div id="gameOverScreen" class="center-msg hidden">
+            <h1 style="color:#f00; text-shadow: 0 0 20px #f00;">SYSTEM FAILURE</h1>
+            <p id="finalScore">Score: 0</p>
+            <p>Tap to Reboot</p>
+        </div>
+    </div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const scoreDisplay = document.getElementById('scoreDisplay');
+    const highScoreDisplay = document.getElementById('highScoreDisplay');
+    const startScreen = document.getElementById('startScreen');
+    const gameOverScreen = document.getElementById('gameOverScreen');
+    const finalScore = document.getElementById('finalScore');
+
+    let width, height, cx, cy;
+    let score = 0;
+    let highScore = localStorage.getItem('cyberspin_highscore') || 0;
+    highScoreDisplay.textContent = 'Best: ' + highScore;
+    
+    let state = 'start'; // start, playing, gameover
+    let frame = 0;
+    
+    // Game vars
+    let orbitRadius = 100;
+    let angle = 0;
+    let speed = 0.05;
+    let direction = 1; // 1 or -1
+    
+    let player = {
+        radius: 8,
+        color: '#0ff'
+    };
+    
+    let entities = [];
+    let particles = [];
+    
+    let shakeTime = 0;
+
+    function resize() {
+        width = canvas.width = window.innerWidth;
+        height = canvas.height = window.innerHeight;
+        cx = width / 2;
+        cy = height / 2;
+        orbitRadius = Math.min(width, height) * 0.25;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    // Input
+    window.addEventListener('pointerdown', () => {
+        if (state === 'start') {
+            startGame();
+        } else if (state === 'playing') {
+            direction *= -1; // switch
+            createRipple();
+        } else if (state === 'gameover') {
+            if (frame > 30) state = 'start';
+        }
+    });
+
+    function startGame() {
+        state = 'playing';
+        score = 0;
+        speed = 0.05;
+        entities = [];
+        particles = [];
+        startScreen.classList.add('hidden');
+        gameOverScreen.classList.add('hidden');
+        updateScore();
+    }
+
+    function gameOver() {
+        state = 'gameover';
+        frame = 0;
+        shakeTime = 20;
+        createExplosion(getPlayerPos().x, getPlayerPos().y, '#f00', 50);
+        gameOverScreen.classList.remove('hidden');
+        finalScore.textContent = 'Score: ' + score;
+        if (score > highScore) {
+            highScore = score;
+            localStorage.setItem('cyberspin_highscore', highScore);
+            highScoreDisplay.textContent = 'Best: ' + highScore;
+        }
+    }
+
+    function spawnEntity() {
+        const type = Math.random() > 0.3 ? 'enemy' : 'star';
+        const spawnAngle = Math.random() * Math.PI * 2;
+        const dist = Math.max(width, height);
+        entities.push({
+            type: type,
+            x: cx + Math.cos(spawnAngle) * dist,
+            y: cy + Math.sin(spawnAngle) * dist,
+            angle: spawnAngle,
+            distance: dist,
+            speed: 2 + Math.random() * 2 + (score * 0.05),
+            radius: type === 'enemy' ? 10 : 8,
+            color: type === 'enemy' ? '#f00' : '#ff0'
+        });
+    }
+
+    function createExplosion(x, y, color, count) {
+        for (let i = 0; i < count; i++) {
+            particles.push({
+                x: x,
+                y: y,
+                vx: (Math.random() - 0.5) * 10,
+                vy: (Math.random() - 0.5) * 10,
+                life: 1,
+                decay: 0.02 + Math.random() * 0.03,
+                color: color,
+                size: Math.random() * 4 + 1
+            });
+        }
+    }
+
+    function createRipple() {
+        particles.push({
+            x: cx, y: cy,
+            type: 'ripple',
+            radius: orbitRadius,
+            life: 1,
+            decay: 0.05,
+            color: '#0ff'
+        });
+    }
+
+    function showPopup(text, x, y) {
+        const p = document.createElement('div');
+        p.className = 'score-popup';
+        p.textContent = text;
+        p.style.left = x + 'px';
+        p.style.top = y + 'px';
+        document.body.appendChild(p);
+        setTimeout(() => p.remove(), 1000);
+    }
+
+    function updateScore() {
+        scoreDisplay.textContent = 'Score: ' + score;
+        speed = 0.05 + (score * 0.001);
+    }
+
+    function getPlayerPos() {
+        return {
+            x: cx + Math.cos(angle) * orbitRadius,
+            y: cy + Math.sin(angle) * orbitRadius
+        };
+    }
+
+    function update() {
+        if (state === 'playing') {
+            angle += speed * direction;
+            
+            // Spawn
+            if (Math.random() < 0.03 + (score * 0.001)) {
+                spawnEntity();
+            }
+
+            let px = getPlayerPos().x;
+            let py = getPlayerPos().y;
+
+            // Entities
+            for (let i = entities.length - 1; i >= 0; i--) {
+                let e = entities[i];
+                e.distance -= e.speed;
+                e.x = cx + Math.cos(e.angle) * e.distance;
+                e.y = cy + Math.sin(e.angle) * e.distance;
+
+                // Collision
+                let dx = e.x - px;
+                let dy = e.y - py;
+                let dist = Math.sqrt(dx*dx + dy*dy);
+
+                if (dist < e.radius + player.radius) {
+                    if (e.type === 'enemy') {
+                        gameOver();
+                    } else {
+                        score++;
+                        updateScore();
+                        createExplosion(e.x, e.y, '#ff0', 10);
+                        showPopup('+1', e.x, e.y);
+                    }
+                    entities.splice(i, 1);
+                    continue;
+                }
+
+                // Remove out of bounds
+                if (e.distance < 10) {
+                    entities.splice(i, 1);
+                }
+            }
+        }
+
+        // Particles
+        for (let i = particles.length - 1; i >= 0; i--) {
+            let p = particles[i];
+            p.life -= p.decay;
+            if (p.life <= 0) {
+                particles.splice(i, 1);
+                continue;
+            }
+            if (p.type !== 'ripple') {
+                p.x += p.vx;
+                p.y += p.vy;
+            } else {
+                p.radius += 5;
+            }
+        }
+
+        if (shakeTime > 0) shakeTime--;
+        frame++;
+    }
+
+    function draw() {
+        ctx.fillStyle = 'rgba(10, 10, 10, 0.3)'; // Trails
+        ctx.fillRect(0, 0, width, height);
+
+        ctx.save();
+        if (shakeTime > 0) {
+            let sx = (Math.random() - 0.5) * 10;
+            let sy = (Math.random() - 0.5) * 10;
+            ctx.translate(sx, sy);
+        }
+
+        // Draw Orbit
+        ctx.beginPath();
+        ctx.arc(cx, cy, orbitRadius, 0, Math.PI * 2);
+        ctx.strokeStyle = '#333';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // Draw Player
+        if (state !== 'gameover') {
+            let p = getPlayerPos();
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, player.radius, 0, Math.PI * 2);
+            ctx.fillStyle = player.color;
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = player.color;
+            ctx.fill();
+            ctx.shadowBlur = 0;
+        }
+
+        // Draw Entities
+        for (let e of entities) {
+            ctx.beginPath();
+            ctx.arc(e.x, e.y, e.radius, 0, Math.PI * 2);
+            ctx.fillStyle = e.color;
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = e.color;
+            ctx.fill();
+            ctx.shadowBlur = 0;
+        }
+
+        // Draw Particles
+        for (let p of particles) {
+            if (p.type === 'ripple') {
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                ctx.strokeStyle = `rgba(0, 255, 255, ${p.life})`;
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            } else {
+                ctx.globalAlpha = p.life;
+                ctx.fillStyle = p.color;
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.globalAlpha = 1;
+                ctx.shadowBlur = 0;
+            }
+        }
+
+        ctx.restore();
+    }
+
+    function loop() {
+        update();
+        draw();
+        requestAnimationFrame(loop);
+    }
+    loop();
+</script>
+</body>
+</html>
