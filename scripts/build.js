@@ -230,7 +230,9 @@ const buildLists = (posts, layout, category, outputFilename, title) => {
         activeNav: category,
         rootPath: '.',
         description: categoryDescriptions[category] || CONFIG.site.defaultDescription,
-        canonicalUrl: `${CONFIG.site.baseUrl}/${outputFilename}`,
+        canonicalUrl: outputFilename === 'index.html'
+            ? `${CONFIG.site.baseUrl}/`
+            : `${CONFIG.site.baseUrl}/${outputFilename}`,
     });
 
     writeFile(path.join(CONFIG.dirs.output, outputFilename), html);
@@ -311,7 +313,7 @@ const buildSitemap = (posts) => {
 
     // Main pages
     const mainPages = [
-        { loc: 'index.html', priority: '1.0', changefreq: 'daily' },
+        { loc: '', priority: '1.0', changefreq: 'daily' },
         { loc: 'articles.html', priority: '0.9', changefreq: 'daily' },
         { loc: 'radar.html', priority: '0.9', changefreq: 'daily' },
         { loc: 'gallery.html', priority: '0.8', changefreq: 'weekly' },
@@ -319,7 +321,8 @@ const buildSitemap = (posts) => {
         { loc: 'about.html', priority: '0.7', changefreq: 'monthly' },
     ];
     mainPages.forEach(p => {
-        urls.push(`  <url><loc>${CONFIG.site.baseUrl}/${p.loc}</loc><lastmod>${today}</lastmod><changefreq>${p.changefreq}</changefreq><priority>${p.priority}</priority></url>`);
+        const loc = p.loc ? `${CONFIG.site.baseUrl}/${p.loc}` : `${CONFIG.site.baseUrl}/`;
+        urls.push(`  <url><loc>${loc}</loc><lastmod>${today}</lastmod><changefreq>${p.changefreq}</changefreq><priority>${p.priority}</priority></url>`);
     });
 
     // Posts
